@@ -8,15 +8,16 @@
     "seed:categories": "node seed/categoriesSeed.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "mongoose": "^7.0.0",
-    "dotenv": "^16.0.0",
-    "cors": "^2.8.5",
-    "morgan": "^1.10.0",
     "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2",
+    "express-async-handler": "^1.2.0",
     "jsonwebtoken": "^9.0.0",
-    "nodemailer": "^6.9.1",
-    "validator": "^13.9.0",
-    "express-async-handler": "^1.2.0"
+    "mongoose": "^7.0.0",
+    "morgan": "^1.10.0",
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.12",
+    "validator": "^13.9.0"
   }
 }
