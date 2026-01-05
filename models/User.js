@@ -31,14 +31,20 @@ const userSchema = new mongoose.Schema({
     required: true,
   },
 
-  // 🔑 EXISTING ROLE SYSTEM (KEEP)
+  // 🔑 ROLE SYSTEM
   role: {
     type: String,
     enum: ["user", "seller", "admin"],
     default: "user",
   },
 
-  // ✅ NEW BOOLEAN (FOR UI JOIN AS SELLER)
+  // ✅ SELLER VERIFICATION (ADMIN CONTROL)
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+
+  // ✅ UI FLAG (JOIN AS SELLER)
   joinAsSeller: {
     type: Boolean,
     default: false,

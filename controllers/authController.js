@@ -45,16 +45,27 @@ const registerUser = asyncHandler(async (req, res) => {
     role,
   });
 
+  // 🔹 Base response
+  const responseData = {
+    _id: user._id,
+    name: `${user.firstName} ${user.lastName}`,
+    email: user.email,
+    role: user.role,
+    token: generateToken({ id: user._id, role: user.role }),
+  };
+
+  // ✅ Add verified ONLY for seller
+  if (user.role === "seller") {
+    responseData.verified = user.isVerified;
+  }
+
   res.status(201).json({
     success: true,
-    message: "User registered successfully",
-    data: {
-      _id: user._id,
-      name: `${user.firstName} ${user.lastName}`,
-      email: user.email,
-      role: user.role,
-      token: generateToken({ id: user._id, role: user.role }),
-    },
+    message:
+      user.role === "seller"
+        ? "Seller registered successfully. Awaiting admin approval."
+        : "User registered successfully",
+    data: responseData,
   });
 });
 
@@ -81,19 +92,27 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new Error("Invalid email or password");
   }
 
-  res.json({
+  // 🔹 Base response
+  const responseData = {
+    _id: user._id,
+    name: `${user.firstName} ${user.lastName}`,
+    email: user.email,
+    role: user.role,
+    token: generateToken({ id: user._id, role: user.role }),
+  };
+
+  // ✅ Add verified ONLY for seller
+  if (user.role === "seller") {
+    responseData.verified = user.isVerified;
+  }
+
+  res.status(200).json({
     success: true,
     message:
-      user.joinAsSeller === true
+      user.role === "seller"
         ? "Seller account logged in successfully"
         : "User account logged in successfully",
-    data: {
-      _id: user._id,
-      name: `${user.firstName} ${user.lastName}`,
-      email: user.email,
-      role: user.role,
-      token: generateToken({ id: user._id, role: user.role }),
-    },
+    data: responseData,
   });
 });
 
