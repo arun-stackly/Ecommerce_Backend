@@ -7,6 +7,7 @@ const connectDB = require("./config/db");
 // routes
 const authRoutes = require("./routes/auth");
 const businessInfoRoutes = require("./routes/businessInfoRoutes");
+const pincodeRoutes = require("./routes/pincodeRoutes");
 const kycRoutes = require("./routes/kycRoutes");
 const bankRoutes = require("./routes/bankRoutes");
 const passwordRoutes = require("./routes/password");
@@ -33,6 +34,7 @@ app.use(morgan("dev"));
 // mount routes
 app.use("/api/auth", authRoutes);
 app.use("/api/seller/business-info", businessInfoRoutes);
+app.use("/api/pincode", pincodeRoutes);
 app.use("/api/seller/kyc", kycRoutes);
 app.use("/api/seller/bank", bankRoutes);
 app.use("/api/auth/password", passwordRoutes);
