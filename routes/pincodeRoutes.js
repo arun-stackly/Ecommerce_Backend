@@ -1,6 +1,7 @@
-const router = require("express").Router();
-const { getCityState } = require("../controllers/pincodeController");
+const express = require("express");
+const router = express.Router();
+const { lookupPincode } = require("../controllers/pincodeController");
 
-router.post("/lookup", getCityState);
+router.post("/lookup", lookupPincode);
 
 module.exports = router;
