@@ -39,6 +39,15 @@ app.use("/api/seller/kyc", kycRoutes);
 app.use("/api/seller/bank", bankRoutes);
 app.use("/api/auth/password", passwordRoutes);
 
+app.use("/api/seller/dashboard", require("./routes/dashboardRoutes"));
+app.use("/api/seller/orders", require("./routes/orderRoutes"));
+app.use("/api/seller/payments", require("./routes/paymentRoutes"));
+app.use("/api/seller/invoices", require("./routes/invoiceRoutes"));
+app.use("/api/seller/reports", require("./routes/reportRoutes"));
+app.use("/api/seller/ads", require("./routes/adRoutes"));
+app.use("/api/seller/refunds", require("./routes/refundRoutes"));
+app.use("/api/seller/inventory", require("./routes/sellerInventoryRoutes"));
+
 app.use("/api/products", productRoutes);
 app.use("/api/products", productFilterRoutes);
 app.use("/api/products", productDetailRoutes);
@@ -52,7 +61,7 @@ app.use("/api/subcategories", subcategoriesRoutes);
 app.use("/api/subsubcategories", subsubRoutes);
 
 app.get("/", (req, res) =>
-  res.json({ status: "ok", message: "Merged Ecommerce Backend" })
+  res.json({ status: "ok", message: "Merged Ecommerce Backend" }),
 );
 
 const PORT = process.env.PORT || 5000;

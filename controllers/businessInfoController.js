@@ -3,23 +3,19 @@ const axios = require("axios");
 const BusinessInfo = require("../models/BusinessInfo");
 const Pincode = require("../models/Pincode");
 
-/* ================= ADD BUSINESS INFO ================= */
-exports.addBusinessInfo = asyncHandler(async (req, res) => {
-  const alreadyExists = await BusinessInfo.findOne({
-    seller: req.user._id,
-  });
-
-  if (alreadyExists) {
+/* ================= CREATE BUSINESS INFO ================= */
+exports.createBusinessInfo = asyncHandler(async (req, res) => {
+  const exists = await BusinessInfo.findOne({ seller: req.user._id });
+  if (exists) {
     return res.status(400).json({
       success: false,
-      message: "Business information already added",
+      message: "Business information already exists",
     });
   }
 
   let { postalCode } = req.body;
   let city, state;
 
-  /* ===== POSTAL CODE VALIDATION ===== */
   if (!postalCode) {
     return res.status(400).json({
       success: false,
@@ -36,20 +32,17 @@ exports.addBusinessInfo = asyncHandler(async (req, res) => {
     });
   }
 
-  /* ===== PINCODE CACHE CHECK ===== */
-  let record = await Pincode.findOne({ pincode: postalCode });
+  const cached = await Pincode.findOne({ pincode: postalCode });
 
-  if (record) {
-    city = record.city;
-    state = record.state;
+  if (cached) {
+    city = cached.city;
+    state = cached.state;
   } else {
-    /* ===== INDIA POST API ===== */
     const response = await axios.get(
-      `https://api.postalpincode.in/pincode/${postalCode}`
+      `https://api.postalpincode.in/pincode/${postalCode}`,
     );
 
     const data = response.data?.[0];
-
     if (!data || data.Status !== "Success") {
       return res.status(404).json({
         success: false,
@@ -57,42 +50,30 @@ exports.addBusinessInfo = asyncHandler(async (req, res) => {
       });
     }
 
-    const postOffice = data.PostOffice[0];
+    city = data.PostOffice[0].District;
+    state = data.PostOffice[0].State;
 
-    city = postOffice.District;
-    state = postOffice.State;
-
-    /* ===== SAVE PINCODE CACHE ===== */
-    await Pincode.create({
-      pincode: postalCode,
-      city,
-      state,
-    });
+    await Pincode.create({ pincode: postalCode, city, state });
   }
 
-  /* ===== SAVE BUSINESS INFO ===== */
   const businessInfo = await BusinessInfo.create({
     seller: req.user._id,
     ...req.body,
     postalCode,
     city,
     state,
+    isCompleted: true,
   });
 
   res.status(201).json({
     success: true,
-    message: "Business information saved successfully",
+    message: "Business information created successfully",
     data: businessInfo,
   });
 });
 
-/* ================= GET BUSINESS INFO ================= */
+/* ================= READ BUSINESS INFO ================= */
 exports.getBusinessInfo = asyncHandler(async (req, res) => {
-  if (req.user.role !== "seller") {
-    res.status(403);
-    throw new Error("Access denied. Seller only.");
-  }
-
   const businessInfo = await BusinessInfo.findOne({
     seller: req.user._id,
   });
@@ -100,12 +81,100 @@ exports.getBusinessInfo = asyncHandler(async (req, res) => {
   if (!businessInfo) {
     return res.status(404).json({
       success: false,
-      message: "Business information not added yet",
+      message: "Business information not found",
     });
   }
 
   res.status(200).json({
     success: true,
     data: businessInfo,
+  });
+});
+
+/* ================= UPDATE BUSINESS INFO ================= */
+exports.updateBusinessInfo = asyncHandler(async (req, res) => {
+  const businessInfo = await BusinessInfo.findOne({
+    seller: req.user._id,
+  });
+
+  if (!businessInfo) {
+    return res.status(404).json({
+      success: false,
+      message: "Business information not found",
+    });
+  }
+
+  let updateData = { ...req.body };
+
+  if (req.body.postalCode) {
+    let postalCode = String(req.body.postalCode);
+
+    if (!/^[1-9][0-9]{5}$/.test(postalCode)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Indian PIN code",
+      });
+    }
+
+    let record = await Pincode.findOne({ pincode: postalCode });
+
+    let city, state;
+
+    if (record) {
+      city = record.city;
+      state = record.state;
+    } else {
+      const response = await axios.get(
+        `https://api.postalpincode.in/pincode/${postalCode}`,
+      );
+
+      const data = response.data?.[0];
+      if (!data || data.Status !== "Success") {
+        return res.status(404).json({
+          success: false,
+          message: "Invalid postal code",
+        });
+      }
+
+      city = data.PostOffice[0].District;
+      state = data.PostOffice[0].State;
+
+      await Pincode.create({ pincode: postalCode, city, state });
+    }
+
+    updateData.postalCode = postalCode;
+    updateData.city = city;
+    updateData.state = state;
+  }
+
+  const updatedBusinessInfo = await BusinessInfo.findOneAndUpdate(
+    { seller: req.user._id },
+    updateData,
+    { new: true, runValidators: true },
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Business information updated successfully",
+    data: updatedBusinessInfo,
+  });
+});
+
+/* ================= DELETE BUSINESS INFO ================= */
+exports.deleteBusinessInfo = asyncHandler(async (req, res) => {
+  const deleted = await BusinessInfo.findOneAndDelete({
+    seller: req.user._id,
+  });
+
+  if (!deleted) {
+    return res.status(404).json({
+      success: false,
+      message: "Business information not found",
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Business information deleted successfully",
   });
 });
