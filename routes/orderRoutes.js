@@ -12,5 +12,4 @@ router.post("/", c.createOrder);
 router.get("/", c.getOrders);
 router.get("/:id", c.getOrderById);
 router.patch("/:id/status", c.updateOrderStatus);
-
 module.exports = router;

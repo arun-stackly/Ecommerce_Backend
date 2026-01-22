@@ -3,7 +3,7 @@ const Refund = require("../models/Refund");
 /* ================= CREATE REFUND ================= */
 exports.createRefund = async (req, res) => {
   const refund = await Refund.create({
-    sellerId: req.user._id, // ✅ correct
+    sellerId: req.user._id,
     orderId: req.body.orderId,
     amount: req.body.amount,
     reason: req.body.reason,
@@ -12,11 +12,87 @@ exports.createRefund = async (req, res) => {
   res.status(201).json(refund);
 };
 
-/* ================= GET SELLER REFUNDS ================= */
+/* ================= GET SELLER REFUNDS (REFUNDS PAGE) ================= */
 exports.getRefunds = async (req, res) => {
-  const refunds = await Refund.find({
-    sellerId: req.user._id, // ✅ correct
-  }).sort({ createdAt: -1 });
+  try {
+    const refunds = await Refund.find({
+      sellerId: req.user._id,
+    })
+      .populate({
+        path: "orderId",
+        select: "orderId createdAt status totalAmount inventorySnapshot",
+      })
+      .sort({ createdAt: -1 });
 
-  res.json(refunds);
+    const formattedRefunds = refunds.map((r) => ({
+      refundId: r._id,
+
+      orderId: r.orderId.orderId,
+      orderDate: r.orderId.createdAt,
+      orderStatus: r.orderId.status,
+
+      product: {
+        name: r.orderId.inventorySnapshot.name,
+        image: r.orderId.inventorySnapshot.image,
+      },
+
+      price: r.amount,
+      refundStatus: r.status,
+      reason: r.reason,
+    }));
+
+    res.json(formattedRefunds);
+  } catch (error) {
+    console.error("Get Refunds Error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.refundSummary = async (req, res) => {
+  try {
+    const sellerId = req.user._id;
+
+    const [
+      openRefunds,
+      newRefunds,
+      totalRefunds,
+      approvedRefunds,
+      rejectedRefunds,
+      totalRefundAmount,
+    ] = await Promise.all([
+      Refund.countDocuments({ sellerId, status: "pending" }),
+
+      Refund.countDocuments({
+        sellerId,
+        status: "pending",
+        createdAt: {
+          $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        },
+      }),
+
+      Refund.countDocuments({ sellerId }),
+      Refund.countDocuments({ sellerId, status: "approved" }),
+      Refund.countDocuments({ sellerId, status: "rejected" }),
+
+      Refund.aggregate([
+        { $match: { sellerId } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]),
+    ]);
+
+    res.json({
+      success: true,
+      openRefunds,
+      newRefunds,
+      totalRefunds,
+      approvedRefunds,
+      rejectedRefunds,
+      totalRefundAmount: totalRefundAmount[0]?.total || 0,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };

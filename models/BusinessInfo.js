@@ -9,8 +9,17 @@ const businessInfoSchema = new mongoose.Schema(
       unique: true,
     },
 
-    businessPersonName: { type: String, required: true },
-    businessName: { type: String, required: true },
+    businessPersonName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    businessName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
     contactNumber: {
       type: String,
@@ -30,15 +39,33 @@ const businessInfoSchema = new mongoose.Schema(
       required: true,
     },
 
-    businessTaxId: { type: String, required: true },
+    // GST / PAN / Business Tax ID
+    businessTaxId: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
+    // ✅ NEW: Business Registration Number
+    businessRegistrationNumber: {
+      type: String,
+      required: true,
+      unique: true,
+      match: [/^[A-Z]{2}\d{12}$/, "Invalid registration number format"],
+      // Example: XY220150403095
+    },
+
+    // Address
     addressLine1: { type: String, required: true },
     addressLine2: { type: String },
 
     city: { type: String, required: true },
     state: { type: String, required: true },
 
-    country: { type: String, default: "India" },
+    country: {
+      type: String,
+      default: "India",
+    },
 
     postalCode: {
       type: String,
@@ -46,9 +73,31 @@ const businessInfoSchema = new mongoose.Schema(
       match: [/^[1-9][0-9]{5}$/, "Invalid Indian PIN code"],
     },
 
-    isCompleted: { type: Boolean, default: true },
+    // ✅ NEW: Language
+    languages: {
+      type: [String],
+      enum: ["Hindi", "English"],
+      default: ["English"],
+    },
+
+    // ✅ NEW: Time Zone
+    timeZone: {
+      type: String,
+      default: "GMT+5:30 (New Delhi)",
+    },
+
+    // ✅ NEW: Nationality
+    nationality: {
+      type: String,
+      default: "Indian",
+    },
+
+    isCompleted: {
+      type: Boolean,
+      default: true,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("BusinessInfo", businessInfoSchema);

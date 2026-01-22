@@ -1,4 +1,6 @@
+const mongoose = require("mongoose");
 const SellerInventory = require("../models/SellerInventory");
+const Order = require("../models/Order");
 
 // Add inventory item
 exports.createInventoryItem = async (req, res) => {
@@ -10,13 +12,68 @@ exports.createInventoryItem = async (req, res) => {
   res.status(201).json(inventoryItem);
 };
 
-// Get seller inventory
+// ✅ Get seller inventory (WITH unitsSold for UI)
 exports.getInventory = async (req, res) => {
-  const inventory = await SellerInventory.find({
-    seller: req.user._id,
-  }).sort({ createdAt: -1 });
+  try {
+    const sellerId = req.user._id;
 
-  res.json(inventory);
+    const inventory = await SellerInventory.aggregate([
+      {
+        $match: {
+          seller: new mongoose.Types.ObjectId(sellerId),
+        },
+      },
+      {
+        $lookup: {
+          from: "orders",
+          let: { productId: "$_id" },
+          pipeline: [
+            { $unwind: "$items" },
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$items.productId", "$$productId"],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalSold: { $sum: "$items.quantity" },
+              },
+            },
+          ],
+          as: "sales",
+        },
+      },
+      {
+        $addFields: {
+          unitsSold: {
+            $ifNull: [{ $arrayElemAt: ["$sales.totalSold", 0] }, 0],
+          },
+        },
+      },
+      {
+        $project: {
+          name: 1,
+          images: 1,
+          price: 1,
+          stock: 1,
+          isActive: 1,
+          unitsSold: 1,
+          createdAt: 1,
+        },
+      },
+      { $sort: { createdAt: -1 } },
+    ]);
+
+    res.json({
+      success: true,
+      inventory,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 // Update inventory item

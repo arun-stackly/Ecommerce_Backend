@@ -10,4 +10,5 @@ router.use(sellerOnly);
 
 router.post("/", c.createRefund);
 router.get("/", c.getRefunds);
+router.get("/summary", c.refundSummary);
 module.exports = router;
