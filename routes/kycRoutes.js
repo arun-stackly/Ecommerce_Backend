@@ -3,17 +3,20 @@ const router = express.Router();
 
 const upload = require("../middleware/kycUpload");
 const { uploadKyc } = require("../controllers/kycController");
-const { protectAsync } = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
+const { sellerOnly } = require("../middleware/roleMiddleware");
 
+// POST /api/seller/kyc/upload
 router.post(
   "/upload",
-  protectAsync,
+  protect,
+  sellerOnly,
   upload.fields([
     { name: "idProof", maxCount: 1 },
     { name: "businessProof", maxCount: 1 },
     { name: "additionalDocument", maxCount: 1 },
   ]),
-  uploadKyc
+  uploadKyc,
 );
 
 module.exports = router;

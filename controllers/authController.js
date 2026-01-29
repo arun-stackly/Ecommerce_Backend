@@ -2,17 +2,10 @@ const asyncHandler = require("express-async-handler");
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
 
-/* ================= REGISTER ================= */
+/* ================= SELLER REGISTER ================= */
 const registerUser = asyncHandler(async (req, res) => {
-  const {
-    firstName,
-    lastName,
-    username,
-    email,
-    password,
-    confirmPassword,
-    joinAsSeller,
-  } = req.body;
+  const { firstName, lastName, username, email, password, confirmPassword } =
+    req.body;
 
   if (!firstName || !lastName || !username || !email || !password) {
     res.status(400);
@@ -30,46 +23,36 @@ const registerUser = asyncHandler(async (req, res) => {
 
   if (exists) {
     res.status(400);
-    throw new Error("User already exists with this email or username");
+    throw new Error("Seller already exists with this email or username");
   }
 
-  const role = joinAsSeller ? "seller" : "user";
-
+  // 🔒 FORCE SELLER
   const user = await User.create({
     firstName,
     lastName,
     username,
     email,
     password,
-    joinAsSeller,
-    role,
+    role: "seller",
+    joinAsSeller: true,
+    isVerified: false,
   });
-
-  // 🔹 Base response
-  const responseData = {
-    _id: user._id,
-    name: `${user.firstName} ${user.lastName}`,
-    email: user.email,
-    role: user.role,
-    token: generateToken({ id: user._id, role: user.role }),
-  };
-
-  // ✅ Add verified ONLY for seller
-  if (user.role === "seller") {
-    responseData.verified = user.isVerified;
-  }
 
   res.status(201).json({
     success: true,
-    message:
-      user.role === "seller"
-        ? "Seller registered successfully. Awaiting admin approval."
-        : "User registered successfully",
-    data: responseData,
+    message: "Seller registered successfully. Awaiting admin approval.",
+    data: {
+      _id: user._id,
+      name: `${user.firstName} ${user.lastName}`,
+      email: user.email,
+      role: user.role,
+      verified: user.isVerified,
+      token: generateToken({ id: user._id, role: user.role }),
+    },
   });
 });
 
-/* ================= LOGIN ================= */
+/* ================= SELLER LOGIN ================= */
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
@@ -80,9 +63,10 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ email });
 
-  if (!user) {
+  // 🚫 BLOCK NON-SELLERS
+  if (!user || user.role !== "seller") {
     res.status(401);
-    throw new Error("Invalid email or password");
+    throw new Error("Seller account not found");
   }
 
   const isMatch = await user.matchPassword(password);
@@ -92,27 +76,17 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new Error("Invalid email or password");
   }
 
-  // 🔹 Base response
-  const responseData = {
-    _id: user._id,
-    name: `${user.firstName} ${user.lastName}`,
-    email: user.email,
-    role: user.role,
-    token: generateToken({ id: user._id, role: user.role }),
-  };
-
-  // ✅ Add verified ONLY for seller
-  if (user.role === "seller") {
-    responseData.verified = user.isVerified;
-  }
-
   res.status(200).json({
     success: true,
-    message:
-      user.role === "seller"
-        ? "Seller account logged in successfully"
-        : "User account logged in successfully",
-    data: responseData,
+    message: "Seller logged in successfully",
+    data: {
+      _id: user._id,
+      name: `${user.firstName} ${user.lastName}`,
+      email: user.email,
+      role: user.role,
+      verified: user.isVerified,
+      token: generateToken({ id: user._id, role: user.role }),
+    },
   });
 });
 
@@ -120,9 +94,9 @@ const loginUser = asyncHandler(async (req, res) => {
 const getProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select("-password");
 
-  if (!user) {
+  if (!user || user.role !== "seller") {
     res.status(404);
-    throw new Error("User not found");
+    throw new Error("Seller not found");
   }
 
   res.json({

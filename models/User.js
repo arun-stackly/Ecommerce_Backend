@@ -3,21 +3,10 @@ const bcrypt = require("bcryptjs");
 const validator = require("validator");
 
 const userSchema = new mongoose.Schema({
-  firstName: {
-    type: String,
-    required: true,
-  },
+  firstName: { type: String, required: true },
+  lastName: { type: String, required: true },
 
-  lastName: {
-    type: String,
-    required: true,
-  },
-
-  username: {
-    type: String,
-    required: true,
-    unique: true,
-  },
+  username: { type: String, required: true, unique: true },
 
   email: {
     type: String,
@@ -26,38 +15,24 @@ const userSchema = new mongoose.Schema({
     validate: [validator.isEmail, "Invalid email format"],
   },
 
-  password: {
-    type: String,
-    required: true,
-  },
+  password: { type: String, required: true },
 
-  // 🔑 ROLE SYSTEM
+  // 🔑 SELLER / ADMIN ONLY
   role: {
     type: String,
-    enum: ["user", "seller", "admin"],
-    default: "user",
+    enum: ["seller", "admin"],
+    default: "seller",
   },
 
-  // ✅ SELLER VERIFICATION (ADMIN CONTROL)
+  // ✅ ADMIN VERIFICATION
   isVerified: {
     type: Boolean,
     default: false,
   },
 
-  // ✅ UI FLAG (JOIN AS SELLER)
-  joinAsSeller: {
-    type: Boolean,
-    default: false,
-  },
-
-  // ✅ OTP FIELDS
-  resetOTP: {
-    type: String,
-  },
-
-  resetOTPExpiry: {
-    type: Date,
-  },
+  // 🔐 OTP (future use)
+  resetOTP: String,
+  resetOTPExpiry: Date,
 
   createdAt: {
     type: Date,
