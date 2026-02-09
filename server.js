@@ -26,13 +26,6 @@ const adRoutes = require("./routes/adRoutes");
 const refundRoutes = require("./routes/refundRoutes");
 const sellerInventoryRoutes = require("./routes/sellerInventoryRoutes");
 
-const productRoutes = require("./routes/product");
-const productFilterRoutes = require("./routes/productFilter");
-const productDetailRoutes = require("./routes/productDetail");
-const specificationRoutes = require("./routes/specification");
-const dealRoutes = require("./routes/deal");
-const bestsellerRoutes = require("./routes/bestseller");
-
 const categoriesRoutes = require("./routes/categories");
 const subcategoriesRoutes = require("./routes/subcategories");
 const subsubRoutes = require("./routes/subsubcategories");
@@ -64,14 +57,6 @@ app.use("/api/seller/refunds", refundRoutes);
 app.use("/api/seller/inventory", sellerInventoryRoutes);
 
 app.use("/api/pincode", pincodeRoutes);
-
-app.use("/api/products", productRoutes);
-app.use("/api/products", productFilterRoutes);
-app.use("/api/products", productDetailRoutes);
-
-app.use("/api/specifications", specificationRoutes);
-app.use("/api/deals", dealRoutes);
-app.use("/api/bestseller", bestsellerRoutes);
 
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/subcategories", subcategoriesRoutes);

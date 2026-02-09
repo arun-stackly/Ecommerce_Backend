@@ -5,9 +5,11 @@ const { salesReport } = require("../controllers/sellerReportController");
 const { protect } = require("../middleware/authMiddleware");
 const { sellerOnly } = require("../middleware/roleMiddleware");
 
+// middleware
 router.use(protect);
 router.use(sellerOnly);
 
-router.get("/reports/sales", salesReport);
+// GET /api/seller/reports/sales
+router.get("/sales", salesReport);
 
 module.exports = router;

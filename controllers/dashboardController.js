@@ -2,34 +2,53 @@ const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Refund = require("../models/Refund");
 
+/* ================= COMMON FILTER CONFIG ================= */
+
+const ALLOWED_FILTERS = ["anytime", "quarterly", "halfyearly", "yearly"];
+
+const getStartDate = (filter) => {
+  const now = new Date();
+
+  switch (filter) {
+    case "quarterly":
+      return new Date(now.getFullYear(), now.getMonth() - 3, 1);
+
+    case "halfyearly":
+      return new Date(now.getFullYear(), now.getMonth() - 6, 1);
+
+    case "yearly":
+      return new Date(now.getFullYear(), 0, 1);
+
+    case "anytime":
+    default:
+      return null;
+  }
+};
+
+const validateFilter = (filter, res) => {
+  if (!ALLOWED_FILTERS.includes(filter)) {
+    res.status(400).json({
+      success: false,
+      message: `Invalid filter value. Allowed values: ${ALLOWED_FILTERS.join(
+        ", ",
+      )}`,
+    });
+    return false;
+  }
+  return true;
+};
+
+/* ================= DASHBOARD OVERVIEW ================= */
+
 exports.overview = async (req, res) => {
   try {
     const sellerId = req.user._id;
     const { filter = "anytime" } = req.query;
 
-    const now = new Date();
-    let startDate = null;
+    if (!validateFilter(filter, res)) return;
 
-    switch (filter) {
-      case "quarterly":
-        startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-        break;
+    const startDate = getStartDate(filter);
 
-      case "halfyearly":
-        startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
-        break;
-
-      case "yearly":
-        startDate = new Date(now.getFullYear(), 0, 1);
-        break;
-
-      case "anytime":
-      default:
-        startDate = null;
-    }
-
-    // Base filters
-    const baseMatch = { sellerId };
     const completedMatch = {
       sellerId,
       status: "completed",
@@ -39,30 +58,19 @@ exports.overview = async (req, res) => {
       completedMatch.createdAt = { $gte: startDate };
     }
 
-    // Orders (overall – no filter)
-    const totalOrders = await Order.countDocuments({ sellerId });
-    const completedOrders = await Order.countDocuments({
-      sellerId,
-      status: "completed",
-    });
-    const pendingOrders = await Order.countDocuments({
-      sellerId,
-      status: "pending",
-    });
+    const [totalOrders, completedOrders, pendingOrders, revenue, customers] =
+      await Promise.all([
+        Order.countDocuments({ sellerId }),
+        Order.countDocuments({ sellerId, status: "completed" }),
+        Order.countDocuments({ sellerId, status: "pending" }),
 
-    // Income (filtered)
-    const revenue = await Order.aggregate([
-      { $match: completedMatch },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$totalAmount" },
-        },
-      },
-    ]);
+        Order.aggregate([
+          { $match: completedMatch },
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+        ]),
 
-    // Customers (filtered)
-    const customers = await Order.distinct("userId", completedMatch);
+        Order.distinct("userId", completedMatch),
+      ]);
 
     res.json({
       success: true,
@@ -73,11 +81,11 @@ exports.overview = async (req, res) => {
       dashboard: {
         customers: {
           total: customers.length,
-          growth: 37.8,
+          growth: 37.8, // placeholder
         },
         income: {
           total: revenue[0]?.total || 0,
-          growth: 37.8,
+          growth: 37.8, // placeholder
         },
       },
     });
@@ -94,37 +102,32 @@ exports.productViews = async (req, res) => {
     const sellerId = req.user._id;
     const { filter = "anytime" } = req.query;
 
-    const now = new Date();
-    let startMonth = 0;
-    let totalMonths = 12;
-
-    switch (filter) {
-      case "quarterly":
-        totalMonths = 3;
-        break;
-
-      case "halfyearly":
-        totalMonths = 6;
-        break;
-
-      case "fullyear":
-        totalMonths = now.getMonth() + 1; // Jan → current
-        break;
-
-      case "anytime":
-      default:
-        totalMonths = 12;
+    const ALLOWED_FILTERS = ["anytime", "quarterly", "halfyearly", "yearly"];
+    if (!ALLOWED_FILTERS.includes(filter)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid filter value. Allowed values: ${ALLOWED_FILTERS.join(
+          ", ",
+        )}`,
+      });
     }
 
-    startMonth = now.getMonth() - totalMonths + 1;
+    const now = new Date();
+    let totalMonths = 12;
+
+    if (filter === "quarterly") totalMonths = 3;
+    if (filter === "halfyearly") totalMonths = 6;
+    if (filter === "yearly") totalMonths = 12;
+
+    const startDate =
+      filter === "anytime"
+        ? null
+        : new Date(now.getFullYear(), now.getMonth() - totalMonths + 1, 1);
 
     const matchStage = {
       sellerId: new mongoose.Types.ObjectId(sellerId),
       status: "completed",
     };
-
-    const startDate =
-      filter === "anytime" ? null : new Date(now.getFullYear(), startMonth, 1);
 
     if (startDate) {
       matchStage.createdAt = { $gte: startDate };
@@ -134,11 +137,13 @@ exports.productViews = async (req, res) => {
       { $match: matchStage },
       {
         $group: {
-          _id: { $month: "$createdAt" },
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+          },
           revenue: { $sum: "$totalAmount" },
         },
       },
-      { $sort: { _id: 1 } },
     ]);
 
     const monthNames = [
@@ -158,13 +163,18 @@ exports.productViews = async (req, res) => {
 
     const data = [];
 
-    for (let i = 0; i < totalMonths; i++) {
-      const monthIndex = (startMonth + i + 12) % 12;
+    for (let i = totalMonths - 1; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
 
-      const found = salesData.find((s) => s._id === monthIndex + 1);
+      const month = date.getMonth();
+      const year = date.getFullYear();
+
+      const found = salesData.find(
+        (s) => s._id.month === month + 1 && s._id.year === year,
+      );
 
       data.push({
-        month: monthNames[monthIndex],
+        month: monthNames[month],
         lifetimeValue: found ? found.revenue : 0,
         customerCost: found ? Math.round(found.revenue * 0.3) : 0,
       });
@@ -182,6 +192,9 @@ exports.productViews = async (req, res) => {
     });
   }
 };
+
+/* ================= REFUND SUMMARY ================= */
+
 exports.refundSummary = async (req, res) => {
   try {
     const sellerId = req.user._id;
@@ -194,10 +207,8 @@ exports.refundSummary = async (req, res) => {
       rejectedRefunds,
       totalRefundAmount,
     ] = await Promise.all([
-      // Pending refunds
       Refund.countDocuments({ sellerId, status: "pending" }),
 
-      // New refunds (last 7 days)
       Refund.countDocuments({
         sellerId,
         status: "pending",
@@ -206,24 +217,15 @@ exports.refundSummary = async (req, res) => {
         },
       }),
 
-      // Total refunds
       Refund.countDocuments({ sellerId }),
 
-      // Approved
       Refund.countDocuments({ sellerId, status: "approved" }),
 
-      // Rejected
       Refund.countDocuments({ sellerId, status: "rejected" }),
 
-      // Total refund amount
       Refund.aggregate([
         { $match: { sellerId } },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: "$amount" },
-          },
-        },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
       ]),
     ]);
 
