@@ -48,6 +48,7 @@ exports.getRefunds = async (req, res) => {
   }
 };
 
+/* ================= REFUND SUMMARY ================= */
 exports.refundSummary = async (req, res) => {
   try {
     const sellerId = req.user._id;
@@ -94,5 +95,69 @@ exports.refundSummary = async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+};
+
+/* =========================================================
+   NEW: GET REFUND PROCESSING PAGE DATA
+   (Used to load refund processing screen)
+========================================================= */
+exports.getRefundProcessingData = async (req, res) => {
+  try {
+    const refund = await Refund.findById(req.params.id).populate({
+      path: "orderId",
+      select:
+        "orderId createdAt status totalAmount shippingAmount inventorySnapshot",
+    });
+
+    if (!refund) return res.status(404).json({ message: "Refund not found" });
+
+    res.json({
+      refundId: refund._id,
+      status: refund.status,
+      reason: refund.reason,
+      requestedAmount: refund.amount,
+
+      product: refund.orderId.inventorySnapshot,
+
+      orderSummary: {
+        orderId: refund.orderId.orderId,
+        orderDate: refund.orderId.createdAt,
+        totalAmount: refund.orderId.totalAmount,
+        shippingAmount: refund.orderId.shippingAmount,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* =========================================================
+   NEW: PROCESS REFUND (Submit Refund Button)
+========================================================= */
+exports.processRefund = async (req, res) => {
+  try {
+    const { amount, returnShippingCharge, additionalRefund, note, status } =
+      req.body;
+
+    const refund = await Refund.findById(req.params.id);
+
+    if (!refund) return res.status(404).json({ message: "Refund not found" });
+
+    refund.amount = amount;
+    refund.returnShippingCharge = returnShippingCharge || 0;
+    refund.additionalRefund = additionalRefund || 0;
+    refund.note = note;
+    refund.status = status || "approved";
+
+    await refund.save();
+
+    res.json({
+      success: true,
+      message: "Refund processed successfully",
+      refund,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };

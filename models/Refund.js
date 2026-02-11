@@ -21,13 +21,26 @@ const refundSchema = new mongoose.Schema(
 
     reason: String,
 
+    // ✅ NEW FIELDS (Refund Processing Page)
+    returnShippingCharge: {
+      type: Number,
+      default: 0,
+    },
+
+    additionalRefund: {
+      type: Number,
+      default: 0,
+    },
+
+    note: String,
+
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Refund", refundSchema);

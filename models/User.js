@@ -15,7 +15,22 @@ const userSchema = new mongoose.Schema({
     validate: [validator.isEmail, "Invalid email format"],
   },
 
-  password: { type: String, required: true },
+  /* 🔐 PASSWORD WITH VALIDATION */
+  password: {
+    type: String,
+    required: true,
+    minlength: [8, "Password must be at least 8 characters long"],
+    validate: {
+      validator: function (value) {
+        // At least 1 uppercase, 1 lowercase, 1 number, 1 special character
+        return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(
+          value,
+        );
+      },
+      message:
+        "Password must contain uppercase, lowercase, number and special character",
+    },
+  },
 
   // 🔑 SELLER / ADMIN ONLY
   role: {
@@ -43,6 +58,7 @@ const userSchema = new mongoose.Schema({
 /* 🔐 PASSWORD HASH */
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
+
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();

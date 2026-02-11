@@ -11,4 +11,9 @@ router.use(sellerOnly);
 router.post("/", c.createRefund);
 router.get("/", c.getRefunds);
 router.get("/summary", c.refundSummary);
+
+/* ALWAYS KEEP BELOW */
+router.get("/:id/process", c.getRefundProcessingData);
+router.put("/:id/process", c.processRefund);
+
 module.exports = router;
