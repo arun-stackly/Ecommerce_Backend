@@ -2,11 +2,11 @@ const asyncHandler = require("express-async-handler");
 const User = require("../models/UserAuth");
 const generateToken = require("../utils/generateToken");
 
-// 🔢 generate OTP
+/* ================= GENERATE OTP ================= */
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
-/* ================= SIGNUP / LOGIN : REQUEST OTP ================= */
+/* ================= REQUEST OTP ================= */
 exports.requestOTP = asyncHandler(async (req, res) => {
   const { phone, email, identifier } = req.body;
 
@@ -17,24 +17,29 @@ exports.requestOTP = asyncHandler(async (req, res) => {
   }
 
   let user = await User.findOne({
-    $or: [{ phone: value }, { email: value }],
+    $or: [
+      phone ? { phone } : null,
+      email ? { email } : null,
+      identifier ? { phone: identifier } : null,
+      identifier ? { email: identifier } : null,
+    ].filter(Boolean),
   });
 
-  // ⚠️ creates user if not exists (used for signup)
   if (!user) {
-    user = await User.create({
-      phone: phone || null,
-      email: email || null,
-    });
+    const data = {};
+    if (phone) data.phone = phone;
+    if (email) data.email = email;
+
+    user = await User.create(data);
   }
 
   const otp = generateOTP();
 
   user.otp = otp;
-  user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 mins
+  user.otpExpiry = Date.now() + 5 * 60 * 1000;
   await user.save();
 
-  console.log("OTP:", otp); // replace with SMS / Email later
+  console.log("OTP:", otp);
 
   res.json({
     success: true,
@@ -42,23 +47,33 @@ exports.requestOTP = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= SIGNUP VERIFY OTP ================= */
+/* ================= VERIFY OTP (SIGNUP / LOGIN) ================= */
 exports.verifyOTP = asyncHandler(async (req, res) => {
   const { phone, email, identifier, otp } = req.body;
-  const value = phone || email || identifier;
 
   const user = await User.findOne({
-    $or: [{ phone: value }, { email: value }],
+    $or: [
+      phone ? { phone } : null,
+      email ? { email } : null,
+      identifier ? { phone: identifier } : null,
+      identifier ? { email: identifier } : null,
+    ].filter(Boolean),
   });
 
-  if (!user || user.otp !== otp || user.otpExpiry < Date.now()) {
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  if (user.otp !== otp || user.otpExpiry < Date.now()) {
     res.status(400);
     throw new Error("Wrong OTP or expired OTP");
   }
 
   user.isVerified = true;
-  user.otp = null;
-  user.otpExpiry = null;
+  user.otp = undefined;
+  user.otpExpiry = undefined;
+
   await user.save();
 
   res.json({
@@ -68,7 +83,7 @@ exports.verifyOTP = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= COMPLETE PROFILE (SIGNUP) ================= */
+/* ================= COMPLETE PROFILE ================= */
 exports.completeProfile = asyncHandler(async (req, res) => {
   const { phone, firstName, lastName, email } = req.body;
 
@@ -81,7 +96,8 @@ exports.completeProfile = asyncHandler(async (req, res) => {
 
   user.firstName = firstName;
   user.lastName = lastName;
-  user.email = email;
+
+  if (email) user.email = email;
 
   await user.save();
 
@@ -99,15 +115,20 @@ exports.completeProfile = asyncHandler(async (req, res) => {
 /* ================= RESEND OTP ================= */
 exports.resendOTP = asyncHandler(async (req, res) => {
   const { phone, email, identifier } = req.body;
-  const value = phone || email || identifier;
 
+  const value = phone || email || identifier;
   if (!value) {
     res.status(400);
     throw new Error("Phone or Email is required");
   }
 
   const user = await User.findOne({
-    $or: [{ phone: value }, { email: value }],
+    $or: [
+      phone ? { phone } : null,
+      email ? { email } : null,
+      identifier ? { phone: identifier } : null,
+      identifier ? { email: identifier } : null,
+    ].filter(Boolean),
   });
 
   if (!user) {
@@ -119,6 +140,7 @@ exports.resendOTP = asyncHandler(async (req, res) => {
 
   user.otp = otp;
   user.otpExpiry = Date.now() + 5 * 60 * 1000;
+
   await user.save();
 
   console.log("Resent OTP:", otp);
@@ -129,39 +151,52 @@ exports.resendOTP = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= LOGIN VERIFY OTP ================= */
-exports.loginVerifyOTP = asyncHandler(async (req, res) => {
-  const { identifier, otp } = req.body;
-
-  const user = await User.findOne({
-    $or: [{ phone: identifier }, { email: identifier }],
-  });
+/* ================= GET PROFILE ================= */
+exports.getProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id).select(
+    "firstName lastName email phone",
+  );
 
   if (!user) {
     res.status(404);
     throw new Error("User not found");
   }
 
-  if (user.otp !== otp || user.otpExpiry < Date.now()) {
-    res.status(400);
-    throw new Error("Wrong OTP or expired OTP");
+  res.json({
+    success: true,
+    data: {
+      name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+      email: user.email,
+      phone: user.phone,
+    },
+  });
+});
+
+/* ================= UPDATE PROFILE ================= */
+exports.updateProfile = asyncHandler(async (req, res) => {
+  const { firstName, lastName, email, phone } = req.body;
+
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
   }
 
-  user.otp = null;
-  user.otpExpiry = null;
-  user.isVerified = true;
+  if (firstName) user.firstName = firstName;
+  if (lastName) user.lastName = lastName;
+  if (email) user.email = email;
+  if (phone) user.phone = phone;
+
   await user.save();
 
-  res.status(200).json({
+  res.json({
     success: true,
-    message: "Login successful",
+    message: "Profile updated successfully",
     data: {
-      _id: user._id,
-      firstName: user.firstName || "",
-      lastName: user.lastName || "",
-      phone: user.phone,
+      name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
       email: user.email,
-      token: generateToken({ id: user._id }),
+      phone: user.phone,
     },
   });
 });

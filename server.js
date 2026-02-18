@@ -26,6 +26,9 @@ const adRoutes = require("./routes/adRoutes");
 const refundRoutes = require("./routes/refundRoutes");
 const sellerInventoryRoutes = require("./routes/sellerInventoryRoutes");
 
+const cartRoutes = require("./routes/cartRoutes");
+const addressRoutes = require("./routes/addressRoutes");
+
 const categoriesRoutes = require("./routes/categories");
 const subcategoriesRoutes = require("./routes/subcategories");
 const subsubRoutes = require("./routes/subsubcategories");
@@ -57,6 +60,9 @@ app.use("/api/seller/refunds", refundRoutes);
 app.use("/api/seller/inventory", sellerInventoryRoutes);
 
 app.use("/api/pincode", pincodeRoutes);
+
+app.use("/api/cart", cartRoutes);
+app.use("/api/address", addressRoutes);
 
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/subcategories", subcategoriesRoutes);
