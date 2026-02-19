@@ -29,7 +29,6 @@ exports.requestOTP = asyncHandler(async (req, res) => {
     const data = {};
     if (phone) data.phone = phone;
     if (email) data.email = email;
-
     user = await User.create(data);
   }
 
@@ -47,7 +46,7 @@ exports.requestOTP = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= VERIFY OTP (SIGNUP / LOGIN) ================= */
+/* ================= VERIFY OTP (LOGIN / SIGNUP) ================= */
 exports.verifyOTP = asyncHandler(async (req, res) => {
   const { phone, email, identifier, otp } = req.body;
 
@@ -78,8 +77,9 @@ exports.verifyOTP = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    message: "OTP verified",
+    message: "Login successful",
     token: generateToken({ id: user._id }),
+    name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
   });
 });
 
