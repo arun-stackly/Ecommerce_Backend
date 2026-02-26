@@ -43,6 +43,11 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan("dev"));
 
+app.use("/api/products", require("./routes/productRoutes"));
+app.use("/api/deals", require("./routes/dealRoutes"));
+app.use("/api/banners", require("./routes/bannerRoutes"));
+app.use("/api/home", require("./routes/homeRoutes"));
+
 app.use("/api/auth/seller", authRoutes);
 app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
