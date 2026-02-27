@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const connectDB = require("./config/db");
+const path = require("path");
 
 const { errorHandler } = require("./middleware/errorMiddleware");
 const { protect } = require("./middleware/authMiddleware");
@@ -32,7 +33,8 @@ const addressRoutes = require("./routes/addressRoutes");
 const categoriesRoutes = require("./routes/categories");
 const subcategoriesRoutes = require("./routes/subcategories");
 const subsubRoutes = require("./routes/subsubcategories");
-
+const adsRoutes = require("./routes/adsRoutes");
+const wishlistRoutes = require("./routes/wishlistRoutes")
 const app = express();
 
 connectDB();
@@ -45,7 +47,10 @@ app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/deals", require("./routes/dealRoutes"));
 app.use("/api/banners", require("./routes/bannerRoutes"));
 app.use("/api/home", require("./routes/homeRoutes"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+app.use("/api/ads", adsRoutes);
+app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/auth/seller", authRoutes);
 app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
