@@ -21,10 +21,18 @@ const businessInfoSchema = new mongoose.Schema(
       trim: true,
     },
 
-    contactNumber: {
+    // ✅ Personal Contact Number
+    personalContactNumber: {
       type: String,
       required: true,
-      match: [/^[6-9]\d{9}$/, "Invalid Indian mobile number"],
+      match: [/^[6-9]\d{9}$/, "Invalid Indian personal mobile number"],
+    },
+
+    // ✅ Business Contact Number
+    businessContactNumber: {
+      type: String,
+      required: true,
+      match: [/^[6-9]\d{9}$/, "Invalid Indian business mobile number"],
     },
 
     businessType: {
@@ -46,21 +54,25 @@ const businessInfoSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // ✅ NEW: Business Registration Number
-    businessRegistrationNumber: {
+    // Address
+    addressLine1: {
       type: String,
       required: true,
-      unique: true,
-      match: [/^[A-Z]{2}\d{12}$/, "Invalid registration number format"],
-      // Example: XY220150403095
     },
 
-    // Address
-    addressLine1: { type: String, required: true },
-    addressLine2: { type: String },
+    addressLine2: {
+      type: String,
+    },
 
-    city: { type: String, required: true },
-    state: { type: String, required: true },
+    city: {
+      type: String,
+      required: true,
+    },
+
+    state: {
+      type: String,
+      required: true,
+    },
 
     country: {
       type: String,
@@ -71,25 +83,6 @@ const businessInfoSchema = new mongoose.Schema(
       type: String,
       required: true,
       match: [/^[1-9][0-9]{5}$/, "Invalid Indian PIN code"],
-    },
-
-    // ✅ NEW: Language
-    languages: {
-      type: [String],
-      enum: ["Hindi", "English"],
-      default: ["English"],
-    },
-
-    // ✅ NEW: Time Zone
-    timeZone: {
-      type: String,
-      default: "GMT+5:30 (New Delhi)",
-    },
-
-    // ✅ NEW: Nationality
-    nationality: {
-      type: String,
-      default: "Indian",
     },
 
     isCompleted: {

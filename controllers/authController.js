@@ -1,5 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const User = require("../models/User");
+const SellerProfile = require("../models/SellerProfile"); // ✅ Added
 const generateToken = require("../utils/generateToken");
 
 /* ================= SELLER REGISTER ================= */
@@ -26,7 +27,7 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new Error("Seller already exists with this email or username");
   }
 
-  // 🔒 FORCE SELLER
+  // 🔒 CREATE SELLER USER
   const user = await User.create({
     firstName,
     lastName,
@@ -34,8 +35,12 @@ const registerUser = asyncHandler(async (req, res) => {
     email,
     password,
     role: "seller",
-    joinAsSeller: true,
     isVerified: false,
+  });
+
+  // ✅ AUTO CREATE SELLER PROFILE
+  await SellerProfile.create({
+    user: user._id,
   });
 
   res.status(201).json({
@@ -63,7 +68,6 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ email });
 
-  // 🚫 BLOCK NON-SELLERS
   if (!user || user.role !== "seller") {
     res.status(401);
     throw new Error("Seller account not found");
@@ -90,7 +94,7 @@ const loginUser = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= PROFILE ================= */
+/* ================= GET SELLER PROFILE ================= */
 const getProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select("-password");
 
@@ -99,9 +103,32 @@ const getProfile = asyncHandler(async (req, res) => {
     throw new Error("Seller not found");
   }
 
-  res.json({
+  const profile = await SellerProfile.findOne({ user: user._id });
+
+  res.status(200).json({
     success: true,
-    data: user,
+    data: {
+      _id: user._id,
+      fullName: `${user.firstName} ${user.lastName}`,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      verified: user.isVerified,
+      joinedDate: user.createdAt,
+
+      phone: profile?.phone || null,
+      address: profile?.address || null,
+      registeredContact: profile?.registeredContact || null,
+      profileImage: profile?.profileImage || null,
+    },
+  });
+});
+
+/* ================= SELLER LOGOUT ================= */
+const logoutUser = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Seller logged out successfully",
   });
 });
 
@@ -109,4 +136,5 @@ module.exports = {
   registerUser,
   loginUser,
   getProfile,
+  logoutUser,
 };
