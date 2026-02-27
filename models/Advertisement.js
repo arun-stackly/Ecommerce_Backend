@@ -8,20 +8,37 @@ const adSchema = new mongoose.Schema(
       required: true,
     },
 
-    title: {
+    adType: {
       type: String,
+      enum: ["weekend", "monthly", "seasonal"],
       required: true,
     },
 
-    image: String,
+    mediaUrl: {
+      type: String, // image or video URL
+      required: true,
+    },
+
+    mediaType: {
+      type: String,
+      enum: ["image", "video"],
+      required: true,
+    },
+
+    description: {
+      type: String,
+    },
 
     status: {
       type: String,
       enum: ["active", "paused", "expired"],
       default: "active",
     },
+
+    startDate: Date,
+    endDate: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Advertisement", adSchema);

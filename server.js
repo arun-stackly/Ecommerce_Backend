@@ -21,6 +21,8 @@ const bankRoutes = require("./routes/bankRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const sellerProfileRoutes = require("./routes/sellerProfileRoutes");
+const sellerBankRoutes = require("./routes/sellerBankRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
 const sellerReportRoutes = require("./routes/sellerReportRoutes");
 const adRoutes = require("./routes/adRoutes");
@@ -63,11 +65,15 @@ app.use("/api/seller/bank", bankRoutes);
 app.use("/api/seller/dashboard", dashboardRoutes);
 app.use("/api/seller/orders", orderRoutes);
 app.use("/api/seller/payments", paymentRoutes);
+app.use("/api/seller/profile", sellerProfileRoutes);
+app.use("/api/business-profile", require("./routes/businessProfileRoutes"));
+app.use("/api/seller/bank-details", sellerBankRoutes);
 app.use("/api/seller/invoices", invoiceRoutes);
 app.use("/api/seller/reports", sellerReportRoutes);
 app.use("/api/seller/ads", adRoutes);
 app.use("/api/seller/refunds", refundRoutes);
 app.use("/api/seller/inventory", sellerInventoryRoutes);
+app.use("/api/seller-settings", require("./routes/sellerSettingsRoutes"));
 
 app.use("/api/pincode", pincodeRoutes);
 
