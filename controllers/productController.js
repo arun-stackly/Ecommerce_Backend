@@ -1,4 +1,5 @@
 const Product = require("../models/Product");
+const SellerInventory = require("../models/SellerInventory");
 const UserAuth = require("../models/UserAuth");
 const UserOrder = require("../models/UserOrder")
 const mongoose = require("mongoose"); // ✅ Add this
@@ -151,14 +152,12 @@ exports.deleteProduct = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-/* ================= ADD PRODUCT REVIEW ================= */
 exports.addProductReview = async (req, res) => {
   try {
     const { rating, comment } = req.body;
-    const productId = req.params.id;
+    const productId = req.params.id; // Product _id from URL
     const userId = req.user._id;
 
-    // 1️⃣ Validate rating
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({
         success: false,
@@ -166,10 +165,10 @@ exports.addProductReview = async (req, res) => {
       });
     }
 
-    // 2️⃣ Check if user purchased & order delivered
+    // ✅ Check if user purchased and order is delivered
     const deliveredOrder = await UserOrder.findOne({
-      customer: userId,
-       "items.productId": productId,
+      customerId: userId,
+      "items.productId": productId, // use req.params.id
       orderStatus: "delivered",
     });
 
@@ -180,7 +179,6 @@ exports.addProductReview = async (req, res) => {
       });
     }
 
-    // 3️⃣ Find product
     const product = await Product.findById(productId);
 
     if (!product) {
@@ -190,7 +188,6 @@ exports.addProductReview = async (req, res) => {
       });
     }
 
-    // 4️⃣ Prevent duplicate review
     const alreadyReviewed = product.reviews.find(
       (review) => review.user.toString() === userId.toString()
     );
@@ -202,21 +199,17 @@ exports.addProductReview = async (req, res) => {
       });
     }
 
-    // 5️⃣ Create review object
     const review = {
       user: userId,
-      name: req.user.name,
+      name: req.user.firstName, // ✅ use firstName
       rating: Number(rating),
       comment,
     };
 
     product.reviews.push(review);
-
-    // 6️⃣ Update rating & review count
-    product.numReviews = product.reviews.length;
-
+    product.reviewCount = product.reviews.length;
     product.rating =
-      product.reviews.reduce((acc, item) => item.rating + acc, 0) /
+      product.reviews.reduce((acc, item) => acc + item.rating, 0) /
       product.reviews.length;
 
     await product.save();

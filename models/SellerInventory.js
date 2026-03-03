@@ -7,7 +7,11 @@ const sellerInventorySchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-
+    productId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Product",
+  required: true,
+},
     // Product Basic Info
     name: {
       type: String,
