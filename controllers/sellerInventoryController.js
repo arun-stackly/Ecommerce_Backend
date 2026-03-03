@@ -4,6 +4,7 @@ const Order = require("../models/Order");
 
 // Add inventory item
 exports.createInventoryItem = async (req, res) => {
+  console.log("Incoming Body:", req.body);
   const inventoryItem = await SellerInventory.create({
     ...req.body,
     seller: req.user._id,

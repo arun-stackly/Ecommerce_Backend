@@ -33,7 +33,7 @@ exports.createOrder = async (req, res) => {
       orderItems.push({
   sellerId: inventory.seller, // populated user object
   sellerInventoryId: inventory._id,
-  productId: inventory._id, // or null if you want product id separately
+  productId: inventory.productId, // or null if you want product id separately
   name: inventory.name,
   image: inventory.media?.[0]?.url || "", // first media url or empty string
   price: inventory.price,

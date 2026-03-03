@@ -9,7 +9,19 @@ const productSchema = new mongoose.Schema(
     brand: { type: String, index: true },
     price: { type: Number, required: true },
     discountPrice: Number,
-    rating: { type: Number, default: 0 },
+    reviews: [
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    name: { type: String, required: true },
+    rating: { type: Number, required: true },
+    comment: { type: String },
+  },
+],
+  
     reviewCount: { type: Number, default: 0 },
     stock: { type: Number, default: 0 },
     payOnDelivery: { type: Boolean, default: true },
