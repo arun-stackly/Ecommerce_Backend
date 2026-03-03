@@ -1,5 +1,7 @@
 const Product = require("../models/Product");
-
+const UserAuth = require("../models/UserAuth");
+const UserOrder = require("../models/UserOrder")
+const mongoose = require("mongoose"); // ✅ Add this
 
 // ==============================
 // ✅ 1. ADD PRODUCT
@@ -147,5 +149,87 @@ exports.deleteProduct = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+/* ================= ADD PRODUCT REVIEW ================= */
+exports.addProductReview = async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+    const productId = req.params.id;
+    const userId = req.user._id;
+
+    // 1️⃣ Validate rating
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Rating must be between 1 and 5",
+      });
+    }
+
+    // 2️⃣ Check if user purchased & order delivered
+    const deliveredOrder = await UserOrder.findOne({
+      customer: userId,
+       "items.productId": productId,
+      orderStatus: "delivered",
+    });
+
+    if (!deliveredOrder) {
+      return res.status(403).json({
+        success: false,
+        message: "You can review only delivered products you purchased",
+      });
+    }
+
+    // 3️⃣ Find product
+    const product = await Product.findById(productId);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    // 4️⃣ Prevent duplicate review
+    const alreadyReviewed = product.reviews.find(
+      (review) => review.user.toString() === userId.toString()
+    );
+
+    if (alreadyReviewed) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already reviewed this product",
+      });
+    }
+
+    // 5️⃣ Create review object
+    const review = {
+      user: userId,
+      name: req.user.name,
+      rating: Number(rating),
+      comment,
+    };
+
+    product.reviews.push(review);
+
+    // 6️⃣ Update rating & review count
+    product.numReviews = product.reviews.length;
+
+    product.rating =
+      product.reviews.reduce((acc, item) => item.rating + acc, 0) /
+      product.reviews.length;
+
+    await product.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Review added successfully",
+    });
+  } catch (error) {
+    console.error("Add Review Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
