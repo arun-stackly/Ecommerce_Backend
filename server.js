@@ -36,7 +36,8 @@ const categoriesRoutes = require("./routes/categories");
 const subcategoriesRoutes = require("./routes/subcategories");
 const subsubRoutes = require("./routes/subsubcategories");
 const adsRoutes = require("./routes/adsRoutes");
-const wishlistRoutes = require("./routes/wishlistRoutes")
+const wishlistRoutes = require("./routes/wishlistRoutes");
+const userorderRoutes = require("./routes/userorderRoutes");
 const app = express();
 
 connectDB();
@@ -56,6 +57,8 @@ app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/auth/seller", authRoutes);
 app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
+
+app.use("/api/orders", userorderRoutes);
 
 app.use("/api/seller", protect, sellerOnly);
 
