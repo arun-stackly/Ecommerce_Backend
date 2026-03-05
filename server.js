@@ -38,6 +38,9 @@ const subsubRoutes = require("./routes/subsubcategories");
 const adsRoutes = require("./routes/adsRoutes");
 const wishlistRoutes = require("./routes/wishlistRoutes");
 const userorderRoutes = require("./routes/userorderRoutes");
+const userlandingRoutes = require("./routes/userlandingRoutes");
+
+
 const app = express();
 
 connectDB();
@@ -86,6 +89,8 @@ app.use("/api/address", addressRoutes);
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/subcategories", subcategoriesRoutes);
 app.use("/api/subsubcategories", subsubRoutes);
+
+app.use("/api/user", userlandingRoutes);
 
 app.get("/", (req, res) => {
   res.json({
