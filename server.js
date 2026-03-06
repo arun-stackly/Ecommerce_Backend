@@ -20,7 +20,6 @@ const bankRoutes = require("./routes/bankRoutes");
 
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const orderRoutes = require("./routes/orderRoutes");
-const paymentRoutes = require("./routes/paymentRoutes");
 const sellerProfileRoutes = require("./routes/sellerProfileRoutes");
 const sellerBankRoutes = require("./routes/sellerBankRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
@@ -31,6 +30,7 @@ const sellerInventoryRoutes = require("./routes/sellerInventoryRoutes");
 
 const cartRoutes = require("./routes/cartRoutes");
 const addressRoutes = require("./routes/addressRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
 
 const categoriesRoutes = require("./routes/categories");
 const subcategoriesRoutes = require("./routes/subcategories");
@@ -39,7 +39,6 @@ const adsRoutes = require("./routes/adsRoutes");
 const wishlistRoutes = require("./routes/wishlistRoutes");
 const userorderRoutes = require("./routes/userorderRoutes");
 const userlandingRoutes = require("./routes/userlandingRoutes");
-
 
 const app = express();
 
@@ -70,7 +69,6 @@ app.use("/api/seller/kyc", kycRoutes);
 app.use("/api/seller/bank", bankRoutes);
 app.use("/api/seller/dashboard", dashboardRoutes);
 app.use("/api/seller/orders", orderRoutes);
-app.use("/api/seller/payments", paymentRoutes);
 app.use("/api/seller/profile", sellerProfileRoutes);
 app.use("/api/business-profile", require("./routes/businessProfileRoutes"));
 app.use("/api/seller/bank-details", sellerBankRoutes);
@@ -85,6 +83,7 @@ app.use("/api/pincode", pincodeRoutes);
 
 app.use("/api/cart", cartRoutes);
 app.use("/api/address", addressRoutes);
+app.use("/api/payment", paymentRoutes);
 
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/subcategories", subcategoriesRoutes);

@@ -1,14 +1,14 @@
 const express = require("express");
 const router = express.Router();
 
-const c = require("../controllers/paymentController");
-const { protect } = require("../middleware/authMiddleware");
-const { sellerOnly } = require("../middleware/roleMiddleware");
+const paymentController = require("../controllers/paymentController");
 
-router.use(protect);
-router.use(sellerOnly);
+const { protectUser } = require("../middleware/userAuthMiddleware");
 
-router.post("/", protect, c.createPayment);
-router.get("/", protect, c.getPayments);
+router.use(protectUser);
+
+router.post("/create", paymentController.createPayment);
+
+router.post("/verify", paymentController.verifyPayment);
 
 module.exports = router;

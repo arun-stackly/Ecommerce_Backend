@@ -6,6 +6,7 @@ const {
   resendOTP,
   getProfile,
   updateProfile,
+  logoutUser,
 } = require("../controllers/userAuthController");
 
 const { protectUser } = require("../middleware/userAuthMiddleware");
@@ -27,5 +28,8 @@ router.post("/resend-otp", resendOTP);
 /* ================= PROFILE ================= */
 router.get("/profile", protectUser, getProfile);
 router.put("/profile", protectUser, updateProfile);
+
+/* ================= LOGOUT ================= */
+router.post("/logout", protectUser, logoutUser);
 
 module.exports = router;

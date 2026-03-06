@@ -1,23 +1,71 @@
 const Payment = require("../models/Payment");
+const UserOrder = require("../models/UserOrder");
 
 /* ================= CREATE PAYMENT ================= */
-exports.createPayment = async (req, res) => {
-  const payment = await Payment.create({
-    sellerId: req.user._id, // 🔐 from token
-    orderId: req.body.orderId, // must be real Order _id
-    amount: req.body.amount,
-    method: req.body.method,
-    status: req.body.status,
-  });
 
-  res.status(201).json(payment);
+exports.createPayment = async (req, res) => {
+  try {
+    const { orderId, method } = req.body;
+
+    const order = await UserOrder.findById(orderId);
+
+    if (!order) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
+    }
+
+    const payment = await Payment.create({
+      customerId: req.user._id,
+      orderId,
+      amount: order.totalAmount,
+      method,
+      status: method === "COD" ? "success" : "pending",
+    });
+
+    res.json({
+      success: true,
+      payment,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
 };
 
-/* ================= GET SELLER PAYMENTS ================= */
-exports.getPayments = async (req, res) => {
-  const payments = await Payment.find({
-    sellerId: req.user._id, // 🔐 filter by seller
-  }).populate("orderId");
+/* ================= VERIFY PAYMENT ================= */
 
-  res.json(payments);
+exports.verifyPayment = async (req, res) => {
+  try {
+    const { paymentId, transactionId } = req.body;
+
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({
+        message: "Payment not found",
+      });
+    }
+
+    payment.status = "success";
+    payment.transactionId = transactionId;
+
+    await payment.save();
+
+    const order = await UserOrder.findById(payment.orderId);
+
+    order.paymentStatus = "paid";
+
+    await order.save();
+
+    res.json({
+      success: true,
+      message: "Payment successful",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
 };
