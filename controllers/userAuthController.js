@@ -200,3 +200,11 @@ exports.updateProfile = asyncHandler(async (req, res) => {
     },
   });
 });
+
+/* ================= LOGOUT ================= */
+exports.logoutUser = asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    message: "Logged out successfully",
+  });
+});
