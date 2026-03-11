@@ -52,7 +52,16 @@ const userOrderSchema = new mongoose.Schema(
       state: String,
       landmark: String,
     },
-
+    billingAddress: {
+      fullName: String,
+      phoneNumber: String,
+      houseNo: String,
+      addressLine: String,
+      city: String,
+      pincode: String,
+      state: String,
+      landmark: String,
+    },
     paymentMode: {
       type: String,
       enum: ["COD", "Prepaid", "UPI", "Card", "NetBanking"],
@@ -63,14 +72,23 @@ const userOrderSchema = new mongoose.Schema(
     platformFee: { type: Number, default: 0 },
     discount: { type: Number, default: 0 },
     totalAmount: Number,
+    estimatedDeliveryDate: {
+      type: Date,
+    },
 
     orderStatus: {
       type: String,
-      enum: ["placed", "partially_shipped", "shipped", "delivered", "cancelled"],
+      enum: [
+        "placed",
+        "partially_shipped",
+        "shipped",
+        "delivered",
+        "cancelled",
+      ],
       default: "placed",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("UserOrder", userOrderSchema);

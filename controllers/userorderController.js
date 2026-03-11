@@ -9,13 +9,43 @@ const generateOrderId = require("../utils/generateOrderid");
 ========================= */
 exports.createOrder = async (req, res) => {
   try {
-    const { items, addressId, paymentMode } = req.body;
+    const { items, shippingAddressId, paymentMode } = req.body;
 
-    const user = req.user; // ✅ Use middleware user directly
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const user = req.user;
 
-    const address = await Address.findById(addressId);
-    if (!address) return res.status(404).json({ message: "Address not found" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    /* ======================
+       SHIPPING ADDRESS
+    ====================== */
+
+    const shippingAddress = await Address.findById(shippingAddressId);
+
+    if (!shippingAddress) {
+      return res.status(404).json({ message: "Shipping address not found" });
+    }
+
+    /* ======================
+       BILLING ADDRESS
+       (DEFAULT ADDRESS)
+    ====================== */
+
+    const billingAddress = await Address.findOne({
+      userId: user._id,
+      isDefault: true,
+    });
+
+    if (!billingAddress) {
+      return res.status(400).json({
+        message: "Please set default address for billing",
+      });
+    }
+
+    /* ======================
+       ORDER ITEMS
+    ====================== */
 
     let orderItems = [];
     let totalItemsPrice = 0;
@@ -31,44 +61,80 @@ exports.createOrder = async (req, res) => {
       totalItemsPrice += itemTotal;
 
       orderItems.push({
-  sellerId: inventory.seller, // populated user object
-  sellerInventoryId: inventory._id,
-  productId: inventory.productId, // or null if you want product id separately
-  name: inventory.name,
-  image: inventory.media?.[0]?.url || "", // first media url or empty string
-  price: inventory.price,
-  quantity: item.quantity,
-  itemTotal,
-});
+        sellerId: inventory.seller,
+        sellerInventoryId: inventory._id,
+        productId: inventory.productId,
+        name: inventory.name,
+        image: inventory.media?.[0]?.url || "",
+        price: inventory.price,
+        quantity: item.quantity,
+        itemTotal,
+      });
     }
+
+    /* ======================
+       TOTAL CALCULATION
+    ====================== */
 
     const platformFee = 10;
     const totalAmount = totalItemsPrice + platformFee;
+
+ /* ======================
+       ESTIMATEING DELIVERY DATE
+    ====================== */
+    const estimatedDeliveryDate = new Date();
+estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 5);
+
+    /* ======================
+       CREATE ORDER
+    ====================== */
 
     const order = await UserOrder.create({
       orderId: generateOrderId(),
       customerId: user._id,
       customerName: user.firstName,
       items: orderItems,
+
       shippingAddress: {
-        fullName: address.fullName,
-        phoneNumber: address.phoneNumber,
-        houseNo: address.houseNo,
-        addressLine: address.addressLine,
-        city: address.city,
-        pincode: address.pincode,
-        state: address.state,
-        landmark: address.landmark,
+        fullName: shippingAddress.fullName,
+        phoneNumber: shippingAddress.phoneNumber,
+        houseNo: shippingAddress.houseNo,
+        addressLine: shippingAddress.addressLine,
+        city: shippingAddress.city,
+        pincode: shippingAddress.pincode,
+        state: shippingAddress.state,
+        landmark: shippingAddress.landmark,
       },
+
+      billingAddress: {
+        fullName: billingAddress.fullName,
+        phoneNumber: billingAddress.phoneNumber,
+        houseNo: billingAddress.houseNo,
+        addressLine: billingAddress.addressLine,
+        city: billingAddress.city,
+        pincode: billingAddress.pincode,
+        state: billingAddress.state,
+        landmark: billingAddress.landmark,
+      },
+     
       paymentMode,
       totalItemsPrice,
       platformFee,
       totalAmount,
+      estimatedDeliveryDate,
     });
 
-    res.status(201).json({ success: true, data: order });
+    res.status(201).json({
+      success: true,
+      message: "Order created successfully",
+      data: order,
+    });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
