@@ -80,7 +80,7 @@ const userOrderSchema = new mongoose.Schema(
       type: String,
       enum: [
         "placed",
-        "partially_shipped",
+        "processed",
         "shipped",
         "delivered",
         "cancelled",
