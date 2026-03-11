@@ -9,19 +9,18 @@ POST /api/ads
 */
 exports.createAd = async (req, res) => {
   try {
-    const { productName, price, description, mediaUrl } = req.body;
+    const { productName, description, mediaUrl } = req.body;
 
-    if (!productName || !price || !mediaUrl) {
+    if (!productName || !mediaUrl) {
       return res.status(400).json({
         success: false,
-        message: "Product name, price and image are required"
+        message: "Product name and image are required"
       });
     }
 
     const ad = await Ad.create({
       seller: req.user.id,
       productName,
-      price,
       description,
       mediaUrl
     });
