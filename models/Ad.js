@@ -8,12 +8,7 @@ const adSchema = new mongoose.Schema(
     required: true,
   },
 
-  productName: {
-    type: String,
-    required: true
-  },
-
-  mediaUrl: {
+  image: {
     type: String,
     required: true
   },
@@ -23,10 +18,10 @@ const adSchema = new mongoose.Schema(
     default: ""
   },
 
-  isActive: {
-    type: Boolean,
-    default: true
-  }
+  status: {
+      type: Boolean,
+      default: true,
+    },
 
 },
 { timestamps: true }
