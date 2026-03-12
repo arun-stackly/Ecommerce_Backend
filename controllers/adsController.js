@@ -9,20 +9,20 @@ POST /api/ads
 */
 exports.createAd = async (req, res) => {
   try {
-    const { productName, description, mediaUrl } = req.body;
+    const { status, description, image } = req.body;
 
-    if (!productName || !mediaUrl) {
+    if (!image) {
       return res.status(400).json({
         success: false,
-        message: "Product name and image are required"
+        message: "Image is required"
       });
     }
 
     const ad = await Ad.create({
       seller: req.user.id,
-      productName,
+      status,
       description,
-      mediaUrl
+      image
     });
 
     res.status(201).json({
@@ -38,8 +38,6 @@ exports.createAd = async (req, res) => {
     });
   }
 };
-
-
 
 /*
 -----------------------------------------
@@ -109,8 +107,54 @@ exports.getSellerAds = async (req, res) => {
     });
   }
 };
+/*
+-----------------------------------------
+update Advertisement
+update  in UI
+-----------------------------------------
+Put /api/ads/:id
+*/
+exports.updateAd = async (req, res) => {
+  try {
 
+    const { image, description } = req.body;
 
+    const updateData = {};
+
+    if (image) {
+      updateData.image = image;
+    }
+
+    if (description) {
+      updateData.description = description;
+    }
+
+    const ad = await Ad.findOneAndUpdate(
+      { _id: req.params.id, seller: req.user.id },
+      updateData,
+      { new: true }
+    );
+
+    if (!ad) {
+      return res.status(404).json({
+        success: false,
+        message: "Ad not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Ad updated successfully",
+      ad
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
 
 /*
 -----------------------------------------
@@ -124,7 +168,7 @@ exports.pauseAd = async (req, res) => {
 
     const ad = await Ad.findOneAndUpdate(
       { _id: req.params.id, seller: req.user.id },
-      { isActive: false },
+      { status: false },
       { new: true }
     );
 
@@ -150,7 +194,6 @@ exports.pauseAd = async (req, res) => {
 };
 
 
-
 /*
 -----------------------------------------
 Resume Advertisement
@@ -162,7 +205,7 @@ exports.resumeAd = async (req, res) => {
 
     const ad = await Ad.findOneAndUpdate(
       { _id: req.params.id, seller: req.user.id },
-      { isActive: true },
+      { status: true },
       { new: true }
     );
 
@@ -186,8 +229,6 @@ exports.resumeAd = async (req, res) => {
     });
   }
 };
-
-
 
 /*
 -----------------------------------------
@@ -236,7 +277,7 @@ GET /api/ads/active
 exports.getActiveAds = async (req, res) => {
   try {
 
-    const ads = await Ad.find({ isActive: true })
+    const ads = await Ad.find({ status: true })
       .populate("seller", "name email")
       .sort({ createdAt: -1 });
 

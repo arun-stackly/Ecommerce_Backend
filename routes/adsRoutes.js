@@ -9,6 +9,8 @@ router.post("/bulk", protect, adController.createMultipleAds);
 
 router.get("/my-ads", protect, adController.getSellerAds);
 
+router.put("/:id", protect, adController.updateAd);
+
 router.patch("/:id/pause", protect, adController.pauseAd);
 
 router.patch("/:id/resume", protect, adController.resumeAd);
