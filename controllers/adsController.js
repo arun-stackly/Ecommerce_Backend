@@ -1,181 +1,255 @@
 const Ad = require("../models/Ad");
 
-/* ==============================
-   BULK SAVE (UPSERT)
-============================== */
-exports.saveAds = async (req, res) => {
-  try {
-    const sellerId = req.user._id;
-    const { ads } = req.body;
-
-    if (!Array.isArray(ads)) {
-      return res.status(400).json({ message: "Ads must be an array" });
-    }
-
-    const results = [];
-
-    for (const ad of ads) {
-      if (!ad.type || !ad.mediaUrl) continue;
-
-      const updatedAd = await Ad.findOneAndUpdate(
-        { seller: sellerId, type: ad.type },
-        {
-          $set: {
-            description: ad.description || "",
-            mediaUrl: ad.mediaUrl,
-            isActive: ad.isActive ?? true,
-          },
-        },
-        {
-          new: true,
-          upsert: true,
-          runValidators: true,
-        }
-      );
-
-      results.push(updatedAd);
-    }
-
-    res.status(200).json({
-      message: "Ads saved successfully",
-      data: results,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-/* ==============================
-   CREATE SINGLE AD (with upload)
-============================== */
+/*
+-----------------------------------------
+Create Advertisement
+Used when user clicks "Continue"
+-----------------------------------------
+POST /api/ads
+*/
 exports.createAd = async (req, res) => {
   try {
-    const sellerId = req.user._id;
-    const { type, description } = req.body;
+    const { productName, description, mediaUrl } = req.body;
 
-    if (!req.file) {
-      return res.status(400).json({ message: "Media file required" });
+    if (!productName || !mediaUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "Product name and image are required"
+      });
     }
 
-    const ad = await Ad.findOneAndUpdate(
-      { seller: sellerId, type },
-      {
-        $set: {
-          description,
-          mediaUrl: `/uploads/${req.file.filename}`,
-          isActive: true,
-        },
-      },
-      {
-        new: true,
-        upsert: true,
-        runValidators: true,
-      }
-    );
+    const ad = await Ad.create({
+      seller: req.user.id,
+      productName,
+      description,
+      mediaUrl
+    });
 
     res.status(201).json({
-      message: "Ad saved successfully",
-      data: ad,
+      success: true,
+      message: "Advertisement created successfully",
+      ad
     });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
-/* ==============================
-   GET ALL ACTIVE ADS (Landing)
-============================== */
-exports.getAds = async (req, res) => {
+
+
+/*
+-----------------------------------------
+Bulk Create Ads
+Used for "Save & Add More"
+-----------------------------------------
+POST /api/ads/bulk
+*/
+exports.createMultipleAds = async (req, res) => {
   try {
-    const { type } = req.query;
 
-    const filter = { isActive: true };
-    if (type) filter.type = type;
+    const adsData = req.body.ads;
 
-    const ads = await Ad.find(filter)
-      .populate("seller", "storeName")
+    if (!adsData || adsData.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Ads data required"
+      });
+    }
+
+    const ads = adsData.map(ad => ({
+      ...ad,
+      seller: req.user.id
+    }));
+
+    const createdAds = await Ad.insertMany(ads);
+
+    res.status(201).json({
+      success: true,
+      message: "Ads created successfully",
+      ads: createdAds
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+
+
+/*
+-----------------------------------------
+Get Seller Ads
+Used to display ads in Advertisement Page
+-----------------------------------------
+GET /api/ads/my-ads
+*/
+exports.getSellerAds = async (req, res) => {
+  try {
+
+    const ads = await Ad.find({ seller: req.user.id })
       .sort({ createdAt: -1 });
 
-    res.status(200).json(ads);
+    res.status(200).json({
+      success: true,
+      count: ads.length,
+      ads
+    });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
-/* ==============================
-   GET MY ADS (Seller Dashboard)
-============================== */
-exports.getMyAds = async (req, res) => {
+
+
+/*
+-----------------------------------------
+Pause Advertisement
+Pause button in UI
+-----------------------------------------
+PATCH /api/ads/:id/pause
+*/
+exports.pauseAd = async (req, res) => {
   try {
-    const ads = await Ad.find({ seller: req.user._id });
 
-    res.status(200).json(ads);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-/* ==============================
-   UPDATE AD
-============================== */
-exports.updateAd = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const ad = await Ad.findById(id);
+    const ad = await Ad.findOneAndUpdate(
+      { _id: req.params.id, seller: req.user.id },
+      { isActive: false },
+      { new: true }
+    );
 
     if (!ad) {
-      return res.status(404).json({ message: "Ad not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Ad not found"
+      });
     }
 
-    if (!ad.seller.equals(req.user._id)) {
-      return res.status(403).json({ message: "Unauthorized" });
-    }
-
-    if (req.file) {
-      ad.mediaUrl = `/uploads/${req.file.filename}`;
-    }
-
-    if (req.body.description !== undefined)
-      ad.description = req.body.description;
-
-    if (req.body.isActive !== undefined)
-      ad.isActive = req.body.isActive;
-
-    await ad.save();
-
-    res.status(200).json({
-      message: "Ad updated successfully",
-      data: ad,
+    res.json({
+      success: true,
+      message: "Ad paused successfully",
+      ad
     });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
-/* ==============================
-   DELETE AD
-============================== */
+
+
+/*
+-----------------------------------------
+Resume Advertisement
+-----------------------------------------
+PATCH /api/ads/:id/resume
+*/
+exports.resumeAd = async (req, res) => {
+  try {
+
+    const ad = await Ad.findOneAndUpdate(
+      { _id: req.params.id, seller: req.user.id },
+      { isActive: true },
+      { new: true }
+    );
+
+    if (!ad) {
+      return res.status(404).json({
+        success: false,
+        message: "Ad not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Ad resumed successfully",
+      ad
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+
+
+/*
+-----------------------------------------
+Delete Advertisement
+Remove button in UI
+-----------------------------------------
+DELETE /api/ads/:id
+*/
 exports.deleteAd = async (req, res) => {
   try {
-    const { id } = req.params;
 
-    const ad = await Ad.findById(id);
+    const ad = await Ad.findOneAndDelete({
+      _id: req.params.id,
+      seller: req.user.id
+    });
 
     if (!ad) {
-      return res.status(404).json({ message: "Ad not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Ad not found"
+      });
     }
 
-    if (!ad.seller.equals(req.user._id)) {
-      return res.status(403).json({ message: "Unauthorized" });
-    }
-
-    await ad.deleteOne();
-
-    res.status(200).json({
-      message: "Ad deleted successfully",
+    res.json({
+      success: true,
+      message: "Ad removed successfully"
     });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+
+
+/*
+-----------------------------------------
+Get Active Ads
+Used in Landing Page
+-----------------------------------------
+GET /api/ads/active
+*/
+exports.getActiveAds = async (req, res) => {
+  try {
+
+    const ads = await Ad.find({ isActive: true })
+      .populate("seller", "name email")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: ads.length,
+      ads
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };

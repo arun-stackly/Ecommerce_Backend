@@ -39,6 +39,9 @@ const adsRoutes = require("./routes/adsRoutes");
 const wishlistRoutes = require("./routes/wishlistRoutes");
 const userorderRoutes = require("./routes/userorderRoutes");
 const userlandingRoutes = require("./routes/userlandingRoutes");
+const fashionRoutes = require("./routes/fashionHomeRoutes");
+
+
 
 const app = express();
 
@@ -59,6 +62,7 @@ app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/auth/seller", authRoutes);
 app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
+app.use("/api/fashion", fashionRoutes);
 
 app.use("/api/orders", userorderRoutes);
 
