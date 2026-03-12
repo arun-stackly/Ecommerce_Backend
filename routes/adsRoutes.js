@@ -1,19 +1,20 @@
 const express = require("express");
 const router = express.Router();
 const adController = require("../controllers/adsController");
-const upload = require("../middleware/uploadMiddleware");
 const { protect } = require("../middleware/authMiddleware");
 
-/* Seller Dashboard */
-router.put("/bulk", protect, adController.saveAds);
-router.post("/", protect, upload.single("media"), adController.createAd);
-router.get("/my-ads", protect, adController.getMyAds);
+router.post("/", protect, adController.createAd);
 
-/* Public Landing Page */
-router.get("/", adController.getAds);
+router.post("/bulk", protect, adController.createMultipleAds);
 
-/* Update & Delete */
-router.put("/:id", protect, upload.single("media"), adController.updateAd);
+router.get("/my-ads", protect, adController.getSellerAds);
+
+router.patch("/:id/pause", protect, adController.pauseAd);
+
+router.patch("/:id/resume", protect, adController.resumeAd);
+
 router.delete("/:id", protect, adController.deleteAd);
+
+router.get("/active", adController.getActiveAds);
 
 module.exports = router;
