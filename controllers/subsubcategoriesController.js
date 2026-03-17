@@ -1,63 +1,99 @@
-const Category = require('../models/Category');
-const Subcategory = require('../models/Subcategory');
-const SubSub = require('../models/SubSubcategory');
+const SubSubcategory = require("../models/SubSubcategory");
+const Category = require("../models/Category");
+const Subcategory = require("../models/Subcategory");
 
-exports.createOrUpdateSubSubcategory = async (req, res) => {
+// CREATE SUBSUBCATEGORY
+exports.createSubSubcategory = async (req, res) => {
   try {
-    const { category: categoryName, subcategory: subName } = req.params;
-    const payload = req.body;
 
-    const category = await Category.findOne({ name: new RegExp(`^${categoryName}$`, 'i') });
-    if (!category) return res.status(404).json({ error: 'category not found' });
-    const sub = await Subcategory.findOne({ name: new RegExp(`^${subName}$`, 'i'), category: category._id });
-    if (!sub) return res.status(404).json({ error: 'subcategory not found' });
+    const { name, categoryId, subcategoryId } = req.body;
 
-    const doc = await SubSub.findOneAndUpdate(
-      { category: category._id, subcategory: sub._id },
-      {
-        $set: {
-          structure: payload.structure || payload.Categories || {},
-          brands: payload.brands || payload.brand || [],
-          priceRanges: payload.priceRanges || payload.Price || payload.PriceRanges || [],
-          availabilityOptions: payload.availabilityOptions || payload.availabilityOptions || ["In stock","Out of stock"]
-        }
-      },
-      { upsert: true, new: true }
+    const slug = name.toLowerCase().replace(/\s+/g, "-");
+
+    const category = await Category.findById(categoryId);
+    const subcategory = await Subcategory.findById(subcategoryId);
+
+    if (!category || !subcategory) {
+      return res.status(404).json({
+        message: "Category or Subcategory not found"
+      });
+    }
+
+    const subSub = new SubSubcategory({
+      name,
+      slug,
+      category: categoryId,
+      subcategory: subcategoryId
+    });
+
+    await subSub.save();
+
+    res.status(201).json({
+      success: true,
+      data: subSub
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+exports.getSubSubcategories = async (req, res) => {
+  try {
+
+    const data = await SubSubcategory.find()
+      .populate("category")
+      .populate("subcategory");
+
+    res.json(data);
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+exports.getBySubcategory = async (req, res) => {
+
+  try {
+
+    const data = await SubSubcategory.find({
+      subcategory: req.params.subcategoryId
+    });
+
+    res.json(data);
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+
+};
+exports.updateSubSubcategory = async (req, res) => {
+
+  try {
+
+    const updated = await SubSubcategory.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
     );
 
-    res.status(201).json(doc);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json(updated);
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
+
 };
+exports.deleteSubSubcategory = async (req, res) => {
 
-exports.getSubSubcategory = async (req, res) => {
   try {
-    const { category: categoryName, subcategory: subName } = req.params;
-    const category = await Category.findOne({ name: new RegExp(`^${categoryName}$`, 'i') });
-    if (!category) return res.status(404).json({ error: 'category not found' });
-    const sub = await Subcategory.findOne({ name: new RegExp(`^${subName}$`, 'i'), category: category._id });
-    if (!sub) return res.status(404).json({ error: 'subcategory not found' });
 
-    const doc = await SubSub.findOne({ category: category._id, subcategory: sub._id });
-    if (!doc) return res.status(404).json({ error: 'sub-subcategory not found' });
+    await SubSubcategory.findByIdAndDelete(req.params.id);
 
     res.json({
-      Categories: doc.structure,
-      brand: doc.brands,
-      Price: doc.priceRanges,
-      availabilityOptions: doc.availabilityOptions
+      message: "SubSubcategory deleted"
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
 
-exports.deleteById = async (req, res) => {
-  try {
-    await SubSub.findByIdAndDelete(req.params.id);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
+
 };

@@ -40,8 +40,8 @@ const wishlistRoutes = require("./routes/wishlistRoutes");
 const userorderRoutes = require("./routes/userorderRoutes");
 const userlandingRoutes = require("./routes/userlandingRoutes");
 const fashionRoutes = require("./routes/fashionHomeRoutes");
-
-
+const productitemRoutes = require("./routes/prooductitemRoutes");
+const fashionmenRoutes = require("./routes/fashionMenRoutes")
 
 const app = express();
 
@@ -52,6 +52,8 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 app.use("/api/products", require("./routes/productRoutes"));
+app.use("/api/productitems", productitemRoutes);
+
 app.use("/api/deals", require("./routes/dealRoutes"));
 app.use("/api/banners", require("./routes/bannerRoutes"));
 app.use("/api/home", require("./routes/homeRoutes"));
@@ -92,6 +94,7 @@ app.use("/api/payment", paymentRoutes);
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/subcategories", subcategoriesRoutes);
 app.use("/api/subsubcategories", subsubRoutes);
+app.use("/api/men", fashionmenRoutes)
 
 app.use("/api/user", userlandingRoutes);
 
