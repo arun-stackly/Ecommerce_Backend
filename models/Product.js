@@ -4,10 +4,26 @@ const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     description: String,
-    category: { type: String, index: true },
+    category: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Category",
+        required: true
+      },
+    
+      subcategory: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Subcategory",
+        required: true
+      },
+    
+      subSubcategory: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "SubSubcategory",
+        required: true
+      },
     subCategory: String,
-    brand: { type: String, index: true },
-    price: { type: Number, required: true },
+     brands: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    priceRanges: { type: [String], default: [] },
     discountPrice: Number,
     reviews: [
   {
@@ -21,7 +37,12 @@ const productSchema = new mongoose.Schema(
     comment: { type: String },
   },
 ],
-  
+   sizes: [
+    {
+      size: String,
+      quantity: Number
+    }
+  ],
     reviewCount: { type: Number, default: 0 },
     stock: { type: Number, default: 0 },
     payOnDelivery: { type: Boolean, default: true },
