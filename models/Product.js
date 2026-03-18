@@ -22,7 +22,12 @@ const productSchema = new mongoose.Schema(
         required: true
       },
     subCategory: String,
-     brands: { type: [mongoose.Schema.Types.Mixed], default: [] },
+     brands: [
+  {
+    name: { type: String, required: true },
+    logo: { type: String }
+  }
+],
     priceRanges: { type: [String], default: [] },
     discountPrice: Number,
     reviews: [
@@ -47,12 +52,7 @@ const productSchema = new mongoose.Schema(
     stock: { type: Number, default: 0 },
     payOnDelivery: { type: Boolean, default: true },
     images: [String],
-
     isFeatured: { type: Boolean, default: false },
-    isTopDeal: { type: Boolean, default: false },
-    isUpcoming: { type: Boolean, default: false },
-    dealEndTime: Date,
-
     status: { type: String, default: "active" }
   },
   { timestamps: true }

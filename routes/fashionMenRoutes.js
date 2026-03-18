@@ -14,7 +14,7 @@ router.get("/products", menController.getProducts);
 // Example: /products/filter?productType=shirt&subSubcategoryId=123
 router.get(
   "/filter",
-  menController.getProductsByTypeAndSubSubCategory
+  menController.getMenFilteredProducts
 );
 
 // ==============================
@@ -23,6 +23,8 @@ router.get(
 
 // Get upcoming deals
 router.get("/deals/upcoming", menController.getUpcomingDeals);
+
+router.get("/productitems", menController.getMenProducts);
 
 // ==============================
 // ✅ MEN PAGE APIs

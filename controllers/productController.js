@@ -9,18 +9,93 @@ const mongoose = require("mongoose"); // ✅ Add this
 // ==============================
 exports.addProduct = async (req, res) => {
   try {
-    const product = new Product(req.body);
+    const {
+      name,
+      description,
+      category,
+      subcategory,
+      subSubcategory,
+      brands,
+      discountPrice,
+      sizes,
+      stock,
+      images
+    } = req.body;
+
+    // ✅ Required field validation
+    if (!name || !category || !subcategory || !subSubcategory) {
+      return res.status(400).json({
+        success: false,
+        message: "Required fields are missing",
+      });
+    }
+
+    // ✅ Brand validation (VERY IMPORTANT)
+    if (brands && brands.length > 0) {
+      const isValidBrand = brands.every(
+        (b) => b.name && typeof b.name === "string"
+      );
+
+      if (!isValidBrand) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid brand format. Use { name, logo }",
+        });
+      }
+    }
+
+    // ✅ Size validation
+    if (sizes && sizes.length > 0) {
+      const isValidSizes = sizes.every(
+        (s) => s.size && typeof s.quantity === "number"
+      );
+
+      if (!isValidSizes) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid sizes format",
+        });
+      }
+    }
+
+    // ✅ Auto calculate stock from sizes (BEST PRACTICE)
+    let totalStock = stock || 0;
+
+    if (sizes && sizes.length > 0) {
+      totalStock = sizes.reduce((acc, item) => acc + item.quantity, 0);
+    }
+
+    // ✅ Create product
+    const product = new Product({
+      name,
+      description,
+      category,
+      subcategory,
+      subSubcategory,
+      brands,
+      discountPrice,
+      sizes,
+      stock: totalStock,
+      images,
+      ...req.body // optional extra fields
+    });
+
     await product.save();
 
     res.status(201).json({
+      success: true,
       message: "Product added successfully",
       product,
     });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Add Product Error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-
 
 // ==============================
 // ✅ 2. GET ALL PRODUCTS (FILTER + PAGINATION)
@@ -44,17 +119,20 @@ exports.getProducts = async (req, res) => {
 
     if (category) filter.category = category;
 
-    if (brand) filter.brand = { $in: brand.split(",") };
+    // ✅ FIXED BRAND FILTER
+    if (brand) {
+      filter["brands.name"] = { $in: brand.split(",") };
+    }
 
+    // ✅ FIXED PRICE FILTER
     if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = Number(minPrice);
-      if (maxPrice) filter.price.$lte = Number(maxPrice);
+      filter.discountPrice = {};
+      if (minPrice) filter.discountPrice.$gte = Number(minPrice);
+      if (maxPrice) filter.discountPrice.$lte = Number(maxPrice);
     }
 
     if (rating) filter.rating = { $gte: Number(rating) };
 
-    // Correct discount filter
     if (discount === "true") {
       filter.discountPrice = { $exists: true, $ne: null };
     }
@@ -64,8 +142,8 @@ exports.getProducts = async (req, res) => {
     }
 
     let sortOption = {};
-    if (sort === "price_asc") sortOption.price = 1;
-    else if (sort === "price_desc") sortOption.price = -1;
+    if (sort === "price_asc") sortOption.discountPrice = 1;
+    else if (sort === "price_desc") sortOption.discountPrice = -1;
     else if (sort === "newest") sortOption.createdAt = -1;
     else if (sort === "rating_desc") sortOption.rating = -1;
 
@@ -87,7 +165,6 @@ exports.getProducts = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 // ==============================
 // ✅ 3. GET SINGLE PRODUCT BY ID
