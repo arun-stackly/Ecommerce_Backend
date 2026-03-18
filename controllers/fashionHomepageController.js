@@ -5,6 +5,7 @@ const Deal = require("../models/Deal");
 // =======================================
 // 1. Latest Products
 // GET /api/products/latest
+//Get only active products,   Sort by newest first ,Limit to 10 products
 // =======================================
 exports.getLatestProducts = async (req, res) => {
   try {
@@ -28,7 +29,7 @@ exports.getBrandProducts = async (req, res) => {
     const { brandName } = req.params;
 
     const products = await Product.find({
-      brand: brandName,
+      "brands.name": brandName,
       status: "active"
     });
 
@@ -42,11 +43,11 @@ exports.getBrandProducts = async (req, res) => {
 // =======================================
 // 3. Banner Slider
 // GET /api/banners
+// Get banners for homepage  , Only active banners
 // =======================================
 exports.getBanners = async (req, res) => {
   try {
     const banners = await Banner.find({
-      type: "homepage",
       isActive: true
     });
 
@@ -60,6 +61,7 @@ exports.getBanners = async (req, res) => {
 // =======================================
 // 4. Promotions
 // GET /api/promotions
+// Fetch products marked as featured, Limit to 6
 // =======================================
 exports.getPromotions = async (req, res) => {
   try {
@@ -78,20 +80,31 @@ exports.getPromotions = async (req, res) => {
 // =======================================
 // 5. Top Brands
 // GET /api/brands/top
+// Popular brands, Brand filter UI
 // =======================================
 exports.getTopBrands = async (req, res) => {
   try {
     const brands = await Product.aggregate([
-      { $match: { status: "active" } },
-      {
-        $group: {
-          _id: "$brand",
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { count: -1 } },
-      { $limit: 6 }
-    ]);
+  { $match: { status: "active" } },
+  { $unwind: "$brands" }, // break array
+  {
+    $group: {
+      _id: "$brands.name",
+      logo: { $first: "$brands.logo" },
+      count: { $sum: 1 }
+    }
+  },
+  { $sort: { count: -1 } },
+  { $limit: 6 },
+  {
+    $project: {
+      _id: 0,
+      name: "$_id",
+      logo: 1,
+      count: 1
+    }
+  }
+]);
 
     res.json(brands);
   } catch (error) {
@@ -103,12 +116,15 @@ exports.getTopBrands = async (req, res) => {
 // =======================================
 // 6. Deals
 // GET /api/deals
+// Get active deals, Attach product details
 // =======================================
 exports.getDeals = async (req, res) => {
   try {
     const deals = await Deal.find({ isActive: true })
-      .populate("productId");
-
+      .populate({
+  path: "productId",
+  populate: ["category", "subcategory", "subSubcategory"]
+});
     res.json(deals);
   } catch (error) {
     res.status(500).json({ message: error.message });

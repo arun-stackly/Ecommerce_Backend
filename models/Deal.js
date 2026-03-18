@@ -8,7 +8,7 @@ const dealSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["weekly", "upcoming", "flash"],
+      enum: ["weekly", "upcoming", "flash", "TopDeal"],
     },
     startDate: Date,
     endDate: Date,
