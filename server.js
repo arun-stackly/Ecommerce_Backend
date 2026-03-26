@@ -42,6 +42,7 @@ const userlandingRoutes = require("./routes/userlandingRoutes");
 const fashionRoutes = require("./routes/fashionHomeRoutes");
 const productitemRoutes = require("./routes/prooductitemRoutes");
 const fashionmenRoutes = require("./routes/fashionMenRoutes")
+const fashionRoutes = require("./routes/Fashion")
 
 const app = express();
 
@@ -65,6 +66,7 @@ app.use("/api/auth/seller", authRoutes);
 app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
 app.use("/api/fashion", fashionRoutes);
+app.use("/api/fashions", fashionRoutes);
 
 app.use("/api/orders", userorderRoutes);
 
