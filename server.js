@@ -39,9 +39,8 @@ const adsRoutes = require("./routes/adsRoutes");
 const wishlistRoutes = require("./routes/wishlistRoutes");
 const userorderRoutes = require("./routes/userorderRoutes");
 const userlandingRoutes = require("./routes/userlandingRoutes");
-const fashionRoutes = require("./routes/fashionHomeRoutes");
+const fashionHomeRoutes = require("./routes/fashionHomeRoutes");
 const productitemRoutes = require("./routes/prooductitemRoutes");
-const fashionmenRoutes = require("./routes/fashionMenRoutes")
 const fashionRoutes = require("./routes/Fashion")
 
 const app = express();
@@ -65,7 +64,7 @@ app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/auth/seller", authRoutes);
 app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
-app.use("/api/fashion", fashionRoutes);
+app.use("/api/fashion", fashionHomeRoutes);
 app.use("/api/fashions", fashionRoutes);
 
 app.use("/api/orders", userorderRoutes);
@@ -96,7 +95,7 @@ app.use("/api/payment", paymentRoutes);
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/subcategories", subcategoriesRoutes);
 app.use("/api/subsubcategories", subsubRoutes);
-app.use("/api/men", fashionmenRoutes)
+
 
 app.use("/api/user", userlandingRoutes);
 
@@ -111,3 +110,4 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+console.log("MONGO_URI:", process.env.MONGO_URI);
