@@ -27,13 +27,13 @@ const ProductSchema = new mongoose.Schema({
   subSubcategory: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "SubSubcategory",
-    required: true
+    required: false
   },
 
 
   productType: {
   type: String,
-  enum: ["shirt", "tshirt", "jeans", "kurti", "top"],
+  enum: ["shirt", "tshirt", "jeans", "kurti", "top", "saree"],
   required: true
 },
 

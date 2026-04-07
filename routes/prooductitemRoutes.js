@@ -8,6 +8,11 @@ router.post("/", productController.addProduct);
 
 // Get all products
 router.get("/", productController.getProducts);
+// Get products by Subcategory
+router.get(
+  "/subcategory/:subcategoryId",
+  productController.getProductsBySubcategory
+);
 
 // Get products by SubSubcategory
 router.get("/subsub/:subSubcategoryId", productController.getProductsBySubSubcategory);

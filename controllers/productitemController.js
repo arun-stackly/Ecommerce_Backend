@@ -86,6 +86,28 @@ exports.getProductsByType = async (req, res) => {
     });
   }
 };
+exports.getProductsBySubcategory = async (req, res) => {
+  try {
+    const { subcategoryId } = req.params;
+
+    const products = await Product.find({
+      subcategory: subcategoryId
+    })
+      .populate("category")
+      .populate("subcategory");
+
+    res.json({
+      success: true,
+      count: products.length,
+      products
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};
 exports.getProductsByTypeAndSubSubCategory = async (req, res) => {
   try {
 
