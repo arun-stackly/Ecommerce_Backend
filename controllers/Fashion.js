@@ -9,7 +9,7 @@ const mongoose = require("mongoose");
 exports.getProducts = async (req, res) => {
   try {
     const products = await Product.find()
-      .populate("category subcategory subSubcategory");
+      .populate("category subcategory ");
 
     res.json(products);
   } catch (error) {
@@ -27,8 +27,8 @@ exports.getCategoryProducts = async (req, res) => {
     const { producttypeId } = req.params;
 
     const products = await Product.find({
-      subSubcategory: new mongoose.Types.ObjectId(producttypeId)
-    }).populate("category subcategory subSubcategory");
+      subcategory: new mongoose.Types.ObjectId(producttypeId)
+    }).populate("category subcategory");
 
     res.json({
       success: true,
@@ -41,7 +41,6 @@ exports.getCategoryProducts = async (req, res) => {
   }
 };
 
-
 // =======================================
 // 3. Filter Products
 // GET /api/category/:producttypeId/filter
@@ -49,7 +48,7 @@ exports.getCategoryProducts = async (req, res) => {
 exports.getFilteredProducts = async (req, res) => {
   try {
     const { producttypeId } = req.params;
-    const { productType, subSubproducttypeId } = req.query;
+    const { productType } = req.query;
 
     let filter = {};
 
@@ -60,11 +59,9 @@ exports.getFilteredProducts = async (req, res) => {
     const items = await ProductItem.find(filter).populate({
       path: "product",
       match: {
-        subSubcategory: subSubproducttypeId
-          ? new mongoose.Types.ObjectId(subSubproducttypeId)
-          : new mongoose.Types.ObjectId(producttypeId)
+        subcategory: new mongoose.Types.ObjectId(producttypeId)
       },
-      populate: ["category", "subcategory", "subSubcategory"]
+      populate: ["category", "subcategory"]
     });
 
     const filteredItems = items.filter(item => item.product !== null);
@@ -95,9 +92,9 @@ exports.getUpcomingDeals = async (req, res) => {
     }).populate({
       path: "productId",
       match: {
-        subSubcategory: new mongoose.Types.ObjectId(producttypeId)
+        subcategory: new mongoose.Types.ObjectId(producttypeId)
       },
-      populate: ["category", "subcategory", "subSubcategory"]
+      populate: ["category", "subcategory"]
     });
 
     const filteredDeals = deals.filter(deal => deal.productId !== null);
@@ -112,7 +109,6 @@ exports.getUpcomingDeals = async (req, res) => {
   }
 };
 
-
 // =======================================
 // 5. Top Rated Products
 // GET /api/category/:producttypeId/top-rated
@@ -122,7 +118,7 @@ exports.getTopRatedProducts = async (req, res) => {
     const { producttypeId } = req.params;
 
     const products = await Product.find({
-      subSubcategory: new mongoose.Types.ObjectId(producttypeId)
+      subcategory: new mongoose.Types.ObjectId(producttypeId)
     });
 
     const productsWithRating = products.map(product => {
@@ -131,8 +127,7 @@ exports.getTopRatedProducts = async (req, res) => {
       const avgRating =
         totalReviews === 0
           ? 0
-          : product.reviews.reduce((acc, r) => acc + r.rating, 0) /
-            totalReviews;
+          : product.reviews.reduce((acc, r) => acc + r.rating, 0) / totalReviews;
 
       return {
         ...product.toObject(),
@@ -141,12 +136,7 @@ exports.getTopRatedProducts = async (req, res) => {
       };
     });
 
-    productsWithRating.sort((a, b) => {
-      if (b.avgRating === a.avgRating) {
-        return b.reviewCount - a.reviewCount;
-      }
-      return b.avgRating - a.avgRating;
-    });
+    productsWithRating.sort((a, b) => b.avgRating - a.avgRating);
 
     res.json({
       success: true,
@@ -158,11 +148,6 @@ exports.getTopRatedProducts = async (req, res) => {
   }
 };
 
-
-// =======================================
-// 6. Get Brands
-// GET /api/category/:producttypeId/brands
-// =======================================
 exports.getCategoryBrands = async (req, res) => {
   try {
     const { producttypeId } = req.params;
@@ -170,7 +155,7 @@ exports.getCategoryBrands = async (req, res) => {
     const brands = await Product.aggregate([
       {
         $match: {
-          subSubcategory: new mongoose.Types.ObjectId(producttypeId)
+          subcategory: new mongoose.Types.ObjectId(producttypeId)
         }
       },
       { $unwind: "$brands" },

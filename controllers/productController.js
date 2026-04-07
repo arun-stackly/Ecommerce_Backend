@@ -23,7 +23,7 @@ exports.addProduct = async (req, res) => {
     } = req.body;
 
     // ✅ Required field validation
-    if (!name || !category || !subcategory || !subSubcategory) {
+    if (!name || !category || !subcategory ) {
       return res.status(400).json({
         success: false,
         message: "Required fields are missing",
