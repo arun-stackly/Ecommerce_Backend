@@ -41,7 +41,9 @@ const userorderRoutes = require("./routes/userorderRoutes");
 const userlandingRoutes = require("./routes/userlandingRoutes");
 const fashionHomeRoutes = require("./routes/fashionHomeRoutes");
 const productitemRoutes = require("./routes/prooductitemRoutes");
-const fashionRoutes = require("./routes/Fashion")
+const fashionRoutes = require("./routes/Fashion");
+const fashionProductDeatailRoutes = require("./routes/FashionProductDetails");
+const specificationRoutes = require("./routes/ProductSpecification")
 
 const app = express();
 
@@ -53,6 +55,7 @@ app.use(morgan("dev"));
 
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/productitems", productitemRoutes);
+app.use("/api/productspecs", specificationRoutes);
 
 app.use("/api/deals", require("./routes/dealRoutes"));
 app.use("/api/banners", require("./routes/bannerRoutes"));
@@ -66,6 +69,7 @@ app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
 app.use("/api/fashion", fashionHomeRoutes);
 app.use("/api/fashions", fashionRoutes);
+app.use("/api/productdetails", fashionProductDeatailRoutes);
 
 app.use("/api/orders", userorderRoutes);
 

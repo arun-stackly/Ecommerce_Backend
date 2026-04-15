@@ -33,7 +33,9 @@ const ProductSchema = new mongoose.Schema({
 
   productType: {
   type: String,
-  enum: ["shirt", "tshirt", "jeans", "kurti", "top", "saree"],
+  enum: ["shirt", "tshirt", "jeans", "kurti", "top", "saree", "MenSportswear", "WomenSportswear", "KidsSportswear", "Backbags", "Handbags", "Neckwear", "Earrings",
+    "Men's Sunglasses", "Women's Sunglasses", "UV Protection Sunglasses", "Casual Sunglasses", "Sports Sunglasses"
+  ],
   required: true
 },
 
