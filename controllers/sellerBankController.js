@@ -133,7 +133,8 @@ exports.getBankDetails = async (req, res) => {
 
     res.status(200).json({
       ...bank._doc,
-      accountNumber: maskAccountNumber(bank.accountNumber),
+     // accountNumber: maskAccountNumber(bank.accountNumber),
+     
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
