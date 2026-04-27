@@ -29,28 +29,54 @@ exports.getSellerProfile = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 /* ================= UPDATE SELLER PROFILE ================= */
 exports.updateSellerProfile = async (req, res) => {
   try {
-    const { phone, address, registeredContact, profileImage } = req.body;
-
+    const {
+      phone,
+      address,
+      registeredContact,
+      profileImage,
+      firstName,
+      lastName,
+    } = req.body;
+ 
     const profile = await SellerProfile.findOne({ user: req.user._id });
-
+ 
     if (!profile) {
       return res.status(404).json({ message: "Profile not found" });
     }
-
+ 
     if (phone) profile.phone = phone;
     if (address) profile.address = address;
     if (registeredContact) profile.registeredContact = registeredContact;
     if (profileImage) profile.profileImage = profileImage;
-
+ 
     await profile.save();
-
+ 
+    let user = null;
+ 
+    // ✅ Update firstName & lastName
+    if (firstName || lastName) {
+      user = await User.findById(req.user._id);
+      if (user) {
+        if (firstName) user.firstName = firstName;
+        if (lastName) user.lastName = lastName;
+        await user.save();
+      }
+    }
+ 
+    // ✅ If user not fetched above, fetch for response
+    if (!user) {
+      user = await User.findById(req.user._id);
+    }
+ 
     res.status(200).json({
       message: "Seller profile updated successfully",
       profile,
+      fullName: `${user.firstName} ${user.lastName}`, // ✅ Added
+      firstName: user.firstName, // ✅ Optional (useful)
+      lastName: user.lastName, // ✅ Optional
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
