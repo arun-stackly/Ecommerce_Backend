@@ -28,8 +28,23 @@ const productSchema = new mongoose.Schema(
     logo: { type: String }
   }
 ],
-    priceRanges: { type: [String], default: [] },
-    discountPrice: Number,
+ // ✅ Base Product Price
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    // ✅ Discounted Price
+    discountPrice: {
+      type: Number,
+      default: 0,
+    },
+     // Optional filter ranges
+    priceRanges: {
+      type: [String],
+      default: [],
+    },
     reviews: [
   {
     user: {
