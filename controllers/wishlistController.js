@@ -1,85 +1,240 @@
 const mongoose = require("mongoose");
 const Wishlist = require("../models/Wishlist");
+const SellerInventory = require("../models/SellerInventory");
 
 /* ================= GET WISHLIST ================= */
+
 exports.getWishlist = async (req, res) => {
   try {
-    const wishlist = await Wishlist.findOne({ userId: req.user._id })
-      .populate("products");
+    const wishlist = await Wishlist.findOne({
+      userId: req.user._id,
+    }).populate({
+      path: "items.sellerInventoryId",
+      select:
+        "name price media quantity isActive",
+    });
+
+    /* ===== EMPTY WISHLIST ===== */
 
     if (!wishlist) {
-      return res.json({
-        userId: req.user._id,
-        products: [],
-      });
-    }
-
-    res.json(wishlist);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-exports.addToWishlist = async (req, res) => {
-  try {
-    const { productId } = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ message: "Invalid productId" });
-    }
-
-    const result = await Wishlist.updateOne(
-      { userId: req.user._id },
-      { $addToSet: { products: productId } },
-      { upsert: true }
-    );
-
-    if (result.modifiedCount === 0) {
       return res.status(200).json({
         success: true,
-        message: "Product already in wishlist",
+        data: {
+          userId: req.user._id,
+          items: [],
+        },
       });
     }
 
-    return res.status(201).json({
+    /* ===== FORMAT RESPONSE ===== */
+
+    const formattedWishlist = {
+      userId: wishlist.userId,
+
+      items: wishlist.items
+
+        /* ===== REMOVE DELETED / INACTIVE ===== */
+        .filter(
+          (item) =>
+            item.sellerInventoryId &&
+            item.sellerInventoryId.isActive,
+        )
+
+        .map((item) => {
+          const inventory =
+            item.sellerInventoryId;
+
+          return {
+            sellerInventoryId:
+              inventory._id,
+
+            name: inventory.name,
+
+            image:
+              inventory.media?.find(
+                (m) => m.type === "image",
+              )?.url || "",
+
+            price: inventory.price,
+
+            quantity:
+              inventory.quantity,
+
+            isActive:
+              inventory.isActive,
+          };
+        }),
+    };
+
+    res.status(200).json({
       success: true,
-      message: "Product added to wishlist successfully",
-      productId,
+      data: formattedWishlist,
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-/* ================= REMOVE FROM WISHLIST ================= */
-exports.removeFromWishlist = async (req, res) => {
+
+/* ================= ADD TO WISHLIST ================= */
+
+exports.addToWishlist = async (
+  req,
+  res,
+) => {
   try {
-    const { productId } = req.params;
+    const { sellerInventoryId } =
+      req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ message: "Invalid productId" });
+    /* ===== VALIDATION ===== */
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        sellerInventoryId,
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid sellerInventoryId",
+      });
     }
 
-    const result = await Wishlist.updateOne(
-      { userId: req.user._id },
-      { $pull: { products: productId } }
-    );
+    /* ===== CHECK INVENTORY ===== */
 
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ message: "Wishlist not found" });
+    const inventory =
+      await SellerInventory.findById(
+        sellerInventoryId,
+      );
+
+    if (
+      !inventory ||
+      !inventory.isActive
+    ) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not available",
+      });
     }
 
-    if (result.modifiedCount === 0) {
-      return res.status(404).json({ message: "Product not found in wishlist" });
+    /* ===== FIND USER WISHLIST ===== */
+
+    let wishlist =
+      await Wishlist.findOne({
+        userId: req.user._id,
+      });
+
+    /* ===== CREATE WISHLIST ===== */
+
+    if (!wishlist) {
+      wishlist =
+        await Wishlist.create({
+          userId: req.user._id,
+          items: [],
+        });
     }
 
-    return res.status(200).json({
+    /* ===== CHECK DUPLICATE ===== */
+
+    const alreadyExists =
+      wishlist.items.find(
+        (item) =>
+          item.sellerInventoryId.toString() ===
+          sellerInventoryId.toString(),
+      );
+
+    if (alreadyExists) {
+      return res.status(200).json({
+        success: true,
+        message:
+          "Item already in wishlist",
+      });
+    }
+
+    /* ===== ADD ITEM ===== */
+
+    wishlist.items.push({
+      sellerInventoryId,
+    });
+
+    await wishlist.save();
+
+    res.status(201).json({
       success: true,
-      message: "Product removed from wishlist successfully",
+      message:
+        "Item added to wishlist",
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
+
+/* ================= REMOVE FROM WISHLIST ================= */
+
+exports.removeFromWishlist =
+  async (req, res) => {
+    try {
+      const {
+        sellerInventoryId,
+      } = req.params;
+
+      /* ===== VALIDATION ===== */
+
+      if (
+        !mongoose.Types.ObjectId.isValid(
+          sellerInventoryId,
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid sellerInventoryId",
+        });
+      }
+
+      /* ===== FIND WISHLIST ===== */
+
+      const wishlist =
+        await Wishlist.findOne({
+          userId: req.user._id,
+        });
+
+      if (!wishlist) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Wishlist not found",
+        });
+      }
+
+      /* ===== REMOVE ITEM ===== */
+
+      wishlist.items =
+        wishlist.items.filter(
+          (item) =>
+            item.sellerInventoryId.toString() !==
+            sellerInventoryId.toString(),
+        );
+
+      await wishlist.save();
+
+      res.status(200).json({
+        success: true,
+        message:
+          "Item removed from wishlist",
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  };
