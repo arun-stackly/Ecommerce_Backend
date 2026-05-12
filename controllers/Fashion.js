@@ -194,123 +194,83 @@ exports.getFilteredProducts =
    4. Upcoming Deals
    GET /api/category/:producttypeId/deals/upcoming
 ======================================= */
-exports.getUpcomingDeals =
-  async (req, res) => {
-    try {
-      const { producttypeId } =
-        req.params;
+exports.getUpcomingDeals = async (req, res) => {
+  try {
+    const { producttypeId } = req.params;
 
-      const deals = await Deal.find({
-        type: "upcoming",
-
+    const deals = await Deal.find({
+      type: "upcoming",
+      isActive: true,
+    }).populate({
+      path: "productId",
+      match: {
+        subcategory: new mongoose.Types.ObjectId(producttypeId),
         isActive: true,
-      }).populate({
-        path: "sellerInventoryId",
+      },
+    });
 
-        match: {
-          subcategory:
-            new mongoose.Types.ObjectId(
-              producttypeId,
-            ),
+    const filteredDeals = deals.filter(
+      (deal) => deal.productId !== null
+    );
 
-          isActive: true,
-        },
-
-        populate: [
-          "category",
-          "subcategory",
-        ],
-      });
-
-      const filteredDeals =
-        deals.filter(
-          (deal) =>
-            deal.sellerInventoryId !==
-            null,
-        );
-
-      res.status(200).json({
-        success: true,
-
-        deals: filteredDeals,
-      });
-
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-  };
+    res.status(200).json({
+      success: true,
+      deals: filteredDeals,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 /* =======================================
    5. Top Rated Products
    GET /api/category/:producttypeId/top-rated
 ======================================= */
-exports.getTopRatedProducts =
-  async (req, res) => {
-    try {
-      const { producttypeId } =
-        req.params;
+exports.getTopRatedProducts = async (req, res) => {
+  try {
+    const { producttypeId } = req.params;
 
-      const products =
-        await SellerInventory.find({
-          subcategory:
-            new mongoose.Types.ObjectId(
-              producttypeId,
-            ),
+    const products = await SellerInventory.find({
+      subcategory: new mongoose.Types.ObjectId(producttypeId),
+      isActive: true,
+    });
 
-          isActive: true,
-        });
+    const productsWithRating = products
+      .map((product) => {
+        const totalReviews = product.reviews?.length || 0;
 
-      const productsWithRating =
-        products.map((product) => {
-          const totalReviews =
-            product.reviews?.length ||
-            0;
+        const avgRating =
+          totalReviews === 0
+            ? 0
+            : product.reviews.reduce(
+                (acc, r) => acc + r.rating,
+                0
+              ) / totalReviews;
 
-          const avgRating =
-            totalReviews === 0
-              ? 0
-              : product.reviews.reduce(
-                  (acc, r) =>
-                    acc + r.rating,
-                  0,
-                ) / totalReviews;
+        return {
+          ...product.toObject(),
+          avgRating,
+          reviewCount: totalReviews,
+        };
+      })
+      .filter((p) => p.reviewCount > 0)
+      .sort((a, b) => b.avgRating - a.avgRating)
+      .slice(0, 10);
 
-          return {
-            ...product.toObject(),
-
-            avgRating,
-
-            reviewCount:
-              totalReviews,
-          };
-        });
-
-      productsWithRating.sort(
-        (a, b) =>
-          b.avgRating - a.avgRating,
-      );
-
-      res.status(200).json({
-        success: true,
-
-        products:
-          productsWithRating.slice(
-            0,
-            10,
-          ),
-      });
-
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-  };
-
+    res.status(200).json({
+      success: true,
+      products: productsWithRating,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 /* =======================================
    6. Category Brands
 ======================================= */

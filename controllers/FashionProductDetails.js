@@ -1,21 +1,37 @@
 const SellerInventory = require("../models/SellerInventory");
 const Deal = require("../models/Deal");
 const mongoose = require("mongoose");
+const ProductItem = require("../models/ProductItem");
 
 /* =========================================
-   GET SIMILAR PRODUCTS
-   GET /api/products/:id/similar
+   GET SIMILAR PRODUCTS (STRICT CATEGORY)
+   GET /api/products/:id/similar?producttypeId=xxx
 ========================================= */
-exports.getSimilarProducts = async (
-  req,
-  res,
-) => {
+
+
+exports.getSimilarProducts = async (req, res) => {
   try {
     const inventoryId = req.params.id;
+    const { productType } = req.query;
+
+    /* =========================
+       Validate productType
+    ========================= */
+
+    if (!productType) {
+      return res.status(400).json({
+        success: false,
+        message: "productType is required",
+      });
+    }
+
+    /* =========================
+       Find current product
+    ========================= */
 
     const currentProduct =
       await SellerInventory.findById(
-        inventoryId,
+        inventoryId
       );
 
     if (!currentProduct) {
@@ -25,31 +41,53 @@ exports.getSimilarProducts = async (
       });
     }
 
-    const similarProducts =
-      await SellerInventory.find({
-        _id: {
-          $ne: inventoryId,
+    /* =========================
+       Find ProductItems
+    ========================= */
+
+    const productItems =
+      await ProductItem.find({
+        productType: productType,
+      }).populate({
+        path: "sellerInventory",
+        match: {
+          _id: { $ne: inventoryId },
+          isActive: true,
         },
+      });
 
-        category:
-          currentProduct.category,
+    /* =========================
+       Remove null values
+    ========================= */
 
-        isActive: true,
-      }).limit(10);
+    const similarProducts =
+      productItems
+        .filter(
+          (item) => item.sellerInventory
+        )
+        .map(
+          (item) => item.sellerInventory
+        );
+
+    /* =========================
+       Response
+    ========================= */
 
     res.status(200).json({
       success: true,
+      count: similarProducts.length,
       products: similarProducts,
     });
 
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: error.message,
     });
+
   }
 };
-
 /* =========================================
    GET PRODUCT REVIEWS
    GET /api/products/:id/reviews
@@ -83,8 +121,10 @@ exports.getProductReviews = async (
 
     const end = start + limit;
 
-    const paginatedReviews =
-      inventory.reviews.slice(start, end);
+    const reviews = inventory.reviews || [];
+
+const paginatedReviews =
+  reviews.slice(start, end);
 
     res.status(200).json({
       success: true,
