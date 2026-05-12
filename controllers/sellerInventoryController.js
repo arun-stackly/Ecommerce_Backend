@@ -1,107 +1,259 @@
 const mongoose = require("mongoose");
 const SellerInventory = require("../models/SellerInventory");
-const Order = require("../models/Order");
 
-// Add inventory item
-exports.createInventoryItem = async (req, res) => {
-  console.log("Incoming Body:", req.body);
-  const inventoryItem = await SellerInventory.create({
-    ...req.body,
-    seller: req.user._id,
-  });
+/* =======================================
+   CREATE INVENTORY ITEM
+======================================= */
 
-  res.status(201).json(inventoryItem);
+exports.createInventoryItem = async (
+  req,
+  res,
+) => {
+  try {
+    console.log(
+      "Incoming Body:",
+      req.body,
+    );
+
+    const inventoryItem =
+      await SellerInventory.create({
+        ...req.body,
+
+        seller: req.user._id,
+      });
+
+    res.status(201).json({
+      success: true,
+
+      message:
+        "Inventory item created successfully",
+
+      inventoryItem,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+
+      message: error.message,
+    });
+  }
 };
 
-// ✅ Get seller inventory (WITH unitsSold for UI)
-exports.getInventory = async (req, res) => {
+/* =======================================
+   GET SELLER INVENTORY
+======================================= */
+
+exports.getInventory = async (
+  req,
+  res,
+) => {
   try {
-    const sellerId = req.user._id;
+    const sellerId =
+      req.user._id;
 
-    const inventory = await SellerInventory.aggregate([
-      {
-        $match: {
-          seller: new mongoose.Types.ObjectId(sellerId),
-        },
+   const inventory =
+  await SellerInventory.aggregate([
+
+    {
+      $match: {
+        seller: new mongoose.Types.ObjectId(
+          sellerId
+        ),
       },
-      {
-        $lookup: {
-          from: "orders",
-          let: { productId: "$_id" },
-          pipeline: [
-            { $unwind: "$items" },
-            {
-              $match: {
-                $expr: {
-                  $eq: ["$items.productId", "$$productId"],
-                },
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                totalSold: { $sum: "$items.quantity" },
-              },
-            },
-          ],
-          as: "sales",
+    },
+
+    // CATEGORY LOOKUP
+    {
+      $lookup: {
+        from: "categories",
+        localField: "category",
+        foreignField: "_id",
+        as: "category"
+      }
+    },
+    {
+      $unwind: {
+        path: "$category",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+
+    // SUBCATEGORY LOOKUP
+    {
+      $lookup: {
+        from: "subcategories",
+        localField: "subcategory",
+        foreignField: "_id",
+        as: "subcategory"
+      }
+    },
+    {
+      $unwind: {
+        path: "$subcategory",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+
+    // SUB SUB CATEGORY LOOKUP
+    {
+      $lookup: {
+        from: "subsubcategories",
+        localField: "subSubcategory",
+        foreignField: "_id",
+        as: "subSubcategory"
+      }
+    },
+    {
+      $unwind: {
+        path: "$subSubcategory",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+
+    // YOUR SALES LOOKUP
+    {
+      $lookup: {
+        from: "userorders",
+        let: {
+          productId: "$_id",
         },
-      },
-      {
-        $addFields: {
-          unitsSold: {
-            $ifNull: [{ $arrayElemAt: ["$sales.totalSold", 0] }, 0],
+
+        pipeline: [
+          {
+            $unwind: "$items",
           },
-        },
-      },
-      {
-        $project: {
-          name: 1,
-          images: 1,
-          price: 1,
-          stock: 1,
-          isActive: 1,
-          unitsSold: 1,
-          createdAt: 1,
-        },
-      },
-      { $sort: { createdAt: -1 } },
-    ]);
 
-    res.json({
+          {
+            $match: {
+              $expr: {
+                $eq: [
+                  "$items.sellerInventoryId",
+                  "$$productId",
+                ],
+              },
+            },
+          },
+
+          {
+            $group: {
+              _id: null,
+
+              totalSold: {
+                $sum: "$items.quantity",
+              },
+            },
+          },
+        ],
+
+        as: "sales",
+      },
+    },
+  ]);
+
+    res.status(200).json({
       success: true,
+
       inventory,
     });
+
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+
+      message: error.message,
+    });
   }
 };
 
-// Update inventory item
-exports.updateInventoryItem = async (req, res) => {
-  const inventoryItem = await SellerInventory.findOneAndUpdate(
-    { _id: req.params.id, seller: req.user._id },
-    req.body,
-    { new: true },
-  );
+/* =======================================
+   UPDATE INVENTORY ITEM
+======================================= */
 
-  if (!inventoryItem) {
-    return res.status(404).json({ message: "Inventory item not found" });
-  }
+exports.updateInventoryItem =
+  async (req, res) => {
+    try {
+      const inventoryItem =
+        await SellerInventory.findOneAndUpdate(
+          {
+            _id: req.params.id,
 
-  res.json(inventoryItem);
-};
+            seller:
+              req.user._id,
+          },
 
-// Delete inventory item
-exports.deleteInventoryItem = async (req, res) => {
-  const inventoryItem = await SellerInventory.findOneAndDelete({
-    _id: req.params.id,
-    seller: req.user._id,
-  });
+          req.body,
 
-  if (!inventoryItem) {
-    return res.status(404).json({ message: "Inventory item not found" });
-  }
+          {
+            new: true,
+          },
+        );
 
-  res.json({ success: true, message: "Inventory item deleted" });
-};
+      if (!inventoryItem) {
+        return res.status(404).json({
+          success: false,
+
+          message:
+            "Inventory item not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+
+        message:
+          "Inventory item updated successfully",
+
+        inventoryItem,
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+
+        message: error.message,
+      });
+    }
+  };
+
+/* =======================================
+   DELETE INVENTORY ITEM
+======================================= */
+
+exports.deleteInventoryItem =
+  async (req, res) => {
+    try {
+      const inventoryItem =
+        await SellerInventory.findOneAndDelete(
+          {
+            _id: req.params.id,
+
+            seller:
+              req.user._id,
+          },
+        );
+
+      if (!inventoryItem) {
+        return res.status(404).json({
+          success: false,
+
+          message:
+            "Inventory item not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+
+        message:
+          "Inventory item deleted successfully",
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+
+        message: error.message,
+      });
+    }
+  };

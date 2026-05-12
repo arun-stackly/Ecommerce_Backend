@@ -1,117 +1,195 @@
 const Specification = require("../models/ProductSpecification");
-const Product = require("../models/Product");
 
-// API
+const SellerInventory = require("../models/SellerInventory");
 
-// POST /api/specifications/:productId
-exports.addSpecifications = async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const { specs } = req.body;
+/* =========================================
+   ADD SPECIFICATIONS
+   POST /api/specifications/:sellerInventoryId
+========================================= */
+exports.addSpecifications =
+  async (req, res) => {
+    try {
+      const { sellerInventoryId } =
+        req.params;
 
-    // check product exists
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
+      const { specs } = req.body;
 
-    // prevent duplicate
-    const existing = await Specification.findOne({ product: productId });
-    if (existing) {
-      return res.status(400).json({
-        message: "Specifications already exist. Use update API."
+      /* ===== INVENTORY CHECK ===== */
+
+      const inventory =
+        await SellerInventory.findById(
+          sellerInventoryId,
+        );
+
+      if (!inventory) {
+        return res.status(404).json({
+          success: false,
+          message: "Product not found",
+        });
+      }
+
+      /* ===== DUPLICATE CHECK ===== */
+
+      const existing =
+        await Specification.findOne({
+          sellerInventoryId,
+        });
+
+      if (existing) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Specifications already exist. Use update API.",
+        });
+      }
+
+      /* ===== CREATE ===== */
+
+      const specification =
+        await Specification.create({
+          sellerInventoryId,
+
+          specs,
+        });
+
+      res.status(201).json({
+        success: true,
+
+        specification,
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+
+        message: error.message,
       });
     }
+  };
 
-    const specification = await Specification.create({
-      product: productId,
-      specs
-    });
+/* =========================================
+   GET SPECIFICATIONS
+   GET /api/specifications/:sellerInventoryId
+========================================= */
+exports.getSpecifications =
+  async (req, res) => {
+    try {
+      const { sellerInventoryId } =
+        req.params;
 
-    res.status(201).json({
-      success: true,
-      specification
-    });
+      const specification =
+        await Specification.findOne({
+          sellerInventoryId,
+        });
 
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+      if (!specification) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Specifications not found",
+        });
+      }
 
-// GET /api/specifications/:productId
-exports.getSpecifications = async (req, res) => {
-  try {
-    const { productId } = req.params;
+      res.status(200).json({
+        success: true,
 
-    const specification = await Specification.findOne({
-      product: productId
-    });
+        specs: specification.specs,
+      });
 
-    if (!specification) {
-      return res.status(404).json({
-        message: "Specifications not found"
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+
+        message: error.message,
       });
     }
+  };
 
-    res.json({
-      success: true,
-      specs: specification.specs
-    });
+/* =========================================
+   UPDATE SPECIFICATIONS
+   PUT /api/specifications/:sellerInventoryId
+========================================= */
+exports.updateSpecifications =
+  async (req, res) => {
+    try {
+      const { sellerInventoryId } =
+        req.params;
 
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+      const { specs } = req.body;
 
-// PUT /api/specifications/:productId
-exports.updateSpecifications = async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const { specs } = req.body;
+      const specification =
+        await Specification.findOneAndUpdate(
+          {
+            sellerInventoryId,
+          },
+          {
+            specs,
+          },
+          {
+            new: true,
+          },
+        );
 
-    const specification = await Specification.findOneAndUpdate(
-      { product: productId },
-      { specs },
-      { new: true }
-    );
+      if (!specification) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Specifications not found",
+        });
+      }
 
-    if (!specification) {
-      return res.status(404).json({
-        message: "Specifications not found"
+      res.status(200).json({
+        success: true,
+
+        specification,
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+
+        message: error.message,
       });
     }
+  };
 
-    res.json({
-      success: true,
-      specification
-    });
+/* =========================================
+   DELETE SPECIFICATIONS
+   DELETE /api/specifications/:sellerInventoryId
+========================================= */
+exports.deleteSpecifications =
+  async (req, res) => {
+    try {
+      const { sellerInventoryId } =
+        req.params;
 
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+      const specification =
+        await Specification.findOneAndDelete(
+          {
+            sellerInventoryId,
+          },
+        );
 
-// DELETE /api/specifications/:productId
-exports.deleteSpecifications = async (req, res) => {
-  try {
-    const { productId } = req.params;
+      if (!specification) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Specifications not found",
+        });
+      }
 
-    const specification = await Specification.findOneAndDelete({
-      product: productId
-    });
+      res.status(200).json({
+        success: true,
 
-    if (!specification) {
-      return res.status(404).json({
-        message: "Specifications not found"
+        message:
+          "Specifications deleted",
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+
+        message: error.message,
       });
     }
-
-    res.json({
-      success: true,
-      message: "Specifications deleted"
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+  };

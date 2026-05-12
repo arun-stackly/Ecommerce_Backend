@@ -7,11 +7,7 @@ const sellerInventorySchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-//     productId: {
-//   type: mongoose.Schema.Types.ObjectId,
-//   ref: "Product",
-//   required: true,
-// },
+
     // Product Basic Info
     name: {
       type: String,
@@ -23,29 +19,41 @@ const sellerInventorySchema = new mongoose.Schema(
       type: String,
     },
 
-    // ✅ Updated Category (Enum)
     category: {
-      type: String,
-      required: true,
-      enum: [
-        "New Arrivals",
-        "Electronics",
-        "Fashion",
-        "Accessories",
-        "Appliances",
-        "Travel Booking",
-        "Food and Grocery",
-      ],
-    },
+           type: mongoose.Schema.Types.ObjectId,
+           ref: "Category",
+           required: true
+         },
+       
+         subcategory: {
+           type: mongoose.Schema.Types.ObjectId,
+           ref: "Subcategory",
+           required: false
+         },
+       
+         subSubcategory: {
+           type: mongoose.Schema.Types.ObjectId,
+           ref: "SubSubcategory",
+           required: false
+         },
+        brands: [
+     {
+       name: { type: String, required: true },
+       logo: { type: String }
+     }
+   ],
 
-    // Product Variants
-    size: {
-      type: String,
-    },
+   // Product Variants
 
-    colour: {
-      type: String,
-    },
+sizes: {
+  type: [String],
+  default: []
+},
+
+colours: {
+  type: [String],
+  default: []
+},
 
     countryOfOrigin: {
       type: String,
@@ -73,6 +81,10 @@ const sellerInventorySchema = new mongoose.Schema(
         },
       },
     ],
+    isFeatured: {
+  type: Boolean,
+  default: false
+},
 
     // Compliance Section
     compliance: {
