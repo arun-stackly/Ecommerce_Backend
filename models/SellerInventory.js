@@ -85,7 +85,20 @@ colours: {
   type: Boolean,
   default: false
 },
+reviews: {
+  type: Array,
+  default: [],
+},
 
+rating: {
+  type: Number,
+  default: 0,
+},
+
+reviewCount: {
+  type: Number,
+  default: 0,
+},
     // Compliance Section
     compliance: {
       notHazardous: {
