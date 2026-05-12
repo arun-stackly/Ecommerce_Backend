@@ -1,13 +1,13 @@
 const express = require("express");
 const router = express.Router();
 
-const WomenController = require("../controllers/Fashion");
+const FashionController = require("../controllers/Fashion");
 
 // =======================================
 // 1. Get All Products
 // GET /api/products
 // =======================================
-router.get("/products", WomenController.getProducts);
+router.get("/products", FashionController.getProducts);
 
 
 // =======================================
@@ -15,10 +15,9 @@ router.get("/products", WomenController.getProducts);
 // GET /api/category/:producttypeId/products
 // =======================================
 router.get(
-  "/category/:producttypeId/products",
-  WomenController.getCategoryProducts
+  "/category/:categoryId/products",
+  FashionController.getCategoryProducts
 );
-
 
 // =======================================
 // 3. Filter Products
@@ -26,7 +25,7 @@ router.get(
 // =======================================
 router.get(
   "/category/:producttypeId/filter",
-  WomenController.getFilteredProducts
+  FashionController.getFilteredProducts
 );
 
 
@@ -36,7 +35,7 @@ router.get(
 // =======================================
 router.get(
   "/category/:producttypeId/deals/upcoming",
-  WomenController.getUpcomingDeals
+  FashionController.getUpcomingDeals
 );
 
 
@@ -46,7 +45,7 @@ router.get(
 // =======================================
 router.get(
   "/category/:producttypeId/top-rated",
-  WomenController.getTopRatedProducts
+  FashionController.getTopRatedProducts
 );
 
 
@@ -56,7 +55,7 @@ router.get(
 // =======================================
 router.get(
   "/category/:producttypeId/brands",
-  WomenController.getCategoryBrands
+  FashionController.getCategoryBrands
 );
 
 

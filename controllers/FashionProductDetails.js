@@ -1,184 +1,333 @@
-const Product = require("../models/Product");
+const SellerInventory = require("../models/SellerInventory");
 const Deal = require("../models/Deal");
 const mongoose = require("mongoose");
 
-
-// GET /api/products/:id/similar
-exports.getSimilarProducts = async (req, res) => {
+/* =========================================
+   GET SIMILAR PRODUCTS
+   GET /api/products/:id/similar
+========================================= */
+exports.getSimilarProducts = async (
+  req,
+  res,
+) => {
   try {
-    const productId = req.params.id;
+    const inventoryId = req.params.id;
 
-    const currentProduct = await Product.findById(productId);
+    const currentProduct =
+      await SellerInventory.findById(
+        inventoryId,
+      );
 
     if (!currentProduct) {
-      return res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
     }
 
-    const similarProducts = await Product.find({
-      _id: { $ne: productId },
-      subcategory: currentProduct.subcategory
-    }).limit(10);
+    const similarProducts =
+      await SellerInventory.find({
+        _id: {
+          $ne: inventoryId,
+        },
 
-    res.json({
+        category:
+          currentProduct.category,
+
+        isActive: true,
+      }).limit(10);
+
+    res.status(200).json({
       success: true,
-      products: similarProducts
+      products: similarProducts,
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-exports.getProductReviews = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id)
-      .select("reviews rating reviewCount");
 
-    // ✅ Check first
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+/* =========================================
+   GET PRODUCT REVIEWS
+   GET /api/products/:id/reviews
+========================================= */
+exports.getProductReviews = async (
+  req,
+  res,
+) => {
+  try {
+    const inventory =
+      await SellerInventory.findById(
+        req.params.id,
+      ).select(
+        "reviews rating reviewCount",
+      );
+
+    if (!inventory) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
     }
 
-    // ✅ Pagination
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 5;
+    const page =
+      Number(req.query.page) || 1;
+
+    const limit =
+      Number(req.query.limit) || 5;
 
     const start = (page - 1) * limit;
+
     const end = start + limit;
 
-    const paginatedReviews = product.reviews.slice(start, end);
+    const paginatedReviews =
+      inventory.reviews.slice(start, end);
 
-    res.json({
+    res.status(200).json({
       success: true,
-      reviews: paginatedReviews, // ✅ FIXED
-      rating: product.rating,
-      reviewCount: product.reviewCount,
+
+      reviews: paginatedReviews,
+
+      rating: inventory.rating,
+
+      reviewCount:
+        inventory.reviewCount,
+
       currentPage: page,
-      totalPages: Math.ceil(product.reviewCount / limit)
+
+      totalPages: Math.ceil(
+        inventory.reviewCount / limit,
+      ),
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
-// GET /api/products/search?q=shirt
-exports.searchProducts = async (req, res) => {
+/* =========================================
+   SEARCH PRODUCTS
+   GET /api/products/search?q=shirt
+========================================= */
+exports.searchProducts = async (
+  req,
+  res,
+) => {
   try {
     const q = req.query.q;
 
-    const products = await Product.find({
-      name: { $regex: q, $options: "i" }
-    });
+    const products =
+      await SellerInventory.find({
+        name: {
+          $regex: q,
+          $options: "i",
+        },
 
-    res.json({
+        isActive: true,
+      });
+
+    res.status(200).json({
       success: true,
-      products
+      products,
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-// GET /api/deals
-exports.getAllDeals = async (req, res) => {
-  try {
-    const deals = await Deal.find({ isActive: true })
-      .populate("productId");
 
-    res.json({
+/* =========================================
+   GET ALL DEALS
+   GET /api/deals
+========================================= */
+exports.getAllDeals = async (
+  req,
+  res,
+) => {
+  try {
+    const deals = await Deal.find({
+      isActive: true,
+    }).populate({
+      path: "sellerInventoryId",
+      model: "SellerInventory",
+    });
+
+    res.status(200).json({
       success: true,
-      deals
+      deals,
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-// get single product
-exports.getProductById = async (req, res) => {
+
+/* =========================================
+   GET SINGLE PRODUCT
+   GET /api/products/:id
+========================================= */
+exports.getProductById = async (
+  req,
+  res,
+) => {
   try {
-    const product = await Product.findById(req.params.id)
-      .populate("category subcategory subSubcategory");
+    const product =
+      await SellerInventory.findById(
+        req.params.id,
+      );
 
     if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
     }
 
-    res.json({
+    res.status(200).json({
       success: true,
-      product
+      product,
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-//POST /api/products/:id/review
-exports.addReview = async (req, res) => {
+
+/* =========================================
+   ADD REVIEW
+   POST /api/products/:id/review
+========================================= */
+exports.addReview = async (
+  req,
+  res,
+) => {
   try {
-    const { rating, comment } = req.body;
+    const { rating, comment } =
+      req.body;
 
-    const product = await Product.findById(req.params.id);
+    const inventory =
+      await SellerInventory.findById(
+        req.params.id,
+      );
 
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+    if (!inventory) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
     }
 
     const review = {
       user: req.user._id,
+
       name: `${req.user.firstName} ${req.user.lastName}`,
+
       rating,
-      comment
+
+      comment,
     };
 
-    // 👉 Calculate new values manually
-    const newReviewCount = product.reviewCount + 1;
+    const newReviewCount =
+      (inventory.reviewCount || 0) + 1;
 
     const totalRating =
-      product.reviews.reduce((acc, item) => acc + item.rating, 0) + rating;
+      (inventory.reviews || []).reduce(
+        (acc, item) =>
+          acc + item.rating,
+        0,
+      ) + rating;
 
-    const newRating = totalRating / newReviewCount;
+    const newRating =
+      totalRating / newReviewCount;
 
-    // ✅ Update WITHOUT triggering full validation
-    await Product.findByIdAndUpdate(
+    await SellerInventory.findByIdAndUpdate(
       req.params.id,
       {
-        $push: { reviews: review },
+        $push: {
+          reviews: review,
+        },
+
         $set: {
-          reviewCount: newReviewCount,
-          rating: newRating
-        }
+          reviewCount:
+            newReviewCount,
+
+          rating: newRating,
+        },
       },
-      { new: true, runValidators: false } // 👈 IMPORTANT
+      {
+        new: true,
+        runValidators: false,
+      },
     );
 
     res.status(201).json({
       success: true,
-      message: "Review added"
+      message: "Review added",
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-//GET /api/products/:id/stock
-exports.getProductStock = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id).select("sizes");
 
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+/* =========================================
+   GET PRODUCT STOCK
+   GET /api/products/:id/stock
+========================================= */
+exports.getProductStock = async (
+  req,
+  res,
+) => {
+  try {
+    const inventory =
+      await SellerInventory.findById(
+        req.params.id,
+      ).select(
+        "quantity isActive",
+      );
+
+    if (!inventory) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
     }
 
-    res.json({
+    res.status(200).json({
       success: true,
-      sizes: product.sizes.map(s => ({
-        size: s.size,
-        available: s.quantity > 0
-      }))
+
+      stock: {
+        quantity:
+          inventory.quantity,
+
+        available:
+          inventory.quantity > 0 &&
+          inventory.isActive,
+      },
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };

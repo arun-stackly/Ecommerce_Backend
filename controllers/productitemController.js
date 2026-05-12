@@ -1,171 +1,329 @@
-const Product = require("../models/productitem");
+const ProductItem = require("../models/productitem");
+const SellerInventory = require("../models/SellerInventory");
 
-exports.addProduct = async (req, res) => {
+/* =======================================
+   ADD PRODUCT ITEM
+======================================= */
 
+exports.addProduct = async (
+  req,
+  res
+) => {
   try {
+    const {
+      sellerInventory,
+      category,
+      subcategory,
+      subSubcategory,
+      productType,
+    } = req.body;
 
-    const slug = req.body.name.toLowerCase().replace(/\s+/g, "-");
+    /* ===== CHECK INVENTORY ===== */
 
-    const product = new Product({
-      ...req.body,
-      slug
-    });
+    const inventory =
+      await SellerInventory.findById(
+        sellerInventory
+      );
 
-    await product.save();
-    console.log(product);
+    if (!inventory) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Seller inventory not found",
+      });
+    }
+
+    /* ===== CREATE SLUG ===== */
+
+    const slug = inventory.name
+      .toLowerCase()
+      .replace(/\s+/g, "-");
+
+    /* ===== CREATE PRODUCT ITEM ===== */
+
+    const product =
+      await ProductItem.create({
+        sellerInventory,
+        slug,
+        category,
+        subcategory,
+        subSubcategory,
+        productType,
+      });
+
     res.status(201).json({
-      message: "Product created",
-      product
+      success: true,
+      message:
+        "Product item created successfully",
+      product,
     });
 
   } catch (error) {
-
     res.status(500).json({
-      message: error.message
-    });
-
-  }
-
-};
-exports.getProducts = async (req, res) => {
-
-  try {
-
-    const products = await Product.find()
-      .populate("category")
-      .populate("subcategory")
-      .populate("subSubcategory");
-
-    res.json(products);
-
-  } catch (error) {
-
-    res.status(500).json({
-      message: error.message
-    });
-
-  }
-
-};
-exports.getProductsBySubSubcategory = async (req, res) => {
-
-  try {
-
-    const products = await Product.find({
-      subSubcategory: req.params.subSubcategoryId
-    });
-
-    res.json(products);
-
-  } catch (error) {
-
-    res.status(500).json({
-      message: error.message
-    });
-
-  }
-
-};
-exports.getProductsByType = async (req, res) => {
-  try {
-
-    const { productType } = req.params;
-
-    const products = await Product.find({
-      productType: productType
-    })
-      .populate("category")
-      .populate("subcategory")
-      .populate("subSubcategory");
-
-    res.json(products);
-
-  } catch (error) {
-    res.status(500).json({
-      message: error.message
+      success: false,
+      message: error.message,
     });
   }
 };
-exports.getProductsBySubcategory = async (req, res) => {
-  try {
-    const { subcategoryId } = req.params;
 
-    const products = await Product.find({
-      subcategory: subcategoryId
-    })
-      .populate("category")
-      .populate("subcategory");
+/* =======================================
+   GET ALL PRODUCTS
+======================================= */
+
+exports.getProducts = async (
+  req,
+  res
+) => {
+  try {
+    const products =
+      await ProductItem.find()
+        .populate({
+          path: "sellerInventory",
+          select:
+            "name price media quantity isActive",
+        })
+        .populate("category")
+        .populate("subcategory")
+        .populate("subSubcategory");
 
     res.json({
       success: true,
-      count: products.length,
-      products
+      products,
     });
 
   } catch (error) {
     res.status(500).json({
-      message: error.message
+      success: false,
+      message: error.message,
     });
   }
 };
-exports.getProductsByTypeAndSubSubCategory = async (req, res) => {
+
+/* =======================================
+   GET PRODUCTS BY SUB SUBCATEGORY
+======================================= */
+
+exports.getProductsBySubSubcategory =
+  async (req, res) => {
+    try {
+      const products =
+        await ProductItem.find({
+          subSubcategory:
+            req.params.subSubcategoryId,
+        })
+          .populate({
+            path: "sellerInventory",
+            select:
+              "name price media quantity isActive",
+          })
+          .populate(
+            "category subcategory subSubcategory"
+          );
+
+      res.json({
+        success: true,
+        products,
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  };
+
+/* =======================================
+   GET PRODUCTS BY TYPE
+======================================= */
+
+exports.getProductsByType =
+  async (req, res) => {
+    try {
+      const { productType } =
+        req.params;
+
+      const products =
+        await ProductItem.find({
+          productType,
+        })
+          .populate({
+            path: "sellerInventory",
+            select:
+              "name price media quantity isActive",
+          })
+          .populate(
+            "category subcategory subSubcategory"
+          );
+
+      res.json({
+        success: true,
+        products,
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  };
+
+/* =======================================
+   GET PRODUCTS BY SUBCATEGORY
+======================================= */
+
+exports.getProductsBySubcategory =
+  async (req, res) => {
+    try {
+      const { subcategoryId } =
+        req.params;
+
+      const products =
+        await ProductItem.find({
+          subcategory:
+            subcategoryId,
+        })
+          .populate({
+            path: "sellerInventory",
+            select:
+              "name price media quantity isActive",
+          })
+          .populate(
+            "category subcategory"
+          );
+
+      res.json({
+        success: true,
+        count: products.length,
+        products,
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  };
+
+/* =======================================
+   GET PRODUCTS BY TYPE + SUBSUBCATEGORY
+======================================= */
+
+exports.getProductsByTypeAndSubSubCategory =
+  async (req, res) => {
+    try {
+      const {
+        productType,
+        subSubcategoryId,
+      } = req.query;
+
+      let filter = {};
+
+      if (productType) {
+        filter.productType =
+          productType;
+      }
+
+      if (subSubcategoryId) {
+        filter.subSubcategory =
+          subSubcategoryId;
+      }
+
+      const products =
+        await ProductItem.find(filter)
+          .populate({
+            path: "sellerInventory",
+            select:
+              "name price media quantity isActive",
+          })
+          .populate(
+            "category subcategory subSubcategory"
+          );
+
+      res.json({
+        success: true,
+        products,
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  };
+
+/* =======================================
+   UPDATE PRODUCT ITEM
+======================================= */
+
+exports.updateProduct = async (
+  req,
+  res
+) => {
   try {
+    const product =
+      await ProductItem.findByIdAndUpdate(
+        req.params.id,
+        req.body,
+        { new: true }
+      );
 
-    const { productType, subSubcategoryId } = req.query;
-
-    let filter = {};
-
-    if (productType) filter.productType = productType;
-    if (subSubcategoryId) filter.subSubcategory = subSubcategoryId;
-
-    const products = await Product.find(filter)
-      .populate("category subcategory subSubcategory");
-
-    res.json(products);
-
-  } catch (error) {
-    res.status(500).json({
-      message: error.message
-    });
-  }
-};
-exports.updateProduct = async (req, res) => {
-
-  try {
-
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-
-    res.json(product);
-
-  } catch (error) {
-
-    res.status(500).json({
-      message: error.message
-    });
-
-  }
-
-};
-exports.deleteProduct = async (req, res) => {
-
-  try {
-
-    await Product.findByIdAndDelete(req.params.id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Product item not found",
+      });
+    }
 
     res.json({
-      message: "Product deleted"
+      success: true,
+      product,
     });
 
   } catch (error) {
-
     res.status(500).json({
-      message: error.message
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* =======================================
+   DELETE PRODUCT ITEM
+======================================= */
+
+exports.deleteProduct = async (
+  req,
+  res
+) => {
+  try {
+    const product =
+      await ProductItem.findByIdAndDelete(
+        req.params.id
+      );
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Product item not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      message:
+        "Product item deleted successfully",
     });
 
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
-
 };
