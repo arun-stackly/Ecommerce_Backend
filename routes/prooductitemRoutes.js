@@ -17,7 +17,7 @@ router.get(
 // Get products by SubSubcategory
 router.get("/subsub/:subSubcategoryId", productController.getProductsBySubSubcategory);
 
-router.get("/type/:productType", productController.getProductsByType);
+router.get("/type/:typeName", productController.getProductsByType);
 // Update product
 router.put("/:id", productController.updateProduct);
 
