@@ -86,35 +86,53 @@ exports.getCart = async (req, res) => {
 
 /* ================= ADD TO CART ================= */
 
+
 exports.addToCart = async (req, res) => {
   try {
-    const {
-      sellerInventoryId,
-      quantity,
-    } = req.body;
+    const { sellerInventoryId, quantity } =
+      req.body;
 
     /* ===== VALIDATION ===== */
 
-    if (!sellerInventoryId || !quantity) {
+    if (
+      !sellerInventoryId ||
+      !quantity
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Missing required fields",
+        message:
+          "Missing required fields",
       });
     }
 
     const qty = Number(quantity);
 
-    /* ===== FIND INVENTORY ===== */
+    if (qty <= 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Quantity must be greater than 0",
+      });
+    }
+
+    /* ===== FIND INVENTORY + POPULATE SELLER ===== */
 
     const inventory =
       await SellerInventory.findById(
         sellerInventoryId,
+      ).populate(
+        "seller",
+        "firstName lastName username"
       );
 
-    if (!inventory || !inventory.isActive) {
+    if (
+      !inventory ||
+      !inventory.isActive
+    ) {
       return res.status(404).json({
         success: false,
-        message: "Product not available",
+        message:
+          "Product not available",
       });
     }
 
@@ -123,13 +141,15 @@ exports.addToCart = async (req, res) => {
     if (qty > inventory.quantity) {
       return res.status(400).json({
         success: false,
-        message: "Insufficient stock",
+        message:
+          "Insufficient stock",
       });
     }
 
     /* ===== FINAL PRICE ===== */
 
-    const finalPrice = inventory.price;
+    const finalPrice =
+      inventory.price;
 
     /* ===== FIND USER CART ===== */
 
@@ -137,7 +157,7 @@ exports.addToCart = async (req, res) => {
       userId: req.user._id,
     });
 
-    /* ===== CREATE CART ===== */
+    /* ===== CREATE EMPTY CART ===== */
 
     if (!cart) {
       cart = await Cart.create({
@@ -152,16 +172,18 @@ exports.addToCart = async (req, res) => {
       cart.sellerGroups.find(
         (s) =>
           s.sellerId.toString() ===
-          inventory.seller.toString(),
+          inventory.seller._id.toString(),
       );
 
     /* ===== CREATE SELLER GROUP ===== */
 
     if (!sellerGroup) {
       cart.sellerGroups.push({
-        sellerId: inventory.seller,
+        sellerId:
+          inventory.seller._id,
 
-        sellerName: inventory.name,
+        sellerName:
+          `${inventory.seller.firstName} ${inventory.seller.lastName}`,
 
         items: [],
 
@@ -183,13 +205,18 @@ exports.addToCart = async (req, res) => {
           sellerInventoryId.toString(),
       );
 
-    /* ===== UPDATE EXISTING ===== */
+    /* ===== UPDATE EXISTING ITEM ===== */
 
     if (existingItem) {
       const updatedQty =
         existingItem.quantity + qty;
 
-      if (updatedQty > inventory.quantity) {
+      /* ===== STOCK RECHECK ===== */
+
+      if (
+        updatedQty >
+        inventory.quantity
+      ) {
         return res.status(400).json({
           success: false,
           message:
@@ -197,19 +224,23 @@ exports.addToCart = async (req, res) => {
         });
       }
 
-      existingItem.quantity = updatedQty;
+      existingItem.quantity =
+        updatedQty;
 
       existingItem.totalPrice =
         updatedQty * finalPrice;
+
     } else {
       /* ===== ADD NEW ITEM ===== */
 
       sellerGroup.items.push({
-        sellerInventoryId: inventory._id,
+        sellerInventoryId:
+          inventory._id,
 
         quantity: qty,
 
-        totalPrice: finalPrice * qty,
+        totalPrice:
+          finalPrice * qty,
       });
     }
 
@@ -219,11 +250,14 @@ exports.addToCart = async (req, res) => {
 
     await cart.save();
 
-    /* ===== POPULATE UPDATED CART ===== */
+    /* ===== GET UPDATED CART ===== */
 
     const updatedCart =
-      await Cart.findById(cart._id).populate({
-        path: "sellerGroups.items.sellerInventoryId",
+      await Cart.findById(
+        cart._id,
+      ).populate({
+        path:
+          "sellerGroups.items.sellerInventoryId",
 
         select:
           "name price media seller quantity isActive",
@@ -239,17 +273,23 @@ exports.addToCart = async (req, res) => {
       sellerGroups:
         updatedCart.sellerGroups.map(
           (seller) => ({
-            sellerId: seller.sellerId,
+            sellerId:
+              seller.sellerId,
 
-            sellerName: seller.sellerName,
+            sellerName:
+              seller.sellerName,
 
-            sellerTotal: seller.sellerTotal,
+            sellerTotal:
+              seller.sellerTotal,
 
             items: seller.items
+
+              /* REMOVE DELETED ITEMS */
               .filter(
                 (item) =>
                   item.sellerInventoryId,
               )
+
               .map((item) => {
                 const inventory =
                   item.sellerInventoryId;
@@ -258,17 +298,21 @@ exports.addToCart = async (req, res) => {
                   sellerInventoryId:
                     inventory._id,
 
-                  name: inventory.name,
+                  name:
+                    inventory.name,
 
                   image:
                     inventory.media?.find(
                       (m) =>
-                        m.type === "image",
+                        m.type ===
+                        "image",
                     )?.url || "",
 
-                  price: inventory.price,
+                  price:
+                    inventory.price,
 
-                  quantity: item.quantity,
+                  quantity:
+                    item.quantity,
 
                   totalPrice:
                     inventory.price *
@@ -285,18 +329,27 @@ exports.addToCart = async (req, res) => {
     res.status(200).json({
       success: true,
 
-      message: "Product added to cart",
+      message:
+        "Product added to cart",
 
       cart: formattedCart,
     });
+
   } catch (error) {
+    console.error(
+      "Add To Cart Error:",
+      error,
+    );
+
     res.status(500).json({
       success: false,
 
-      message: error.message,
+      message:
+        "Server error",
     });
   }
 };
+
 
 /* ================= REMOVE ITEM ================= */
 
