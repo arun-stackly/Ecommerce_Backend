@@ -35,21 +35,43 @@ exports.getSubcategoriesForCategory = async (req, res) => {
     const category = await Category.findOne({ name: new RegExp(`^${categoryName}$`, 'i') });
     if (!category) return res.status(404).json({ error: 'category not found' });
     const subs = await Subcategory.find({ category: category._id }).sort('name');
-    res.json({ subcategories: subs.map(s => s.name) });
+   res.json({
+ success: true,
+ subcategories: subs
+});
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-exports.updateSubcategory = async (req, res) => {
-  try {
-    const sub = await Subcategory.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(sub);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+exports.updateSubcategory =
+  async (req, res) => {
+    try {
 
+      const updateData = {
+        ...req.body,
+      };
+
+      if (req.body.name) {
+        updateData.slug =
+          slugify(req.body.name);
+      }
+
+      const sub =
+        await Subcategory.findByIdAndUpdate(
+          req.params.id,
+          updateData,
+          { new: true },
+        );
+
+      res.json(sub);
+
+    } catch (err) {
+      res.status(500).json({
+        error: err.message,
+      });
+    }
+  };
 exports.deleteSubcategory = async (req, res) => {
   try {
     await Subcategory.findByIdAndDelete(req.params.id);

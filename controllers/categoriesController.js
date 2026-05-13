@@ -23,12 +23,34 @@ exports.createCategory = async (req, res) => {
   }
 };
 
-exports.updateCategory = async (req, res) => {
+exports.updateCategory = async (
+  req,
+  res,
+) => {
   try {
-    const cat = await Category.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updateData = {
+      ...req.body,
+    };
+
+    if (req.body.name) {
+      updateData.slug = slugify(
+        req.body.name,
+      );
+    }
+
+    const cat =
+      await Category.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        { new: true },
+      );
+
     res.json(cat);
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      error: err.message,
+    });
   }
 };
 

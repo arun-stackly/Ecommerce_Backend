@@ -65,23 +65,39 @@ exports.getBySubcategory = async (req, res) => {
   }
 
 };
-exports.updateSubSubcategory = async (req, res) => {
+exports.updateSubSubcategory =
+  async (req, res) => {
 
-  try {
+    try {
 
-    const updated = await SubSubcategory.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
+      const updateData = {
+        ...req.body,
+      };
 
-    res.json(updated);
+      if (req.body.name) {
+        updateData.slug =
+          req.body.name
+            .toLowerCase()
+            .replace(/\s+/g, "-");
+      }
 
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+      const updated =
+        await SubSubcategory.findByIdAndUpdate(
+          req.params.id,
+          updateData,
+          { new: true },
+        );
 
-};
+      res.json(updated);
+
+    } catch (error) {
+
+      res.status(500).json({
+        message: error.message,
+      });
+
+    }
+  };
 exports.deleteSubSubcategory = async (req, res) => {
 
   try {

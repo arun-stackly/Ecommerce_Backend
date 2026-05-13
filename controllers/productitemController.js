@@ -1,5 +1,7 @@
 const ProductItem = require("../models/productitem");
 const SellerInventory = require("../models/SellerInventory");
+const ProductType =
+  require("../models/ProductType");
 
 /* =======================================
    ADD PRODUCT ITEM
@@ -82,9 +84,9 @@ exports.getProducts = async (
           select:
             "name price media quantity isActive",
         })
-        .populate("category")
-        .populate("subcategory")
-        .populate("subSubcategory");
+        .populate(
+ "category subcategory subSubcategory productType"
+);
 
     res.json({
       success: true,
@@ -133,28 +135,63 @@ exports.getProductsBySubSubcategory =
     }
   };
 
-/* =======================================
-   GET PRODUCTS BY TYPE
-======================================= */
-
 exports.getProductsByType =
   async (req, res) => {
+
     try {
-      const { productType } =
+
+      const { typeName } =
         req.params;
+
+      console.log(
+        "TYPE PARAM:",
+        typeName,
+      );
+
+      const type =
+        await ProductType.findOne({
+          name: new RegExp(
+            `^${typeName}$`,
+            "i",
+          ),
+        });
+
+      console.log(
+        "FOUND TYPE:",
+        type,
+      );
+
+      if (!type) {
+
+        return res.status(404).json({
+          success: false,
+          message:
+            "Product type not found",
+        });
+
+      }
 
       const products =
         await ProductItem.find({
-          productType,
+          productType: type._id,
         })
+
           .populate({
-            path: "sellerInventory",
+            path:
+              "sellerInventory",
+
             select:
               "name price media quantity isActive",
           })
+
           .populate(
-            "category subcategory subSubcategory"
+            "category subcategory subSubcategory productType",
           );
+
+      console.log(
+        "FOUND PRODUCTS:",
+        products,
+      );
 
       res.json({
         success: true,
@@ -162,13 +199,16 @@ exports.getProductsByType =
       });
 
     } catch (error) {
+
+      console.log(error);
+
       res.status(500).json({
         success: false,
         message: error.message,
       });
+
     }
   };
-
 /* =======================================
    GET PRODUCTS BY SUBCATEGORY
 ======================================= */

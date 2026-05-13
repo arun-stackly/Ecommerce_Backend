@@ -44,6 +44,7 @@ const productitemRoutes = require("./routes/prooductitemRoutes");
 const fashionRoutes = require("./routes/Fashion");
 const fashionProductDeatailRoutes = require("./routes/FashionProductDetails");
 const specificationRoutes = require("./routes/ProductSpecification")
+const producttypesRoutes = require("./routes/producttypeRoutes");
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 app.use("/api/products", require("./routes/productRoutes"));
+app.use( "/api/product-types", require("./routes/producttypeRoutes"));
 app.use("/api/productitems", productitemRoutes);
 app.use("/api/productspecs", specificationRoutes);
 app.use(express.json({ limit: "20mb" }));
