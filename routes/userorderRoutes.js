@@ -10,6 +10,9 @@ const userOrderController = require("../controllers/userorderController");
 router.post("/create-order", protectUser, userOrderController.createOrder);
 router.get("/", protectUser, userOrderController.getOrders);
 router.get("/:id", protectUser, userOrderController.getSingleOrder);
+// 🔹 Protected
+router.post("/:id/review", protectUser, userOrderController.addReview);
+router.get("/:id/reviews", userOrderController.getProductReviews);
 
 // Admin/Seller routes (must use protect)
 router.patch("/:id/status", protect, userOrderController.updateOrderStatus);
