@@ -8,15 +8,9 @@ const generateOrderId = require("../utils/generateOrderid");
    CREATE ORDER
 ========================= */
 
-exports.createOrder = async (
-  req,
-  res,
-) => {
+exports.createOrder = async (req, res) => {
   try {
-    const {
-      shippingAddressId,
-      paymentMode,
-    } = req.body;
+    const { shippingAddressId, paymentMode } = req.body;
 
     const user = req.user;
 
@@ -39,10 +33,7 @@ exports.createOrder = async (
       userId: user._id,
     });
 
-    if (
-      !cart ||
-      !cart.sellerGroups.length
-    ) {
+    if (!cart || !cart.sellerGroups.length) {
       return res.status(400).json({
         success: false,
         message: "Cart is empty",
@@ -53,16 +44,14 @@ exports.createOrder = async (
        SHIPPING ADDRESS
     ====================== */
 
-    const shippingAddress =
-      await Address.findById(
-        shippingAddressId,
-      );
+    const shippingAddress = await Address.findById(
+      shippingAddressId
+    );
 
     if (!shippingAddress) {
       return res.status(404).json({
         success: false,
-        message:
-          "Shipping address not found",
+        message: "Shipping address not found",
       });
     }
 
@@ -70,17 +59,15 @@ exports.createOrder = async (
        BILLING ADDRESS
     ====================== */
 
-    const billingAddress =
-      await Address.findOne({
-        userId: user._id,
-        isDefault: true,
-      });
+    const billingAddress = await Address.findOne({
+      userId: user._id,
+      isDefault: true,
+    });
 
     if (!billingAddress) {
       return res.status(400).json({
         success: false,
-        message:
-          "Please set default billing address",
+        message: "Please set default billing address",
       });
     }
 
@@ -91,12 +78,10 @@ exports.createOrder = async (
     let orderItems = [];
 
     for (const sellerGroup of cart.sellerGroups) {
-
       for (const item of sellerGroup.items) {
-
         const inventory =
           await SellerInventory.findById(
-            item.sellerInventoryId,
+            item.sellerInventoryId
           );
 
         if (!inventory) {
@@ -110,22 +95,18 @@ exports.createOrder = async (
         /* ===== SIZE CHECK ===== */
 
         if (
-          !inventory.sizes.includes(
-            item.size,
-          )
+          !inventory.sizes.includes(item.size)
         ) {
           return res.status(400).json({
             success: false,
-            message:
-              "Selected size not available",
+            message: `Selected size not available for ${inventory.name}`,
           });
         }
 
         /* ===== STOCK CHECK ===== */
 
         if (
-          item.quantity >
-          inventory.quantity
+          item.quantity > inventory.quantity
         ) {
           return res.status(400).json({
             success: false,
@@ -136,22 +117,20 @@ exports.createOrder = async (
         /* ===== ITEM TOTAL ===== */
 
         const itemTotal =
-          inventory.price *
-          item.quantity;
+          inventory.price * item.quantity;
 
         /* ===== PUSH ORDER ITEM ===== */
 
         orderItems.push({
           sellerId: inventory.seller,
 
-          sellerInventoryId:
-            inventory._id,
+          sellerInventoryId: inventory._id,
 
           name: inventory.name,
 
           image:
             inventory.media?.find(
-              (m) => m.type === "image",
+              (m) => m.type === "image"
             )?.url || "",
 
           price: inventory.price,
@@ -161,14 +140,20 @@ exports.createOrder = async (
           size: item.size,
 
           itemTotal,
+
+          itemStatus: "placed",
         });
 
         /* ===== REDUCE STOCK ===== */
 
-        inventory.quantity -=
-          item.quantity;
-
-        await inventory.save();
+        await SellerInventory.findByIdAndUpdate(
+          inventory._id,
+          {
+            $inc: {
+              quantity: -item.quantity,
+            },
+          }
+        );
       }
     }
 
@@ -204,96 +189,132 @@ exports.createOrder = async (
       cart.priceDetails.totalAmount;
 
     /* ======================
-       DELIVERY DATE
+       DELIVERY DATES
     ====================== */
+
+    const orderPlacedDate = new Date();
 
     const estimatedDeliveryDate =
       new Date();
 
     estimatedDeliveryDate.setDate(
-      estimatedDeliveryDate.getDate() + 5,
+      estimatedDeliveryDate.getDate() + 5
     );
 
     /* ======================
        CREATE ORDER
     ====================== */
 
-    const order =
-      await UserOrder.create({
-        orderId: generateOrderId(),
+    const order = await UserOrder.create({
+      orderId: generateOrderId(),
 
-        customerId: user._id,
+      customerId: user._id,
 
-        customerName:
-          user.firstName,
+      customerName: user.firstName,
 
-        items: orderItems,
+      items: orderItems,
 
-        shippingAddress: {
-          fullName:
-            shippingAddress.fullName,
+      shippingAddress: {
+        fullName:
+          shippingAddress.fullName,
 
-          phoneNumber:
-            shippingAddress.phoneNumber,
+        phoneNumber:
+          shippingAddress.phoneNumber,
 
-          houseNo:
-            shippingAddress.houseNo,
+        houseNo:
+          shippingAddress.houseNo,
 
-          addressLine:
-            shippingAddress.addressLine,
+        addressLine:
+          shippingAddress.addressLine,
 
-          city: shippingAddress.city,
+        city: shippingAddress.city,
 
-          pincode:
-            shippingAddress.pincode,
+        pincode:
+          shippingAddress.pincode,
 
-          state:
-            shippingAddress.state,
+        state: shippingAddress.state,
 
-          landmark:
-            shippingAddress.landmark,
-        },
+        landmark:
+          shippingAddress.landmark,
+      },
 
-        billingAddress: {
-          fullName:
-            billingAddress.fullName,
+      billingAddress: {
+        fullName:
+          billingAddress.fullName,
 
-          phoneNumber:
-            billingAddress.phoneNumber,
+        phoneNumber:
+          billingAddress.phoneNumber,
 
-          houseNo:
-            billingAddress.houseNo,
+        houseNo:
+          billingAddress.houseNo,
 
-          addressLine:
-            billingAddress.addressLine,
+        addressLine:
+          billingAddress.addressLine,
 
-          city:
-            billingAddress.city,
+        city: billingAddress.city,
 
-          pincode:
-            billingAddress.pincode,
+        pincode:
+          billingAddress.pincode,
 
-          state:
-            billingAddress.state,
+        state: billingAddress.state,
 
-          landmark:
-            billingAddress.landmark,
-        },
+        landmark:
+          billingAddress.landmark,
+      },
 
-        paymentMode,
+      paymentMode,
 
-        totalItemsPrice,
+      totalItemsPrice,
 
-        platformFee,
+      platformFee,
 
-        discount:
-          discount +
-          couponDiscount,
+      discount:
+        discount + couponDiscount,
 
-        totalAmount,
+      totalAmount,
 
-        estimatedDeliveryDate,
-      });
+      estimatedDeliveryDate,
+
+      orderPlacedDate,
+
+      orderStatus: "placed",
+    });
+
+    /* ======================
+       PAYMENT DETAILS
+    ====================== */
+
+    let paymentDetails = {};
+
+    if (paymentMode === "COD") {
+      paymentDetails = {
+        paymentType:
+          "Cash on Delivery",
+
+        message: `Pay in cash ₹${order.totalAmount} when your order is delivered`,
+
+        payableAmount:
+          order.totalAmount,
+
+        currency: "INR",
+
+        paymentStatus: "pending",
+      };
+    } else {
+      paymentDetails = {
+        paymentType:
+          "Online Payment",
+
+        message: `Online payment of ₹${order.totalAmount} completed`,
+
+        payableAmount:
+          order.totalAmount,
+
+        currency: "INR",
+
+        paymentStatus: "paid",
+      };
+    }
 
     /* ======================
        CLEAR CART
@@ -317,20 +338,21 @@ exports.createOrder = async (
        RESPONSE
     ====================== */
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
 
       message:
         "Order created successfully",
 
-      data: order,
+      data: {
+        ...order.toObject(),
+
+        paymentDetails,
+      },
     });
-
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-
       message: error.message,
     });
   }
