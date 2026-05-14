@@ -17,7 +17,7 @@ const orderItemSchema = new mongoose.Schema({
   quantity: { type: Number, required: true },
    size: {
       type: String,
-      required: true,
+      required: false,
     },
   itemTotal: { type: Number, required: true },
   itemStatus: {

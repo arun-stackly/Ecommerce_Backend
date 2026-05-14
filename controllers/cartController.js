@@ -38,12 +38,11 @@ exports.getCart = async (req, res) => {
 
       userId: cart.userId,
 
-      deliveryTo:
-        cart.deliveryTo &&
-        cart.deliveryTo.city &&
-        cart.deliveryTo.pincode
-          ? `Deliver in : ${cart.deliveryTo.city} - ${cart.deliveryTo.pincode}`
+            deliveryTo:
+        cart.deliveryTo && cart.deliveryTo.city && cart.deliveryTo.pincode
+          ? `${cart.deliveryTo.city} - ${cart.deliveryTo.pincode}`
           : null,
+ 
 
       sellerGroups: cart.sellerGroups.map((seller) => ({
         sellerId: seller.sellerId,
@@ -254,7 +253,7 @@ exports.addToCart = async (req, res) => {
         updatedCart.deliveryTo &&
         updatedCart.deliveryTo.city &&
         updatedCart.deliveryTo.pincode
-          ? `Deliver in : ${updatedCart.deliveryTo.city} - ${updatedCart.deliveryTo.pincode}`
+          ? ` ${updatedCart.deliveryTo.city} - ${updatedCart.deliveryTo.pincode}`
           : null,
 
       sellerGroups: updatedCart.sellerGroups.map((seller) => ({
@@ -530,26 +529,44 @@ exports.setDeliveryAddress = async (req, res) => {
 };
  
 /* ================= PRICE CALCULATION ================= */
- 
+
+
 function calculateCartTotals(cart) {
+
   let totalPrice = 0;
- 
+
   cart.sellerGroups.forEach((seller) => {
+
     let sellerTotal = 0;
- 
+
     seller.items.forEach((item) => {
+
       sellerTotal += item.totalPrice;
+
     });
- 
+
     seller.sellerTotal = sellerTotal;
- 
+
     totalPrice += sellerTotal;
+
   });
- 
+
+  /* ===== PRICE ===== */
+
   cart.priceDetails.price = totalPrice;
- 
-  cart.priceDetails.couponDiscount = cart.coupon?.couponDiscount || 0;
- 
+
+  /* ===== COUPON ===== */
+
+  cart.priceDetails.couponDiscount =
+    cart.coupon?.couponDiscount || 0;
+
+  /* ===== PLATFORM FEE ===== */
+
+  cart.priceDetails.platformFee =
+    totalPrice > 0 ? 40 : 0;
+
+  /* ===== TOTAL ===== */
+
   cart.priceDetails.totalAmount =
     cart.priceDetails.price -
     cart.priceDetails.discount -
