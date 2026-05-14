@@ -11,15 +11,14 @@ const orderItemSchema = new mongoose.Schema({
     ref: "SellerInventory",
     required: true,
   },
-  // productId: {
-  //   type: mongoose.Schema.Types.ObjectId,
-  //   ref: "Product",
-  //   required: true,
-  // },
   name: { type: String, required: true },
   image: { type: String, required: true },
   price: { type: Number, required: true },
   quantity: { type: Number, required: true },
+   size: {
+      type: String,
+      required: true,
+    },
   itemTotal: { type: Number, required: true },
   itemStatus: {
     type: String,

@@ -10,12 +10,18 @@ const {
   applyCoupon,
   removeCoupon,
   setDeliveryAddress,
+  updateCartQuantity,
 } = require("../controllers/cartController");
 
 router.use(protectUser);
 
 router.get("/", getCart);
 router.post("/add", addToCart);
+router.put(
+  "/update-quantity",
+ protectUser,
+  updateCartQuantity
+);
 router.delete("/remove", removeCartItem);
 
 router.post("/apply-coupon", applyCoupon);

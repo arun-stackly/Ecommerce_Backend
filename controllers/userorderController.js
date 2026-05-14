@@ -8,7 +8,10 @@ const generateOrderId = require("../utils/generateOrderid");
    CREATE ORDER
 ========================= */
 
-exports.createOrder = async (req, res) => {
+exports.createOrder = async (
+  req,
+  res,
+) => {
   try {
     const {
       shippingAddressId,
@@ -88,9 +91,8 @@ exports.createOrder = async (req, res) => {
     let orderItems = [];
 
     for (const sellerGroup of cart.sellerGroups) {
-      for (const item of sellerGroup.items) {
 
-        /* ===== INVENTORY ===== */
+      for (const item of sellerGroup.items) {
 
         const inventory =
           await SellerInventory.findById(
@@ -101,10 +103,22 @@ exports.createOrder = async (req, res) => {
           continue;
         }
 
-        /* ===== ACTIVE CHECK ===== */
-
         if (!inventory.isActive) {
           continue;
+        }
+
+        /* ===== SIZE CHECK ===== */
+
+        if (
+          !inventory.sizes.includes(
+            item.size,
+          )
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Selected size not available",
+          });
         }
 
         /* ===== STOCK CHECK ===== */
@@ -143,6 +157,8 @@ exports.createOrder = async (req, res) => {
           price: inventory.price,
 
           quantity: item.quantity,
+
+          size: item.size,
 
           itemTotal,
         });
@@ -188,7 +204,7 @@ exports.createOrder = async (req, res) => {
       cart.priceDetails.totalAmount;
 
     /* ======================
-       ESTIMATED DELIVERY
+       DELIVERY DATE
     ====================== */
 
     const estimatedDeliveryDate =
@@ -311,6 +327,7 @@ exports.createOrder = async (req, res) => {
     });
 
   } catch (error) {
+
     res.status(500).json({
       success: false,
 
@@ -388,6 +405,149 @@ exports.updateOrderStatus = async (req, res) => {
       success: true,
       message: "Order status updated successfully",
       data: order,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+/* =========================================
+   ADD REVIEW
+   POST /api/products/:id/review
+========================================= */
+exports.addReview = async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+
+    if (!rating) {
+      return res.status(400).json({
+        success: false,
+        message: "Rating is required",
+      });
+    }
+
+    const inventory =
+      await SellerInventory.findById(
+        req.params.id
+      );
+
+    if (!inventory) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    const review = {
+      user: req.user._id,
+
+      name: `${req.user.firstName} ${req.user.lastName}`,
+
+      rating,
+
+      comment: comment || "",
+    };
+
+    const newReviewCount =
+      (inventory.reviewCount || 0) + 1;
+
+    const totalRating =
+      (inventory.reviews || []).reduce(
+        (acc, item) =>
+          acc + item.rating,
+        0
+      ) + Number(rating);
+
+    const newRating =
+      totalRating / newReviewCount;
+
+    await SellerInventory.findByIdAndUpdate(
+      req.params.id,
+      {
+        $push: {
+          reviews: review,
+        },
+
+        $set: {
+          reviewCount: newReviewCount,
+
+          rating: newRating,
+        },
+      },
+      {
+        new: true,
+        runValidators: false,
+      }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Review added",
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+/* =========================================
+   GET PRODUCT REVIEWS
+   GET /api/products/:id/reviews
+========================================= */
+exports.getProductReviews = async (
+  req,
+  res,
+) => {
+  try {
+    const inventory =
+      await SellerInventory.findById(
+        req.params.id,
+      ).select(
+        "reviews rating reviewCount",
+      );
+
+    if (!inventory) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    const page =
+      Number(req.query.page) || 1;
+
+    const limit =
+      Number(req.query.limit) || 5;
+
+    const start = (page - 1) * limit;
+
+    const end = start + limit;
+
+    const reviews = inventory.reviews || [];
+
+const paginatedReviews =
+  reviews.slice(start, end);
+
+    res.status(200).json({
+      success: true,
+
+      reviews: paginatedReviews,
+
+      rating: inventory.rating,
+
+      reviewCount:
+        inventory.reviewCount,
+
+      currentPage: page,
+
+      totalPages: Math.ceil(
+        inventory.reviewCount / limit,
+      ),
     });
 
   } catch (error) {
