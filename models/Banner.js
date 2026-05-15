@@ -7,6 +7,14 @@ const bannerSchema = new mongoose.Schema(
     redirectUrl: String,
     type: { type: String, default: "homepage" },
     isActive: { type: Boolean, default: true },
+    // ==========================================
+// REQUIRED BANNER SCHEMA UPDATE
+// ==========================================
+
+category: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Category",
+},
   },
   { timestamps: true }
 );

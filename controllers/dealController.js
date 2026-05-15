@@ -11,7 +11,9 @@ exports.addDeal = async (req, res) => {
     const { sellerInventoryId } =
       req.body;
 
+    // =====================================
     // CHECK PRODUCT EXISTS
+    // =====================================
     const product =
       await SellerInventory.findById(
         sellerInventoryId
@@ -25,9 +27,36 @@ exports.addDeal = async (req, res) => {
       });
     }
 
-    const deal = await Deal.create(
-      req.body
-    );
+    // =====================================
+    // AUTHORIZATION CHECK
+    // ONLY PRODUCT OWNER CAN ADD DEAL
+    // =====================================
+    if (
+      product.seller.toString() !==
+      req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Unauthorized to add deal for this product",
+      });
+    }
+
+    // =====================================
+    // CREATE DEAL
+    // AUTO COPY CATEGORY/SUBCATEGORY
+    // =====================================
+    const deal = await Deal.create({
+
+      ...req.body,
+
+      category:
+        product.category,
+
+      subcategory:
+        product.subcategory,
+
+    });
 
     res.status(201).json({
       success: true,
@@ -117,10 +146,6 @@ exports.getDealById = async (
   }
 };
 
-/* =========================================
-   UPDATE DEAL
-========================================= */
-
 exports.updateDeal = async (
   req,
   res
@@ -128,10 +153,10 @@ exports.updateDeal = async (
   try {
 
     const deal =
-      await Deal.findByIdAndUpdate(
-        req.params.id,
-        req.body,
-        { new: true }
+      await Deal.findById(
+        req.params.id
+      ).populate(
+        "sellerInventoryId"
       );
 
     if (!deal) {
@@ -141,11 +166,35 @@ exports.updateDeal = async (
       });
     }
 
+    // =====================================
+    // CHECK PRODUCT OWNER
+    // =====================================
+    if (
+      deal.sellerInventoryId.seller.toString()
+      !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Unauthorized to update this deal",
+      });
+    }
+
+    // =====================================
+    // UPDATE
+    // =====================================
+    const updatedDeal =
+      await Deal.findByIdAndUpdate(
+        req.params.id,
+        req.body,
+        { new: true }
+      );
+
     res.status(200).json({
       success: true,
       message:
         "Deal updated successfully",
-      deal,
+      deal: updatedDeal,
     });
 
   } catch (error) {
@@ -169,8 +218,10 @@ exports.deleteDeal = async (
   try {
 
     const deal =
-      await Deal.findByIdAndDelete(
+      await Deal.findById(
         req.params.id
+      ).populate(
+        "sellerInventoryId"
       );
 
     if (!deal) {
@@ -179,6 +230,24 @@ exports.deleteDeal = async (
         message: "Deal not found",
       });
     }
+
+    // =====================================
+    // CHECK OWNER
+    // =====================================
+    if (
+      deal.sellerInventoryId.seller.toString()
+      !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Unauthorized to delete this deal",
+      });
+    }
+
+    await Deal.findByIdAndDelete(
+      req.params.id
+    );
 
     res.status(200).json({
       success: true,

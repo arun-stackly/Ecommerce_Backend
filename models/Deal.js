@@ -7,14 +7,22 @@ const dealSchema = new mongoose.Schema(
       ref: "SellerInventory",
       required: true,
     },
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+    },
 
+    subcategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Subcategory",
+    },
     type: {
       type: String,
       enum: [
         "weekly",
         "upcoming",
         "flash",
-        "TopDeal",
+        "topDeal",
       ],
     },
 

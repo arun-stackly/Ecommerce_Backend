@@ -1,233 +1,281 @@
-const SellerInventory = require("../models/SellerInventory");
-const Banner = require("../models/Banner");
-const Deal = require("../models/Deal");
+const mongoose = require("mongoose");
 
-/* =======================================
-   1. Latest Products
-   GET /api/products/latest
-======================================= */
-exports.getLatestProducts = async (
-  req,
-  res,
-) => {
-  try {
-    const products =
-      await SellerInventory.find({
-        isActive: true,
-      })
-        .sort({ createdAt: -1 })
-        .limit(10);
+const SellerInventory =
+  require("../models/SellerInventory");
 
-    res.status(200).json({
-      success: true,
-      data: products,
-    });
+const Banner =
+  require("../models/Banner");
 
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/* =======================================
-   2. Brand Products
-   GET /api/products/brand/:brandName
-======================================= */
-exports.getBrandProducts = async (
-  req,
-  res,
-) => {
-  try {
-    const { brandName } = req.params;
-
-    const products =
-      await SellerInventory.find({
-        "brands.name": brandName,
-        isActive: true,
-      });
-
-    res.status(200).json({
-      success: true,
-      data: products,
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/* =======================================
-   3. Banner Slider
-   GET /api/banners
-======================================= */
-exports.getBanners = async (
-  req,
-  res,
-) => {
-  try {
-    const banners =
-      await Banner.find({
-        isActive: true,
-      });
-
-    res.status(200).json({
-      success: true,
-      data: banners,
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/* =======================================
-   4. Promotions
-   GET /api/promotions
-======================================= */
-exports.getPromotions = async (
-  req,
-  res,
-) => {
-  try {
-    const promotions =
-      await SellerInventory.find({
-        isFeatured: true,
-        isActive: true,
-      }).limit(6);
-
-    res.status(200).json({
-      success: true,
-      data: promotions,
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/* =======================================
-   5. Top Brands
-   GET /api/brands/top
-======================================= */
+const Deal =
+  require("../models/Deal");
 
 
-exports.getTopBrands = async (
-  req,
-  res,
-) => {
-  try {
+// ======================================================
+// FASHION CATEGORY LANDING PAGE
+// API:
+// GET /api/fashion/home/:categoryId
+// ======================================================
 
-    const brands =
-      await SellerInventory.aggregate([
+exports.getFashionLandingPage =
+  async (req, res) => {
 
-        // ACTIVE PRODUCTS ONLY
-        {
-          $match: {
-            isActive: true
-          }
-        },
+    try {
 
-        // CONVERT BRANDS ARRAY
-        {
-          $unwind: "$brands"
-        },
+      // =========================================
+      // HARDCODE CATEGORY ID
+      // =========================================
+      const categoryId =
+        "69367661e9c011d0457e1812";
 
-        // GROUP BY BRAND NAME
-        {
-          $group: {
 
-            _id: "$brands.name",
+      const currentDate =
+        new Date();
 
-            logo: {
-              $first: "$brands.logo"
-            },
+      // =========================================
+      // 1. Homepage BANNER
+      // =========================================
+      const banner =
+        await Banner.findOne({
+          category: categoryId,
 
-            totalProducts: {
-              $sum: 1
-            }
+          type: "homepage",
 
-          }
-        },
+          isActive: true,
 
-        // SORT DESCENDING
-        {
-          $sort: {
-            totalProducts: -1
-          }
-        },
+        });
 
-        // LIMIT
-        {
-          $limit: 10
-        },
 
-        // FINAL RESPONSE
-        {
-          $project: {
+      // =========================================
+      // 2. LATEST LAUNCHES
+      // =========================================
+      const latestLaunches =
+        await SellerInventory.find({
 
-            _id: 0,
+          category: categoryId,
 
-            name: "$_id",
+          isActive: true,
 
-            logo: 1,
+        })
+          .sort({ createdAt: -1 })
+          .limit(10);
 
-            totalProducts: 1
 
-          }
-        }
+      // =========================================
+      // 3. TOP DEAL OF THE WEEK
+      // =========================================
+      const topDeal =
+        await SellerInventory.findOne({
 
-      ]);
+          category: categoryId,
 
-    res.status(200).json({
-      success: true,
-      data: brands
-    });
+          isFeatured: true,
 
-  } catch (error) {
+          isActive: true,
 
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+        })
+          .sort({ views: -1 });
 
-  }
-};
-/* =======================================
-   6. Deals
-   GET /api/deals
-======================================= */
-exports.getDeals = async (
-  req,
-  res,
-) => {
-  try {
-    const deals = await Deal.find({
-      isActive: true,
-    }).populate({
+
+      // =========================================
+      // 4. SALE OF THE DAY
+      // =========================================
+      const saleOfDay =
+        await SellerInventory.find({
+
+          category: categoryId,
+
+          isActive: true,
+
+          isSaleOfDay: true,
+
+          saleStartDate: {
+            $lte: currentDate,
+          },
+
+          saleEndDate: {
+            $gte: currentDate,
+          },
+
+        })
+          .sort({ createdAt: -1 })
+          .limit(10);
+
+
+      // =========================================
+      // 5. UPCOMING DEALS
+      // =========================================
+     const upcomingDeals =
+  await Deal.find({
+
+    category: categoryId,
+
+    type: "upcoming",
+
+    isActive: true,
+
+  })
+    .populate({
       path: "sellerInventoryId",
       model: "SellerInventory",
-    });
+    })
+    .limit(10);
 
-    res.status(200).json({
-      success: true,
-      data: deals,
-    });
+      // =========================================
+      // 6. TOP BRANDS
+      // =========================================
+      const topBrands =
+        await SellerInventory.aggregate([
 
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
+          {
+            $match: {
+
+              category:
+                new mongoose.Types.ObjectId(
+                  categoryId
+                ),
+
+              isActive: true,
+
+            },
+          },
+
+          {
+            $unwind: "$brands",
+          },
+
+          {
+            $group: {
+
+              _id: "$brands.name",
+
+              logo: {
+                $first:
+                  "$brands.logo",
+              },
+
+              totalProducts: {
+                $sum: 1,
+              },
+
+            },
+          },
+
+          {
+            $sort: {
+              totalProducts: -1,
+            },
+          },
+
+          {
+            $limit: 10,
+          },
+
+          {
+            $project: {
+
+              _id: 0,
+
+              name: "$_id",
+
+              logo: 1,
+
+              totalProducts: 1,
+
+            },
+          },
+
+        ]);
+
+
+      // =========================================
+      // 7. CLOTHING DEALS
+      // =========================================
+      const clothingDeals =
+        await SellerInventory.find({
+
+          category: categoryId,
+
+          isActive: true,
+
+          subcategoryName:
+            "Clothing",
+
+        }).limit(10);
+
+
+      // =========================================
+      // 8. WINTER WEAR DEALS
+      // =========================================
+      const winterWearDeals =
+        await SellerInventory.find({
+
+          category: categoryId,
+
+          isActive: true,
+
+          subcategoryName:
+            "Winter Wear",
+
+        }).limit(10);
+
+
+      // =========================================
+      // 9. ETHNIC WEAR DEALS
+      // =========================================
+      const ethnicWearDeals =
+        await SellerInventory.find({
+
+          category: categoryId,
+
+          isActive: true,
+
+          subcategoryName:
+            "Ethnic Wear",
+
+        }).limit(10);
+
+
+      // =========================================
+      // 10. RESPONSE
+      // =========================================
+      res.status(200).json({
+
+        success: true,
+
+        banner,
+
+        latestLaunches,
+
+        topDeal,
+
+        saleOfDay,
+
+        upcomingDeals,
+
+        topBrands,
+
+        sections: {
+
+          clothingDeals,
+
+          winterWearDeals,
+
+          ethnicWearDeals,
+
+        },
+
+      });
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        message: error.message,
+
+      });
+
+    }
+
+  };
