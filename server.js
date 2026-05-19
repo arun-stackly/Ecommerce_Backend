@@ -47,6 +47,7 @@ const specificationRoutes = require("./routes/ProductSpecification")
 const producttypesRoutes = require("./routes/producttypeRoutes");
 const ElectronicshomeRoutes = require("./routes/ElectronicshomeRoutes");
 const ElectronicsmobilehomeRoutes = require("./routes/Electronics_MobilePhone_Home");
+const ElectronicsbestsellerRoutes = require("./routes/Electronics_bestseller_MobileRoutes");
 
 const app = express();
 
@@ -66,6 +67,7 @@ app.use("/api/deals", require("./routes/dealRoutes"));
 app.use("/api/banners", require("./routes/bannerRoutes"));
 app.use("/api/home", require("./routes/ElectronicshomeRoutes"));
 app.use("/api/mobilehome", require("./routes/Electronics_MobilePhone_Home"));
+app.use("/api/bestseller/mobile", require("./routes/Electronics_bestseller_MobileRoutes"));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/api/ads", adsRoutes);

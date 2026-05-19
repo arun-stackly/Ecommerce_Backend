@@ -104,10 +104,10 @@ exports.addToCart = async (req, res) => {
 
     /* ===== VALIDATION ===== */
 
-    if (!sellerInventoryId || !quantity || !size) {
+    if (!sellerInventoryId || !quantity ) {
       return res.status(400).json({
         success: false,
-        message: "sellerInventoryId, quantity and size are required",
+        message: "sellerInventoryId, quantity  are required",
       });
     }
 
@@ -135,12 +135,33 @@ exports.addToCart = async (req, res) => {
 
     /* ===== SIZE VALIDATION ===== */
 
-    if (!inventory.sizes.includes(size)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid size selected",
-      });
-    }
+   if (
+  inventory.sizes &&
+  inventory.sizes.length > 0
+) {
+
+  if (!size) {
+
+    return res.status(400).json({
+      success: false,
+      message: "Size is required",
+    });
+
+  }
+
+  if (
+    !inventory.sizes.includes(size)
+  ) {
+
+    return res.status(400).json({
+      success: false,
+      message:
+        "Invalid size selected",
+    });
+
+  }
+
+}
 
     /* ===== STOCK CHECK ===== */
 
@@ -196,7 +217,8 @@ exports.addToCart = async (req, res) => {
       (item) =>
         item.sellerInventoryId.toString() ===
           sellerInventoryId.toString() &&
-        item.size === size
+       (item.size || "") ===
+(size || "")
     );
 
     /* ===== UPDATE EXISTING ITEM ===== */
@@ -222,7 +244,7 @@ exports.addToCart = async (req, res) => {
 
         quantity: qty,
 
-        size,
+        size: size || "",
 
         totalPrice: finalPrice * qty,
       });
@@ -575,110 +597,279 @@ function calculateCartTotals(cart) {
 }
  
  /* ================= UPDATE CART QUANTITY ================= */
+/* ================= UPDATE CART QUANTITY ================= */
 
 exports.updateCartQuantity = async (req, res) => {
   try {
+
     const {
       sellerInventoryId,
       quantity,
+      size,
     } = req.body;
+
+    /* ===== VALIDATION ===== */
 
     if (
       !sellerInventoryId ||
       !quantity
     ) {
+
       return res.status(400).json({
         success: false,
         message:
           "sellerInventoryId and quantity are required",
       });
+
     }
 
     const qty = Number(quantity);
 
     if (qty <= 0) {
+
       return res.status(400).json({
         success: false,
         message:
           "Quantity must be greater than 0",
       });
+
     }
+
+    /* ===== FIND USER CART ===== */
 
     const cart = await Cart.findOne({
       userId: req.user._id,
     });
 
     if (!cart) {
+
       return res.status(404).json({
         success: false,
         message: "Cart not found",
       });
+
     }
+
+    /* ===== FIND INVENTORY ===== */
 
     const inventory =
       await SellerInventory.findById(
         sellerInventoryId
       );
 
-    if (!inventory || !inventory.isActive) {
+    if (
+      !inventory ||
+      !inventory.isActive
+    ) {
+
       return res.status(404).json({
         success: false,
-        message: "Product not available",
+        message:
+          "Product not available",
       });
+
     }
+
+    /* ===== SIZE VALIDATION ===== */
+
+    if (
+      inventory.sizes &&
+      inventory.sizes.length > 0
+    ) {
+
+      if (!size) {
+
+        return res.status(400).json({
+          success: false,
+          message: "Size is required",
+        });
+
+      }
+
+      if (
+        !inventory.sizes.includes(size)
+      ) {
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid size selected",
+        });
+
+      }
+
+    }
+
+    /* ===== STOCK CHECK ===== */
 
     if (qty > inventory.quantity) {
+
       return res.status(400).json({
         success: false,
-        message: "Insufficient stock",
+        message:
+          "Insufficient stock",
       });
+
     }
 
-    const sellerGroup =
-      cart.sellerGroups.find(
-        (seller) =>
-          seller.sellerId.toString() ===
-          sellerId.toString()
-      );
+    /* ===== FIND CART ITEM ===== */
 
-    if (!sellerGroup) {
-      return res.status(404).json({
-        success: false,
-        message: "Seller group not found",
-      });
-    }
+    let cartItem = null;
 
-    const cartItem =
-      sellerGroup.items.find(
-        (item) =>
-          item.sellerInventoryId.toString() ===
-            sellerInventoryId.toString() &&
-          item.size === size
-      );
+    cart.sellerGroups.forEach(
+      (sellerGroup) => {
+
+        const foundItem =
+          sellerGroup.items.find(
+            (item) =>
+
+              item.sellerInventoryId.toString() ===
+                sellerInventoryId.toString()
+
+              &&
+
+              (item.size || "") ===
+              (size || "")
+          );
+
+        if (foundItem) {
+          cartItem = foundItem;
+        }
+
+      }
+    );
+
+    /* ===== ITEM NOT FOUND ===== */
 
     if (!cartItem) {
+
       return res.status(404).json({
         success: false,
-        message: "Cart item not found",
+        message:
+          "Cart item not found",
       });
+
     }
+
+    /* ===== UPDATE QUANTITY ===== */
 
     cartItem.quantity = qty;
 
     cartItem.totalPrice =
       qty * inventory.price;
 
+    /* ===== RECALCULATE TOTALS ===== */
+
     calculateCartTotals(cart);
 
     await cart.save();
 
+    /* ===== UPDATED CART ===== */
+
+    const updatedCart =
+      await Cart.findById(cart._id)
+        .populate({
+          path:
+            "sellerGroups.items.sellerInventoryId",
+
+          select:
+            "name price media seller quantity isActive sizes",
+        });
+
+    /* ===== FORMAT RESPONSE ===== */
+
+    const formattedCart = {
+      _id: updatedCart._id,
+
+      userId: updatedCart.userId,
+
+      deliveryTo:
+        updatedCart.deliveryTo &&
+        updatedCart.deliveryTo.city &&
+        updatedCart.deliveryTo.pincode
+          ? `${updatedCart.deliveryTo.city} - ${updatedCart.deliveryTo.pincode}`
+          : null,
+
+      sellerGroups:
+        updatedCart.sellerGroups.map(
+          (seller) => ({
+
+            sellerId:
+              seller.sellerId,
+
+            sellerName:
+              seller.sellerName,
+
+            sellerTotal:
+              seller.sellerTotal,
+
+            items:
+              seller.items
+
+                .filter(
+                  (item) =>
+                    item.sellerInventoryId
+                )
+
+                .map((item) => {
+
+                  const inventory =
+                    item.sellerInventoryId;
+
+                  return {
+
+                    sellerInventoryId:
+                      inventory._id,
+
+                    name:
+                      inventory.name,
+
+                    image:
+                      inventory.media?.find(
+                        (m) =>
+                          m.type ===
+                          "image"
+                      )?.url || "",
+
+                    price:
+                      inventory.price,
+
+                    quantity:
+                      item.quantity,
+
+                    size:
+                      item.size || "",
+
+                    availableSizes:
+                      inventory.sizes || [],
+
+                    deliveryIn:
+                      "5-7 Days",
+
+                    totalPrice:
+                      inventory.price *
+                      item.quantity,
+                  };
+
+                }),
+          })
+        ),
+
+      priceDetails:
+        updatedCart.priceDetails,
+    };
+
     res.status(200).json({
       success: true,
+
       message:
         "Cart quantity updated successfully",
-      cart,
+
+      cart: formattedCart,
     });
+
   } catch (error) {
+
     console.log(
       "UPDATE CART QUANTITY ERROR:",
       error
@@ -688,5 +879,6 @@ exports.updateCartQuantity = async (req, res) => {
       success: false,
       message: error.message,
     });
+
   }
 };
