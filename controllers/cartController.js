@@ -338,6 +338,7 @@ exports.removeCartItem = async (req, res) => {
   try {
 
     const { cartItemId } = req.body;
+    console.log("BODY:", req.body);
 
     const cart = await Cart.findOne({
       userId: req.user._id,
@@ -387,7 +388,7 @@ exports.removeCartItem = async (req, res) => {
     calculateCartTotals(cart);
 
     await cart.save();
-
+ 
     return res.status(200).json({
       success: true,
       message:
@@ -597,7 +598,6 @@ function calculateCartTotals(cart) {
 }
  
  /* ================= UPDATE CART QUANTITY ================= */
-/* ================= UPDATE CART QUANTITY ================= */
 
 exports.updateCartQuantity = async (req, res) => {
   try {
@@ -610,29 +610,22 @@ exports.updateCartQuantity = async (req, res) => {
 
     /* ===== VALIDATION ===== */
 
-    if (
-      !sellerInventoryId ||
-      !quantity
-    ) {
-
+    if (!sellerInventoryId || !quantity) {
       return res.status(400).json({
         success: false,
         message:
           "sellerInventoryId and quantity are required",
       });
-
     }
 
     const qty = Number(quantity);
 
     if (qty <= 0) {
-
       return res.status(400).json({
         success: false,
         message:
           "Quantity must be greater than 0",
       });
-
     }
 
     /* ===== FIND USER CART ===== */
@@ -642,12 +635,10 @@ exports.updateCartQuantity = async (req, res) => {
     });
 
     if (!cart) {
-
       return res.status(404).json({
         success: false,
         message: "Cart not found",
       });
-
     }
 
     /* ===== FIND INVENTORY ===== */
@@ -661,13 +652,11 @@ exports.updateCartQuantity = async (req, res) => {
       !inventory ||
       !inventory.isActive
     ) {
-
       return res.status(404).json({
         success: false,
         message:
           "Product not available",
       });
-
     }
 
     /* ===== SIZE VALIDATION ===== */
@@ -678,38 +667,31 @@ exports.updateCartQuantity = async (req, res) => {
     ) {
 
       if (!size) {
-
         return res.status(400).json({
           success: false,
           message: "Size is required",
         });
-
       }
 
       if (
         !inventory.sizes.includes(size)
       ) {
-
         return res.status(400).json({
           success: false,
           message:
             "Invalid size selected",
         });
-
       }
-
     }
 
     /* ===== STOCK CHECK ===== */
 
     if (qty > inventory.quantity) {
-
       return res.status(400).json({
         success: false,
         message:
           "Insufficient stock",
       });
-
     }
 
     /* ===== FIND CART ITEM ===== */
@@ -719,22 +701,28 @@ exports.updateCartQuantity = async (req, res) => {
     cart.sellerGroups.forEach(
       (sellerGroup) => {
 
-        const foundItem =
-          sellerGroup.items.find(
-            (item) =>
+        sellerGroup.items.forEach(
+          (item) => {
 
-              item.sellerInventoryId.toString() ===
+            const itemInventoryId =
+              item.sellerInventoryId.toString();
+
+            if (
+              itemInventoryId ===
                 sellerInventoryId.toString()
 
               &&
 
               (item.size || "") ===
-              (size || "")
-          );
+                (size || "")
+            ) {
 
-        if (foundItem) {
-          cartItem = foundItem;
-        }
+              cartItem = item;
+
+            }
+
+          }
+        );
 
       }
     );
@@ -764,7 +752,7 @@ exports.updateCartQuantity = async (req, res) => {
 
     await cart.save();
 
-    /* ===== UPDATED CART ===== */
+    /* ===== GET UPDATED CART ===== */
 
     const updatedCart =
       await Cart.findById(cart._id)
@@ -805,18 +793,19 @@ exports.updateCartQuantity = async (req, res) => {
 
             items:
               seller.items
-
                 .filter(
                   (item) =>
                     item.sellerInventoryId
                 )
-
                 .map((item) => {
 
                   const inventory =
                     item.sellerInventoryId;
 
                   return {
+
+                    cartItemId:
+                      item._id,
 
                     sellerInventoryId:
                       inventory._id,
@@ -859,7 +848,7 @@ exports.updateCartQuantity = async (req, res) => {
         updatedCart.priceDetails,
     };
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
 
       message:
@@ -875,7 +864,7 @@ exports.updateCartQuantity = async (req, res) => {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
