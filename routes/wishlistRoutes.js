@@ -13,6 +13,6 @@ router.use(protectUser);
 
 router.get("/", getWishlist);
 router.post("/", addToWishlist);
-router.delete("/:productId", removeFromWishlist);
+router.delete("/:sellerInventoryId", removeFromWishlist);
 
 module.exports = router;

@@ -57,9 +57,6 @@ exports.getWishlist = async (req, res) => {
 
             price: inventory.price,
 
-            quantity:
-              inventory.quantity,
-
             isActive:
               inventory.isActive,
           };
@@ -81,11 +78,15 @@ exports.getWishlist = async (req, res) => {
 
 /* ================= ADD TO WISHLIST ================= */
 
+/* ================= ADD TO WISHLIST ================= */
+
 exports.addToWishlist = async (
   req,
   res,
 ) => {
+
   try {
+
     const { sellerInventoryId } =
       req.body;
 
@@ -93,31 +94,36 @@ exports.addToWishlist = async (
 
     if (
       !mongoose.Types.ObjectId.isValid(
-        sellerInventoryId,
+        sellerInventoryId
       )
     ) {
+
       return res.status(400).json({
         success: false,
         message:
           "Invalid sellerInventoryId",
       });
+
     }
 
     /* ===== CHECK INVENTORY ===== */
 
     const inventory =
       await SellerInventory.findById(
-        sellerInventoryId,
+        sellerInventoryId
       );
 
     if (
       !inventory ||
       !inventory.isActive
     ) {
+
       return res.status(404).json({
         success: false,
-        message: "Product not available",
+        message:
+          "Product not available",
       });
+
     }
 
     /* ===== FIND USER WISHLIST ===== */
@@ -130,11 +136,13 @@ exports.addToWishlist = async (
     /* ===== CREATE WISHLIST ===== */
 
     if (!wishlist) {
+
       wishlist =
         await Wishlist.create({
           userId: req.user._id,
           items: [],
         });
+
     }
 
     /* ===== CHECK DUPLICATE ===== */
@@ -142,16 +150,19 @@ exports.addToWishlist = async (
     const alreadyExists =
       wishlist.items.find(
         (item) =>
+
           item.sellerInventoryId.toString() ===
-          sellerInventoryId.toString(),
+          sellerInventoryId.toString()
       );
 
     if (alreadyExists) {
+
       return res.status(200).json({
         success: true,
         message:
           "Item already in wishlist",
       });
+
     }
 
     /* ===== ADD ITEM ===== */
@@ -162,25 +173,98 @@ exports.addToWishlist = async (
 
     await wishlist.save();
 
-    res.status(201).json({
-      success: true,
-      message:
-        "Item added to wishlist",
-    });
+    /* ===== POPULATE UPDATED WISHLIST ===== */
+
+    const updatedWishlist =
+      await Wishlist.findById(
+        wishlist._id
+      ).populate({
+        path:
+          "items.sellerInventoryId",
+
+        select:
+          "name price media isActive",
+      });
+
+    /* ===== FORMAT RESPONSE ===== */
+
+    const formattedWishlist = {
+      userId:
+        updatedWishlist.userId,
+
+      items:
+        updatedWishlist.items
+
+          .filter(
+            (item) =>
+              item.sellerInventoryId &&
+              item.sellerInventoryId
+                .isActive
+          )
+
+          .map((item) => {
+
+            const inventory =
+              item.sellerInventoryId;
+
+            return {
+
+              sellerInventoryId:
+                inventory._id,
+
+              name:
+                inventory.name,
+
+              image:
+                inventory.media?.find(
+                  (m) =>
+                    m.type === "image"
+                )?.url || "",
+
+              price:
+                inventory.price,
+
+              isActive:
+                inventory.isActive,
+            };
+
+          }),
+    };
+
+ res.status(201).json({
+  success: true,
+  message: "Item added to wishlist",
+
+  item: {
+    sellerInventoryId: inventory._id,
+    name: inventory.name,
+    image:
+      inventory.media?.find(
+        (m) => m.type === "image"
+      )?.url || "",
+    price: inventory.price,
+    isActive: inventory.isActive,
+  },
+});
 
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: error.message,
     });
+
   }
+
 };
 
 /* ================= REMOVE FROM WISHLIST ================= */
 
 exports.removeFromWishlist =
   async (req, res) => {
+
     try {
+
       const {
         sellerInventoryId,
       } = req.params;
@@ -189,14 +273,16 @@ exports.removeFromWishlist =
 
       if (
         !mongoose.Types.ObjectId.isValid(
-          sellerInventoryId,
+          sellerInventoryId
         )
       ) {
+
         return res.status(400).json({
           success: false,
           message:
             "Invalid sellerInventoryId",
         });
+
       }
 
       /* ===== FIND WISHLIST ===== */
@@ -207,11 +293,13 @@ exports.removeFromWishlist =
         });
 
       if (!wishlist) {
+
         return res.status(404).json({
           success: false,
           message:
             "Wishlist not found",
         });
+
       }
 
       /* ===== REMOVE ITEM ===== */
@@ -219,22 +307,87 @@ exports.removeFromWishlist =
       wishlist.items =
         wishlist.items.filter(
           (item) =>
+
             item.sellerInventoryId.toString() !==
-            sellerInventoryId.toString(),
+            sellerInventoryId.toString()
         );
 
       await wishlist.save();
+
+      /* ===== GET UPDATED WISHLIST ===== */
+
+      const updatedWishlist =
+        await Wishlist.findById(
+          wishlist._id
+        ).populate({
+          path:
+            "items.sellerInventoryId",
+
+          select:
+            "name price media isActive",
+        });
+
+      /* ===== FORMAT RESPONSE ===== */
+
+      const formattedWishlist = {
+
+        userId:
+          updatedWishlist.userId,
+
+        items:
+          updatedWishlist.items
+
+            .filter(
+              (item) =>
+                item.sellerInventoryId &&
+                item.sellerInventoryId
+                  .isActive
+            )
+
+            .map((item) => {
+
+              const inventory =
+                item.sellerInventoryId;
+
+              return {
+
+                sellerInventoryId:
+                  inventory._id,
+
+                name:
+                  inventory.name,
+
+                image:
+                  inventory.media?.find(
+                    (m) =>
+                      m.type === "image"
+                  )?.url || "",
+
+                price:
+                  inventory.price,
+
+                isActive:
+                  inventory.isActive,
+              };
+
+            }),
+      };
 
       res.status(200).json({
         success: true,
         message:
           "Item removed from wishlist",
+
+        data: formattedWishlist,
       });
 
     } catch (error) {
+
       res.status(500).json({
         success: false,
         message: error.message,
       });
+
     }
+
   };
