@@ -44,9 +44,7 @@ exports.createOrder = async (req, res) => {
        SHIPPING ADDRESS
     ====================== */
 
-    const shippingAddress = await Address.findById(
-      shippingAddressId
-    );
+    const shippingAddress = await Address.findById(shippingAddressId);
 
     if (!shippingAddress) {
       return res.status(404).json({
@@ -79,10 +77,9 @@ exports.createOrder = async (req, res) => {
 
     for (const sellerGroup of cart.sellerGroups) {
       for (const item of sellerGroup.items) {
-        const inventory =
-          await SellerInventory.findById(
-            item.sellerInventoryId
-          );
+        const inventory = await SellerInventory.findById(
+          item.sellerInventoryId,
+        );
 
         if (!inventory) {
           continue;
@@ -94,20 +91,18 @@ exports.createOrder = async (req, res) => {
 
         /* ===== SIZE CHECK ===== */
 
-        if (
-          !inventory.sizes.includes(item.size)
-        ) {
-          return res.status(400).json({
-            success: false,
-            message: `Selected size not available for ${inventory.name}`,
-          });
+        if (inventory.sizes && inventory.sizes.length > 0) {
+          if (!inventory.sizes.includes(item.size)) {
+            return res.status(400).json({
+              success: false,
+              message: `Selected size not available for ${inventory.name}`,
+            });
+          }
         }
 
         /* ===== STOCK CHECK ===== */
 
-        if (
-          item.quantity > inventory.quantity
-        ) {
+        if (item.quantity > inventory.quantity) {
           return res.status(400).json({
             success: false,
             message: `${inventory.name} out of stock`,
@@ -116,8 +111,7 @@ exports.createOrder = async (req, res) => {
 
         /* ===== ITEM TOTAL ===== */
 
-        const itemTotal =
-          inventory.price * item.quantity;
+        const itemTotal = inventory.price * item.quantity;
 
         /* ===== PUSH ORDER ITEM ===== */
 
@@ -128,10 +122,7 @@ exports.createOrder = async (req, res) => {
 
           name: inventory.name,
 
-          image:
-            inventory.media?.find(
-              (m) => m.type === "image"
-            )?.url || "",
+          image: inventory.media?.find((m) => m.type === "image")?.url || "",
 
           price: inventory.price,
 
@@ -146,14 +137,11 @@ exports.createOrder = async (req, res) => {
 
         /* ===== REDUCE STOCK ===== */
 
-        await SellerInventory.findByIdAndUpdate(
-          inventory._id,
-          {
-            $inc: {
-              quantity: -item.quantity,
-            },
-          }
-        );
+        await SellerInventory.findByIdAndUpdate(inventory._id, {
+          $inc: {
+            quantity: -item.quantity,
+          },
+        });
       }
     }
 
@@ -164,8 +152,7 @@ exports.createOrder = async (req, res) => {
     if (orderItems.length === 0) {
       return res.status(400).json({
         success: false,
-        message:
-          "No valid inventory items found",
+        message: "No valid inventory items found",
       });
     }
 
@@ -173,20 +160,15 @@ exports.createOrder = async (req, res) => {
        CART TOTALS
     ====================== */
 
-    const totalItemsPrice =
-      cart.priceDetails.price;
+    const totalItemsPrice = cart.priceDetails.price;
 
-    const platformFee =
-      cart.priceDetails.platformFee;
+    const platformFee = cart.priceDetails.platformFee;
 
-    const discount =
-      cart.priceDetails.discount;
+    const discount = cart.priceDetails.discount;
 
-    const couponDiscount =
-      cart.priceDetails.couponDiscount;
+    const couponDiscount = cart.priceDetails.couponDiscount;
 
-    const totalAmount =
-      cart.priceDetails.totalAmount;
+    const totalAmount = cart.priceDetails.totalAmount;
 
     /* ======================
        DELIVERY DATES
@@ -194,12 +176,9 @@ exports.createOrder = async (req, res) => {
 
     const orderPlacedDate = new Date();
 
-    const estimatedDeliveryDate =
-      new Date();
+    const estimatedDeliveryDate = new Date();
 
-    estimatedDeliveryDate.setDate(
-      estimatedDeliveryDate.getDate() + 5
-    );
+    estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 5);
 
     /* ======================
        CREATE ORDER
@@ -215,51 +194,39 @@ exports.createOrder = async (req, res) => {
       items: orderItems,
 
       shippingAddress: {
-        fullName:
-          shippingAddress.fullName,
+        fullName: shippingAddress.fullName,
 
-        phoneNumber:
-          shippingAddress.phoneNumber,
+        phoneNumber: shippingAddress.phoneNumber,
 
-        houseNo:
-          shippingAddress.houseNo,
+        houseNo: shippingAddress.houseNo,
 
-        addressLine:
-          shippingAddress.addressLine,
+        addressLine: shippingAddress.addressLine,
 
         city: shippingAddress.city,
 
-        pincode:
-          shippingAddress.pincode,
+        pincode: shippingAddress.pincode,
 
         state: shippingAddress.state,
 
-        landmark:
-          shippingAddress.landmark,
+        landmark: shippingAddress.landmark,
       },
 
       billingAddress: {
-        fullName:
-          billingAddress.fullName,
+        fullName: billingAddress.fullName,
 
-        phoneNumber:
-          billingAddress.phoneNumber,
+        phoneNumber: billingAddress.phoneNumber,
 
-        houseNo:
-          billingAddress.houseNo,
+        houseNo: billingAddress.houseNo,
 
-        addressLine:
-          billingAddress.addressLine,
+        addressLine: billingAddress.addressLine,
 
         city: billingAddress.city,
 
-        pincode:
-          billingAddress.pincode,
+        pincode: billingAddress.pincode,
 
         state: billingAddress.state,
 
-        landmark:
-          billingAddress.landmark,
+        landmark: billingAddress.landmark,
       },
 
       paymentMode,
@@ -268,8 +235,7 @@ exports.createOrder = async (req, res) => {
 
       platformFee,
 
-      discount:
-        discount + couponDiscount,
+      discount: discount + couponDiscount,
 
       totalAmount,
 
@@ -288,13 +254,11 @@ exports.createOrder = async (req, res) => {
 
     if (paymentMode === "COD") {
       paymentDetails = {
-        paymentType:
-          "Cash on Delivery",
+        paymentType: "Cash on Delivery",
 
         message: `Pay in cash ₹${order.totalAmount} when your order is delivered`,
 
-        payableAmount:
-          order.totalAmount,
+        payableAmount: order.totalAmount,
 
         currency: "INR",
 
@@ -302,13 +266,11 @@ exports.createOrder = async (req, res) => {
       };
     } else {
       paymentDetails = {
-        paymentType:
-          "Online Payment",
+        paymentType: "Online Payment",
 
         message: `Online payment of ₹${order.totalAmount} completed`,
 
-        payableAmount:
-          order.totalAmount,
+        payableAmount: order.totalAmount,
 
         currency: "INR",
 
@@ -341,8 +303,7 @@ exports.createOrder = async (req, res) => {
     return res.status(201).json({
       success: true,
 
-      message:
-        "Order created successfully",
+      message: "Order created successfully",
 
       data: {
         ...order.toObject(),
@@ -415,6 +376,13 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     order.orderStatus = orderStatus;
+    /* ===== UPDATE ITEM STATUS ===== */
+
+order.items.forEach((item) => {
+
+  item.itemStatus = orderStatus;
+
+});
 
     // If delivered → set deliveredAt
     if (orderStatus === "delivered") {
@@ -428,7 +396,6 @@ exports.updateOrderStatus = async (req, res) => {
       message: "Order status updated successfully",
       data: order,
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -451,10 +418,7 @@ exports.addReview = async (req, res) => {
       });
     }
 
-    const inventory =
-      await SellerInventory.findById(
-        req.params.id
-      );
+    const inventory = await SellerInventory.findById(req.params.id);
 
     if (!inventory) {
       return res.status(404).json({
@@ -473,18 +437,13 @@ exports.addReview = async (req, res) => {
       comment: comment || "",
     };
 
-    const newReviewCount =
-      (inventory.reviewCount || 0) + 1;
+    const newReviewCount = (inventory.reviewCount || 0) + 1;
 
     const totalRating =
-      (inventory.reviews || []).reduce(
-        (acc, item) =>
-          acc + item.rating,
-        0
-      ) + Number(rating);
+      (inventory.reviews || []).reduce((acc, item) => acc + item.rating, 0) +
+      Number(rating);
 
-    const newRating =
-      totalRating / newReviewCount;
+    const newRating = totalRating / newReviewCount;
 
     await SellerInventory.findByIdAndUpdate(
       req.params.id,
@@ -502,14 +461,13 @@ exports.addReview = async (req, res) => {
       {
         new: true,
         runValidators: false,
-      }
+      },
     );
 
     res.status(201).json({
       success: true,
       message: "Review added",
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -521,17 +479,11 @@ exports.addReview = async (req, res) => {
    GET PRODUCT REVIEWS
    GET /api/products/:id/reviews
 ========================================= */
-exports.getProductReviews = async (
-  req,
-  res,
-) => {
+exports.getProductReviews = async (req, res) => {
   try {
-    const inventory =
-      await SellerInventory.findById(
-        req.params.id,
-      ).select(
-        "reviews rating reviewCount",
-      );
+    const inventory = await SellerInventory.findById(req.params.id).select(
+      "reviews rating reviewCount",
+    );
 
     if (!inventory) {
       return res.status(404).json({
@@ -540,11 +492,9 @@ exports.getProductReviews = async (
       });
     }
 
-    const page =
-      Number(req.query.page) || 1;
+    const page = Number(req.query.page) || 1;
 
-    const limit =
-      Number(req.query.limit) || 5;
+    const limit = Number(req.query.limit) || 5;
 
     const start = (page - 1) * limit;
 
@@ -552,8 +502,7 @@ exports.getProductReviews = async (
 
     const reviews = inventory.reviews || [];
 
-const paginatedReviews =
-  reviews.slice(start, end);
+    const paginatedReviews = reviews.slice(start, end);
 
     res.status(200).json({
       success: true,
@@ -562,16 +511,12 @@ const paginatedReviews =
 
       rating: inventory.rating,
 
-      reviewCount:
-        inventory.reviewCount,
+      reviewCount: inventory.reviewCount,
 
       currentPage: page,
 
-      totalPages: Math.ceil(
-        inventory.reviewCount / limit,
-      ),
+      totalPages: Math.ceil(inventory.reviewCount / limit),
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
