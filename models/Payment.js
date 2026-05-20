@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+ 
 const paymentSchema = new mongoose.Schema(
   {
     customerId: {
@@ -7,26 +7,28 @@ const paymentSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-
+ 
     orderId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "UserOrder",
       required: true,
     },
-
+ 
     amount: {
       type: Number,
       required: true,
     },
-
+ 
     method: {
       type: String,
       enum: ["COD", "UPI", "CARD", "EMI"],
       required: true,
     },
-
+ 
     transactionId: String,
-
+ 
+    otp: String,
+ 
     status: {
       type: String,
       enum: ["pending", "success", "failed"],
@@ -35,5 +37,7 @@ const paymentSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
-
+ 
 module.exports = mongoose.model("Payment", paymentSchema);
+ 
+ 

@@ -7,10 +7,13 @@ const {
   getCart,
   addToCart,
   removeCartItem,
+  addCoupon,
   applyCoupon,
   removeCoupon,
+  getAvailableCoupons,
   setDeliveryAddress,
   updateCartQuantity,
+  getRelatedProducts,
 } = require("../controllers/cartController");
 
 router.use(protectUser);
@@ -23,10 +26,11 @@ router.put(
   updateCartQuantity
 );
 router.delete("/remove", removeCartItem);
-
+// Admin only route (you can add auth middleware later)
+router.post("/add-coupon", addCoupon);
 router.post("/apply-coupon", applyCoupon);
 router.delete("/remove-coupon", removeCoupon);
-
+router.get("/coupons", getAvailableCoupons);
 router.put("/set-delivery-address", setDeliveryAddress);
-
+router.get("/similar/:sellerInventoryId", getRelatedProducts)
 module.exports = router;

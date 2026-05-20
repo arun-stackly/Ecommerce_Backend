@@ -14,10 +14,7 @@ exports.createOrder = async (req, res) => {
 
     const user = req.user;
 
-    /* ======================
-       USER CHECK
-    ====================== */
-
+    /* ================= USER CHECK ================= */
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -25,13 +22,8 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    /* ======================
-       GET USER CART
-    ====================== */
-
-    const cart = await Cart.findOne({
-      userId: user._id,
-    });
+    /* ================= GET CART ================= */
+    const cart = await Cart.findOne({ userId: user._id });
 
     if (!cart || !cart.sellerGroups.length) {
       return res.status(400).json({
@@ -40,10 +32,7 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    /* ======================
-       SHIPPING ADDRESS
-    ====================== */
-
+    /* ================= SHIPPING ADDRESS ================= */
     const shippingAddress = await Address.findById(shippingAddressId);
 
     if (!shippingAddress) {
@@ -53,10 +42,7 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    /* ======================
-       BILLING ADDRESS
-    ====================== */
-
+    /* ================= BILLING ADDRESS ================= */
     const billingAddress = await Address.findOne({
       userId: user._id,
       isDefault: true,
@@ -69,39 +55,27 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    /* ======================
-       ORDER ITEMS
-    ====================== */
-
+    /* ================= ORDER ITEMS ================= */
     let orderItems = [];
 
     for (const sellerGroup of cart.sellerGroups) {
       for (const item of sellerGroup.items) {
-        const inventory = await SellerInventory.findById(
-          item.sellerInventoryId,
-        );
+        const inventory = await SellerInventory.findById(item.sellerInventoryId);
 
-        if (!inventory) {
-          continue;
+        if (!inventory || !inventory.isActive) continue;
+
+        // size validation
+        if (
+          inventory.sizes?.length &&
+          !inventory.sizes.includes(item.size)
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: `Size not available for ${inventory.name}`,
+          });
         }
 
-        if (!inventory.isActive) {
-          continue;
-        }
-
-        /* ===== SIZE CHECK ===== */
-
-        if (inventory.sizes && inventory.sizes.length > 0) {
-          if (!inventory.sizes.includes(item.size)) {
-            return res.status(400).json({
-              success: false,
-              message: `Selected size not available for ${inventory.name}`,
-            });
-          }
-        }
-
-        /* ===== STOCK CHECK ===== */
-
+        // stock check
         if (item.quantity > inventory.quantity) {
           return res.status(400).json({
             success: false,
@@ -109,181 +83,111 @@ exports.createOrder = async (req, res) => {
           });
         }
 
-        /* ===== ITEM TOTAL ===== */
-
         const itemTotal = inventory.price * item.quantity;
-
-        /* ===== PUSH ORDER ITEM ===== */
 
         orderItems.push({
           sellerId: inventory.seller,
-
           sellerInventoryId: inventory._id,
-
           name: inventory.name,
-
           image: inventory.media?.find((m) => m.type === "image")?.url || "",
-
           price: inventory.price,
-
           quantity: item.quantity,
-
           size: item.size,
-
           itemTotal,
-
           itemStatus: "placed",
         });
 
-        /* ===== REDUCE STOCK ===== */
-
+        // reduce stock
         await SellerInventory.findByIdAndUpdate(inventory._id, {
-          $inc: {
-            quantity: -item.quantity,
-          },
+          $inc: { quantity: -item.quantity },
         });
       }
     }
 
-    /* ======================
-       EMPTY ITEMS CHECK
-    ====================== */
-
-    if (orderItems.length === 0) {
+    if (!orderItems.length) {
       return res.status(400).json({
         success: false,
-        message: "No valid inventory items found",
+        message: "No valid items found",
       });
     }
 
-    /* ======================
-       CART TOTALS
-    ====================== */
-
+    /* ================= CART TOTALS ================= */
     const totalItemsPrice = cart.priceDetails.price;
-
     const platformFee = cart.priceDetails.platformFee;
-
     const discount = cart.priceDetails.discount;
-
     const couponDiscount = cart.priceDetails.couponDiscount;
-
     const totalAmount = cart.priceDetails.totalAmount;
 
-    /* ======================
-       DELIVERY DATES
-    ====================== */
-
+    /* ================= DELIVERY ================= */
     const orderPlacedDate = new Date();
-
     const estimatedDeliveryDate = new Date();
-
     estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 5);
 
-    /* ======================
-       CREATE ORDER
-    ====================== */
+    /* ================= PAYMENT DETAILS (IMPORTANT FIX) ================= */
+    const paymentDetails =
+      paymentMode === "COD"
+        ? {
+            paymentType: "Cash on Delivery",
+            message: `Pay ₹${totalAmount} on delivery`,
+            payableAmount: totalAmount,
+            currency: "INR",
+            paymentStatus: "pending",
+          }
+        : {
+            paymentType: "Online Payment",
+            message: "Payment pending confirmation",
+            payableAmount: totalAmount,
+            currency: "INR",
+            paymentStatus: "pending",
+          };
 
+    /* ================= CREATE ORDER ================= */
     const order = await UserOrder.create({
       orderId: generateOrderId(),
-
       customerId: user._id,
-
       customerName: user.firstName,
 
       items: orderItems,
 
       shippingAddress: {
         fullName: shippingAddress.fullName,
-
         phoneNumber: shippingAddress.phoneNumber,
-
         houseNo: shippingAddress.houseNo,
-
         addressLine: shippingAddress.addressLine,
-
         city: shippingAddress.city,
-
         pincode: shippingAddress.pincode,
-
         state: shippingAddress.state,
-
         landmark: shippingAddress.landmark,
       },
 
       billingAddress: {
         fullName: billingAddress.fullName,
-
         phoneNumber: billingAddress.phoneNumber,
-
         houseNo: billingAddress.houseNo,
-
         addressLine: billingAddress.addressLine,
-
         city: billingAddress.city,
-
         pincode: billingAddress.pincode,
-
         state: billingAddress.state,
-
         landmark: billingAddress.landmark,
       },
 
       paymentMode,
 
       totalItemsPrice,
-
       platformFee,
-
       discount: discount + couponDiscount,
-
       totalAmount,
 
-      estimatedDeliveryDate,
-
       orderPlacedDate,
-
+      estimatedDeliveryDate,
       orderStatus: "placed",
+
+      // ✅ STORE IN DB
+      paymentDetails,
     });
 
-    /* ======================
-       PAYMENT DETAILS
-    ====================== */
-
-    let paymentDetails = {};
-
-    if (paymentMode === "COD") {
-      paymentDetails = {
-        paymentType: "Cash on Delivery",
-
-        message: `Pay in cash ₹${order.totalAmount} when your order is delivered`,
-
-        payableAmount: order.totalAmount,
-
-        currency: "INR",
-
-        paymentStatus: "pending",
-      };
-    } else {
-      paymentDetails = {
-        paymentType: "Online Payment",
-
-        message: `Online payment of ₹${order.totalAmount} completed`,
-
-        payableAmount: order.totalAmount,
-
-        currency: "INR",
-
-        paymentStatus: "paid",
-      };
-    }
-
-    /* ======================
-       CLEAR CART
-    ====================== */
-
+    /* ================= CLEAR CART ================= */
     cart.sellerGroups = [];
-
     cart.priceDetails = {
       price: 0,
       discount: 0,
@@ -291,25 +195,15 @@ exports.createOrder = async (req, res) => {
       platformFee: 0,
       totalAmount: 0,
     };
-
     cart.coupon = undefined;
 
     await cart.save();
 
-    /* ======================
-       RESPONSE
-    ====================== */
-
+    /* ================= RESPONSE ================= */
     return res.status(201).json({
       success: true,
-
       message: "Order created successfully",
-
-      data: {
-        ...order.toObject(),
-
-        paymentDetails,
-      },
+      data: order,
     });
   } catch (error) {
     return res.status(500).json({
@@ -521,6 +415,43 @@ exports.getProductReviews = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message,
+    });
+  }
+};
+exports.verifyPayment = async (req, res) => {
+  try {
+    const { orderId, paymentId } = req.body;
+
+    const order = await UserOrder.findById(orderId);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // safety check
+    if (!order.paymentDetails) {
+      order.paymentDetails = {};
+    }
+
+    // ✅ ONLY PAYMENT STATUS UPDATE
+    order.paymentDetails.paymentStatus = "paid";
+    order.paymentDetails.transactionId = paymentId;
+
+    await order.save();
+
+    return res.json({
+      success: true,
+      message: "Payment marked as PAID",
+      data: order,
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
     });
   }
 };
