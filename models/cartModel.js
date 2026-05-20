@@ -120,7 +120,7 @@ const cartSchema = new mongoose.Schema(
 
         type: String,
 
-        enum: ["FLAT", "PERCENTAGE"],
+        enum: ["FLAT", "PERCENT"],
 
       },
  

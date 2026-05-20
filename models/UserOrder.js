@@ -63,7 +63,7 @@ const userOrderSchema = new mongoose.Schema(
     },
     paymentMode: {
       type: String,
-      enum: ["COD", "Prepaid", "UPI", "Card", "NetBanking"],
+      enum: ["COD", "UPI", "CARD", "EMI"],
       required: true,
     },
 
@@ -86,6 +86,19 @@ const userOrderSchema = new mongoose.Schema(
       ],
       default: "placed",
     },
+
+    paymentDetails: {
+  paymentType: { type: String },
+  message: { type: String },
+  payableAmount: { type: Number },
+  currency: { type: String, default: "INR" },
+  paymentStatus: {
+    type: String,
+    enum: ["pending", "paid", "failed"],
+    default: "pending",
+  },
+  transactionId: { type: String },
+},
   },
   { timestamps: true },
 );

@@ -6,15 +6,16 @@ const { protectUser } = require("../middleware/userAuthMiddleware"); // customer
 const userOrderController = require("../controllers/userorderController");
 
 
-// Customer routes (must use protectUser)
+// 🔥 STATIC ROUTES FIRST
 router.post("/create-order", protectUser, userOrderController.createOrder);
+router.post("/verifystatus", userOrderController.verifyPayment);
+
+
+// list routes
 router.get("/", protectUser, userOrderController.getOrders);
+
+// 🔥 DYNAMIC ROUTES LAST
 router.get("/:id", protectUser, userOrderController.getSingleOrder);
-// 🔹 Protected
 router.post("/:id/review", protectUser, userOrderController.addReview);
 router.get("/:id/reviews", userOrderController.getProductReviews);
-
-// Admin/Seller routes (must use protect)
-router.patch("/:id/status", protect, userOrderController.updateOrderStatus);
-
 module.exports = router;
