@@ -7,34 +7,47 @@ const router =
 const {
   getMonthlyBanner,
   getTopDeal,
-  getBestBrands,
+  getBestSellerBrands,
   getBrandProducts,
 } = require(
   "../controllers/Electronics_bestseller_mobileController"
 );
 
-// Banner
+// =======================================================
+// MONTHLY BANNER
+// =======================================================
+
 router.get(
   "/banner",
   getMonthlyBanner
 );
 
-// Top Deal
+// =======================================================
+// TOP DEAL
+// =======================================================
+
 router.get(
   "/topdeal",
   getTopDeal
 );
 
-// Best Brands
+// =======================================================
+// BEST SELLER BRANDS
+// =======================================================
+
 router.get(
   "/bestbrands",
-  getBestBrands
+  getBestSellerBrands
 );
 
-// Dynamic Brand Products
+// =======================================================
+// BRAND PRODUCTS
+// =======================================================
+
 router.get(
   "/brand/:brandName",
   getBrandProducts
 );
 
-module.exports = router;
+module.exports =
+  router;

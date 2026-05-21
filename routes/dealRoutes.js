@@ -1,23 +1,55 @@
 const express = require("express");
+
 const router = express.Router();
-const dealController = require("../controllers/dealController");
-const { protect } = require("../middleware/authMiddleware");
-const { sellerOnly } = require("../middleware/roleMiddleware");
 
-// CRUD
-router.post("/add", protect, dealController.addDeal);
-router.get("/", protect, dealController.getAllDeals);
+const dealController =
+  require("../controllers/dealController");
 
+const { protect } =
+  require("../middleware/authMiddleware");
 
+// ================= CRUD =================
 
-// ✅ Special APIs (Put BEFORE :id)
-router.get("/top-week", dealController.getTopWeekDeal);
-router.get("/upcoming", dealController.getUpcomingDeals);
-router.get("/brand/:brand", dealController.getDealsByBrand);
+router.post(
+  "/add",
+  protect,
+  dealController.addDeal
+);
 
-// ❗ Keep this LAST
-router.get("/:id", dealController.getDealById);
-router.put("/update/:id", protect, dealController.updateDeal);
-router.delete("/delete/:id",protect,  dealController.deleteDeal);
+router.get(
+  "/",
+  dealController.getAllDeals
+);
+
+// ================= SPECIAL APIs =================
+
+router.get(
+  "/topdeal",
+  dealController.getTopDeal
+);
+
+router.get(
+  "/upcoming",
+  dealController.getUpcomingDeals
+);
+
+// ================= SINGLE DEAL =================
+
+router.get(
+  "/:id",
+  dealController.getDealById
+);
+
+router.put(
+  "/update/:id",
+  protect,
+  dealController.updateDeal
+);
+
+router.delete(
+  "/delete/:id",
+  protect,
+  dealController.deleteDeal
+);
 
 module.exports = router;

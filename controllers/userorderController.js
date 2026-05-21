@@ -99,7 +99,8 @@ exports.createOrder = async (req, res) => {
 
         // reduce stock
         await SellerInventory.findByIdAndUpdate(inventory._id, {
-          $inc: { quantity: -item.quantity },
+          $inc: { quantity: -item.quantity,
+          soldCount: item.quantity  },
         });
       }
     }

@@ -16,10 +16,19 @@ const UserOrder =
 const mongoose =
   require("mongoose");
 
-// =======================================================
-// 1. MONTHLY BANNER
-// GET /api/bestseller/mobile/banner
-// =======================================================
+/* =========================================================
+   COMMON MOBILE SUBSUBCATEGORY ID
+========================================================= */
+
+const mobileSubSubcategoryId =
+  new mongoose.Types.ObjectId(
+    "6a0427b9bf8148a68a2d3ccd"
+  );
+
+/* =========================================================
+   1. MONTHLY BANNER
+   GET /api/mobile/banner
+========================================================= */
 
 exports.getMonthlyBanner =
   async (req, res) => {
@@ -58,22 +67,15 @@ exports.getMonthlyBanner =
 
   };
 
-// =======================================================
-// 2. TOP DEAL OF THE DAY
-// GET /api/bestseller/mobile/topdeal
-// =======================================================
+/* =========================================================
+   2. TOP DEAL OF THE DAY
+   GET /api/mobile/topdeal
+========================================================= */
 
 exports.getTopDeal =
   async (req, res) => {
 
     try {
-
-      // MOBILE PHONES SUBSUBCATEGORY ID
-
-      const mobileSubSubcategoryId =
-        "6a0427b9bf8148a68a2d3ccd";
-
-      // FIND TOP DEAL
 
       const topDeal =
         await Deal.findOne({
@@ -130,8 +132,6 @@ exports.getTopDeal =
             createdAt: -1,
           });
 
-      // NO DEAL
-
       if (
         !topDeal ||
         !topDeal.productItem
@@ -170,17 +170,24 @@ exports.getTopDeal =
     }
 
   };
-
-// =======================================================
-// 3. BEST SELLER PRODUCT
-// FOR EACH BRAND THIS MONTH
-// GET /api/bestseller/mobile/bestbrands
-// =======================================================
+/* =========================================================
+   3. BEST SELLER BRANDS
+   GET /api/bestseller/mobile/bestbrands
+========================================================= */
 
 exports.getBestSellerBrands =
   async (req, res) => {
 
     try {
+
+      // =====================================
+      // MOBILE PHONES SUBSUBCATEGORY ID
+      // =====================================
+
+      const mobileSubSubcategoryId =
+        new mongoose.Types.ObjectId(
+          "6a0427b9bf8148a68a2d3ccd"
+        );
 
       // =====================================
       // CURRENT MONTH START & END
@@ -206,15 +213,6 @@ exports.getBestSellerBrands =
         );
 
       // =====================================
-      // MOBILE PHONES SUBSUBCATEGORY ID
-      // =====================================
-
-      const mobileSubSubcategoryId =
-        new mongoose.Types.ObjectId(
-          "6a0427b9bf8148a68a2d3ccd"
-        );
-
-      // =====================================
       // AGGREGATION
       // =====================================
 
@@ -222,7 +220,7 @@ exports.getBestSellerBrands =
         await UserOrder.aggregate([
 
           // =================================
-          // THIS MONTH VALID ORDERS
+          // THIS MONTH ORDERS
           // =================================
 
           {
@@ -246,7 +244,7 @@ exports.getBestSellerBrands =
           },
 
           // =================================
-          // UNWIND ITEMS
+          // ITEMS ARRAY
           // =================================
 
           {
@@ -272,7 +270,17 @@ exports.getBestSellerBrands =
           },
 
           // =================================
-          // LOOKUP SELLER INVENTORY
+          // SORT HIGHEST SOLD
+          // =================================
+
+          {
+            $sort: {
+              totalSold: -1,
+            },
+          },
+
+          // =================================
+          // LOOKUP INVENTORY
           // =================================
 
           {
@@ -299,7 +307,7 @@ exports.getBestSellerBrands =
           },
 
           // =================================
-          // ONLY MOBILE PHONES
+          // ONLY MOBILE PRODUCTS
           // =================================
 
           {
@@ -315,18 +323,8 @@ exports.getBestSellerBrands =
           },
 
           // =================================
-          // SORT HIGHEST SOLD
-          // =================================
-
-          {
-            $sort: {
-              totalSold: -1,
-            },
-          },
-
-          // =================================
           // GROUP BY BRAND
-          // TAKE TOP PRODUCT
+          // TAKE TOP PRODUCT OF EACH BRAND
           // =================================
 
           {
@@ -401,9 +399,6 @@ exports.getBestSellerBrands =
                 brands:
                   "$bestProduct.inventory.brands",
 
-                subSubcategory:
-                  "$bestProduct.inventory.subSubcategory",
-
               },
 
             },
@@ -442,12 +437,13 @@ exports.getBestSellerBrands =
 
   };
 
-// =======================================================
-// 4. BRAND PRODUCTS
-// GET /api/bestseller/mobile/brand/:brandName
-// =======================================================
 
-exports.getBrandProducts =
+/* =========================================================
+   4. TOP RATED PRODUCTS
+   GET /api/mobile/brand/:brandName/toprated
+========================================================= */
+
+exports.getTopRatedProducts =
   async (req, res) => {
 
     try {
@@ -455,71 +451,36 @@ exports.getBrandProducts =
       const { brandName } =
         req.params;
 
-      // =====================================
-      // FIND INVENTORIES
-      // =====================================
-
-      const inventories =
-        await SellerInventory.find({
-
-          "brands.name": {
-
-            $regex:
-              new RegExp(
-                `^${brandName}$`,
-                "i"
-              ),
-
-          },
-
-          isActive: true,
-
-        });
-
-      // =====================================
-      // NO PRODUCTS
-      // =====================================
-
-      if (
-        inventories.length === 0
-      ) {
-
-        return res.status(404).json({
-
-          success: false,
-
-          message:
-            `No ${brandName} products found`,
-
-        });
-
-      }
-
-      // =====================================
-      // INVENTORY IDS
-      // =====================================
-
-      const inventoryIds =
-        inventories.map(
-          (item) => item._id
-        );
-
-      // =====================================
-      // PRODUCT ITEMS
-      // =====================================
-
       const products =
         await ProductItem.find({
 
-          sellerInventory: {
-            $in: inventoryIds,
-          },
+          subSubcategory:
+            mobileSubSubcategoryId,
 
         })
 
-          .populate(
-            "sellerInventory"
-          )
+          .populate({
+
+            path:
+              "sellerInventory",
+
+            match: {
+
+              "brands.name": {
+
+                $regex:
+                  new RegExp(
+                    `^${brandName}$`,
+                    "i"
+                  ),
+
+              },
+
+              isActive: true,
+
+            },
+
+          })
 
           .populate("category")
 
@@ -527,29 +488,40 @@ exports.getBrandProducts =
 
           .populate("subSubcategory")
 
-          .populate("productType")
+          .populate("productType");
 
-          .sort({
-            createdAt: -1,
+      const filteredProducts =
+        products.filter(
+          (item) =>
+            item.sellerInventory
+        );
+
+      const topRatedProducts =
+        filteredProducts
+
+          .sort((a, b) => {
+
+            return (
+
+              b.sellerInventory.rating -
+
+              a.sellerInventory.rating
+
+            );
+
           })
 
-          .limit(10);
-
-      // =====================================
-      // RESPONSE
-      // =====================================
+          .slice(0, 8);
 
       res.status(200).json({
 
         success: true,
 
-        brand:
-          brandName,
-
         count:
-          products.length,
+          topRatedProducts.length,
 
-        products,
+        products:
+          topRatedProducts,
 
       });
 
@@ -567,3 +539,4 @@ exports.getBrandProducts =
     }
 
   };
+
