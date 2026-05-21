@@ -1,45 +1,39 @@
 const mongoose = require("mongoose");
+const dealSchema =
+new mongoose.Schema({
 
-const dealSchema = new mongoose.Schema(
-  {
-    sellerInventoryId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "SellerInventory",
-      required: true,
-    },
-    category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-    },
+  productItem: {
+    type:
+      mongoose.Schema.Types.ObjectId,
 
-    subcategory: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Subcategory",
-    },
-    type: {
-      type: String,
-      enum: [
-        "weekly",
-        "upcoming",
-        "flash",
-        "topDeal",
-      ],
-    },
+    ref: "ProductItem",
 
-    startDate: Date,
-
-    endDate: Date,
-
-    discountPercentage: Number,
-
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
+    required: true,
   },
 
-  { timestamps: true }
-);
+  type: {
+    type: String,
+
+    enum: [
+      "weekly",
+      "upcoming",
+      "flash",
+      "topDeal",
+    ],
+  },
+
+  startDate: Date,
+
+  endDate: Date,
+
+  discountPercentage: Number,
+
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+
+}, { timestamps: true });
 
 module.exports =
   mongoose.models.Deal ||

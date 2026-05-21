@@ -85,7 +85,7 @@ exports.getProducts = async (
             "name price media quantity isActive",
         })
         .populate(
- "category subcategory subsubcategory productType"
+  "category subcategory subSubcategory productType"
 );
 
     res.json({
@@ -119,7 +119,7 @@ exports.getProductsBySubSubcategory =
               "name price media quantity isActive",
           })
           .populate(
-            "category subcategory subsubcategory productType"
+                 "category subcategory subSubcategory productType"
           );
 
       res.json({
@@ -185,7 +185,7 @@ exports.getProductsByType =
           })
 
           .populate(
-            "category subcategory subsubcategory productType",
+             "category subcategory subSubcategory productType"
           );
 
       console.log(
@@ -279,7 +279,7 @@ exports.getProductsByTypeAndSubSubCategory =
               "name price media quantity isActive",
           })
           .populate(
-            "category subcategory subsubcategory"
+             "category subcategory subSubcategory"
           );
 
       res.json({

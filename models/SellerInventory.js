@@ -33,7 +33,7 @@ const sellerInventorySchema = new mongoose.Schema(
        
          subSubcategory: {
            type: mongoose.Schema.Types.ObjectId,
-           ref: "SubSubcategory",
+           ref: "subSubcategory",
            required: false
          },
         brands: [
@@ -117,6 +117,11 @@ reviewCount: {
       default: 0,
     },
 
+    soldCount: {
+  type: Number,
+  default: 0,
+},
+
     isActive: {
       type: Boolean,
       default: true,
@@ -129,3 +134,4 @@ reviewCount: {
 module.exports =
   mongoose.models.SellerInventory ||
   mongoose.model("SellerInventory", sellerInventorySchema);
+
