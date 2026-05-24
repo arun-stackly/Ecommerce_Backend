@@ -5,14 +5,16 @@ const router = express.Router();
 const dealController =
   require("../controllers/dealController");
 
-const { protect } =
-  require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
+const { sellerOnly } = require("../middleware/roleMiddleware");
+
 
 // ================= CRUD =================
 
+router.use(protect);
+router.use(sellerOnly);
 router.post(
   "/add",
-  protect,
   dealController.addDeal
 );
 

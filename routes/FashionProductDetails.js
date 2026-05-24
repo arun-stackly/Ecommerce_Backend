@@ -14,7 +14,6 @@ const { protectUser } = require("../middleware/userAuthMiddleware"); // for revi
 // 🔹 Product APIs
 router.get("/search", searchProducts);
 router.get("/deals", getAllDeals);
-
 router.get("/:id", getProductById);
 router.get("/:id/similar", getSimilarProducts);
 router.get("/:id/stock", getProductStock);

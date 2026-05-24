@@ -20,7 +20,7 @@ const {
 
 
 } = require(
-  "../controllers/Electronics_bestseller_mobileController"
+  "../controllers/Electronis_TopRated_Products"
 );
 
 /* =========================================================

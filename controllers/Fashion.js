@@ -33,7 +33,7 @@ exports.getProducts = async (
 
 /* =======================================
    2. Get Products By Category
-   GET /api/category/:producttypeId/products
+   GET /api/category/:productTypeId/products
 ======================================= */
 exports.getCategoryProducts =
   async (req, res) => {
@@ -75,13 +75,13 @@ exports.getCategoryProducts =
   };
 /* =======================================
    3. Filter Products
-   GET /api/category/:producttypeId/filter
+   GET /api/category/:productTypeId/filter
 ======================================= */
 exports.getFilteredProducts =
   async (req, res) => {
     try {
 
-      const { producttypeId } =
+      const { productTypeId } =
         req.params;
 
       const {
@@ -94,11 +94,8 @@ exports.getFilteredProducts =
       // PRODUCT ITEM FILTER
       let productItemFilter = {
 
-        subcategory:
-          new mongoose.Types.ObjectId(
-            producttypeId
-          ),
-
+        productType:
+  new mongoose.Types.ObjectId(productTypeId)
       };
 
       // PRODUCT TYPE FILTER
@@ -192,27 +189,29 @@ exports.getFilteredProducts =
   };
 /* =======================================
    4. Upcoming Deals
-   GET /api/category/:producttypeId/deals/upcoming
+   GET /api/category/:productTypeId/deals/upcoming
 ======================================= */
 exports.getUpcomingDeals = async (req, res) => {
   try {
-    const { producttypeId } = req.params;
+    const { productTypeId } = req.params;
 
     const deals = await Deal.find({
       type: "upcoming",
       isActive: true,
     }).populate({
-      path: "productId",
+      path: "productItem",
       match: {
-        subcategory: new mongoose.Types.ObjectId(producttypeId),
-        isActive: true,
+        productType:
+          new mongoose.Types.ObjectId(productTypeId),
       },
     });
 
-    const filteredDeals = deals.filter(
-      (deal) => deal.productId !== null
-    );
-
+     const filteredDeals =
+      deals.filter(
+        deal =>
+          deal.productItem &&
+          deal.productItem.sellerInventory
+      );
     res.status(200).json({
       success: true,
       deals: filteredDeals,
@@ -226,123 +225,243 @@ exports.getUpcomingDeals = async (req, res) => {
 };
 
 /* =======================================
-   5. Top Rated Products
-   GET /api/category/:producttypeId/top-rated
+   TOP RATED PRODUCTS
+   GET /api/fashions/category/:productTypeId/top-rated
 ======================================= */
-exports.getTopRatedProducts = async (req, res) => {
-  try {
-    const { producttypeId } = req.params;
 
-    const products = await SellerInventory.find({
-      subcategory: new mongoose.Types.ObjectId(producttypeId),
-      isActive: true,
-    });
-
-    const productsWithRating = products
-      .map((product) => {
-        const totalReviews = product.reviews?.length || 0;
-
-        const avgRating =
-          totalReviews === 0
-            ? 0
-            : product.reviews.reduce(
-                (acc, r) => acc + r.rating,
-                0
-              ) / totalReviews;
-
-        return {
-          ...product.toObject(),
-          avgRating,
-          reviewCount: totalReviews,
-        };
-      })
-      .filter((p) => p.reviewCount > 0)
-      .sort((a, b) => b.avgRating - a.avgRating)
-      .slice(0, 10);
-
-    res.status(200).json({
-      success: true,
-      products: productsWithRating,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-/* =======================================
-   6. Category Brands
-======================================= */
-exports.getCategoryBrands =
+exports.getTopRatedProducts =
   async (req, res) => {
+
     try {
 
-      const { producttypeId } =
+      const { productTypeId } =
         req.params;
 
-      const brands =
-        await SellerInventory.aggregate([
+      /* =========================
+         GET PRODUCT ITEMS
+      ========================= */
 
-          {
-            $match: {
+      const productItems =
+        await ProductItem.find({
 
-              subcategory:
-                new mongoose.Types.ObjectId(
-                  producttypeId
+          productType:
+            new mongoose.Types.ObjectId(
+              productTypeId
+            ),
+
+        }).populate({
+
+          path: "sellerInventory",
+
+          match: {
+            isActive: true,
+          },
+
+        });
+
+      /* =========================
+         EXTRACT PRODUCTS
+      ========================= */
+
+      const products =
+        productItems
+
+          .filter(
+            item =>
+              item.sellerInventory
+          )
+
+          .map(
+            item =>
+              item.sellerInventory
+          );
+
+      /* =========================
+         CALCULATE RATINGS
+      ========================= */
+
+      const productsWithRating =
+
+        products
+
+          .map((product) => {
+
+            const totalReviews =
+              product.reviews?.length || 0;
+
+            const avgRating =
+
+              totalReviews === 0
+
+                ? 0
+
+                : product.reviews.reduce(
+
+                    (acc, review) =>
+
+                      acc + review.rating,
+
+                    0
+
+                  ) / totalReviews;
+
+            return {
+
+              ...product.toObject(),
+
+              avgRating:
+                Number(
+                  avgRating.toFixed(1)
                 ),
 
-              isActive: true,
-            },
-          },
+              reviewCount:
+                totalReviews,
 
-          // CONVERT BRANDS ARRAY
-          {
-            $unwind: "$brands",
-          },
+            };
 
-          // GROUP BY BRAND NAME
-          {
-            $group: {
+          })
 
-              _id: "$brands.name",
+          // REMOVE PRODUCTS
+          // WITHOUT REVIEWS
+          .filter(
+            p => p.reviewCount > 0
+          )
 
-              logo: {
-                $first:
-                  "$brands.logo",
-              },
+          // HIGH TO LOW
+          .sort(
+            (a, b) =>
 
-              count: {
-                $sum: 1,
-              },
-            },
-          },
+              b.avgRating -
+              a.avgRating
+          )
 
-          {
-            $project: {
+          // TOP 10
+          .slice(0, 10);
 
-              _id: 0,
-
-              name: "$_id",
-
-              logo: 1,
-
-              count: 1,
-            },
-          },
-        ]);
+      /* =========================
+         RESPONSE
+      ========================= */
 
       res.status(200).json({
+
         success: true,
-        brands,
+
+        count:
+          productsWithRating.length,
+
+        products:
+          productsWithRating,
+
       });
 
     } catch (error) {
 
       res.status(500).json({
+
         success: false,
+
         message: error.message,
+
       });
 
     }
+
+  };
+/* =======================================
+   6. Category Brands
+======================================= */
+exports.getCategoryBrands =
+  async (req, res) => {
+
+    try {
+
+      const { productTypeId } =
+        req.params;
+
+      // GET PRODUCT ITEMS
+      const productItems =
+        await ProductItem.find({
+
+          productType:
+            new mongoose.Types.ObjectId(
+              productTypeId
+            )
+
+        }).populate({
+
+          path: "sellerInventory",
+
+          match: {
+            isActive: true
+          }
+
+        });
+
+      // EXTRACT PRODUCTS
+      const products =
+        productItems
+
+          .filter(
+            item =>
+              item.sellerInventory
+          )
+
+          .map(
+            item =>
+              item.sellerInventory
+          );
+
+      // EXTRACT BRANDS
+      const brandsMap = {};
+
+      products.forEach(product => {
+
+        product.brands?.forEach(brand => {
+
+          if (!brandsMap[brand.name]) {
+
+            brandsMap[brand.name] = {
+
+              name: brand.name,
+
+              logo: brand.logo,
+
+              count: 1
+
+            };
+
+          } else {
+
+            brandsMap[brand.name]
+              .count += 1;
+
+          }
+
+        });
+
+      });
+
+      const brands =
+        Object.values(brandsMap);
+
+      res.status(200).json({
+
+        success: true,
+
+        brands,
+
+      });
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        message: error.message,
+
+      });
+
+    }
+
   };

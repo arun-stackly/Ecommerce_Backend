@@ -37,6 +37,15 @@ exports.addDeal = async (
       });
 
     }
+     console.log(
+  "PRODUCT OWNER:",
+  product.sellerInventory.seller.toString()
+);
+
+console.log(
+  "LOGGED USER:",
+  req.user._id.toString()
+);
 
     // =====================================
     // CHECK OWNER
@@ -460,6 +469,7 @@ exports.getTopDeal =
     }
 
   };
+ 
 
 /* =========================================
    UPCOMING DEALS
