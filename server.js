@@ -48,6 +48,7 @@ const producttypesRoutes = require("./routes/producttypeRoutes");
 const ElectronicshomeRoutes = require("./routes/ElectronicshomeRoutes");
 const ElectronicsmobilehomeRoutes = require("./routes/Electronics_MobilePhone_Home");
 const ElectronicsbestsellerRoutes = require("./routes/Electronics_bestseller_MobileRoutes");
+const ElectronicstopratedRoutes = require('./routes/Electronics_TopRatedRoutes');
 
 const app = express();
 
@@ -65,9 +66,10 @@ app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
 app.use("/api/deals", require("./routes/dealRoutes"));
 app.use("/api/banners", require("./routes/bannerRoutes"));
-app.use("/api/home", require("./routes/ElectronicshomeRoutes"));
-app.use("/api/mobilehome", require("./routes/Electronics_MobilePhone_Home"));
-app.use("/api/bestseller/mobile", require("./routes/Electronics_bestseller_MobileRoutes"));
+app.use("/api/Electronics", require("./routes/ElectronicshomeRoutes"));
+app.use("/api/Electronics/mobilehome", require("./routes/Electronics_MobilePhone_Home"));
+app.use("/api/Electronics/bestseller/mobile", require("./routes/Electronics_bestseller_MobileRoutes"));
+app.use("/api/Electronics/toprated", require("./routes/Electronics_TopRatedRoutes"));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/api/ads", adsRoutes);

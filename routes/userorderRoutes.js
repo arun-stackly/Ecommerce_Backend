@@ -13,6 +13,7 @@ router.post("/verifystatus", userOrderController.verifyPayment);
 
 // list routes
 router.get("/", protectUser, userOrderController.getOrders);
+router.patch("/:id/status", protect,  userOrderController.updateOrderStatus);
 
 // 🔥 DYNAMIC ROUTES LAST
 router.get("/:id", protectUser, userOrderController.getSingleOrder);

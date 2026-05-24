@@ -24,7 +24,7 @@ router.get(
 // GET /api/category/:producttypeId/filter
 // =======================================
 router.get(
-  "/category/:producttypeId/filter",
+  "/category/:productTypeId/filter",
   FashionController.getFilteredProducts
 );
 
@@ -34,7 +34,7 @@ router.get(
 // GET /api/category/:producttypeId/deals/upcoming
 // =======================================
 router.get(
-  "/category/:producttypeId/deals/upcoming",
+  "/category/:productTypeId/deals/upcoming",
   FashionController.getUpcomingDeals
 );
 
@@ -44,7 +44,7 @@ router.get(
 // GET /api/category/:producttypeId/top-rated
 // =======================================
 router.get(
-  "/category/:producttypeId/top-rated",
+  "/category/:productTypeId/top-rated",
   FashionController.getTopRatedProducts
 );
 
@@ -54,7 +54,7 @@ router.get(
 // GET /api/category/:producttypeId/brands
 // =======================================
 router.get(
-  "/category/:producttypeId/brands",
+  "/category/:productTypeId/brands",
   FashionController.getCategoryBrands
 );
 

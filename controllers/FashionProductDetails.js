@@ -127,28 +127,29 @@ exports.searchProducts = async (
    GET ALL DEALS
    GET /api/deals
 ========================================= */
-exports.getAllDeals = async (
-  req,
-  res,
-) => {
+exports.getAllDeals = async (req, res) => {
   try {
+
     const deals = await Deal.find({
       isActive: true,
     }).populate({
-      path: "sellerInventoryId",
-      model: "SellerInventory",
+      path: "productItem",
+      model: "ProductItem",
     });
 
     res.status(200).json({
       success: true,
+      count: deals.length,
       deals,
     });
 
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: error.message,
     });
+
   }
 };
 
