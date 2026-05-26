@@ -1,16 +1,12 @@
-const ProductItem = require("../models/productitem");
+const ProductItem = require("../models/ProductItem");
 const SellerInventory = require("../models/SellerInventory");
-const ProductType =
-  require("../models/ProductType");
+const ProductType = require("../models/ProductType");
 
 /* =======================================
    ADD PRODUCT ITEM
 ======================================= */
 
-exports.addProduct = async (
-  req,
-  res
-) => {
+exports.addProduct = async (req, res) => {
   try {
     const {
       sellerInventory,
@@ -22,44 +18,35 @@ exports.addProduct = async (
 
     /* ===== CHECK INVENTORY ===== */
 
-    const inventory =
-      await SellerInventory.findById(
-        sellerInventory
-      );
+    const inventory = await SellerInventory.findById(sellerInventory);
 
     if (!inventory) {
       return res.status(404).json({
         success: false,
-        message:
-          "Seller inventory not found",
+        message: "Seller inventory not found",
       });
     }
 
     /* ===== CREATE SLUG ===== */
 
-    const slug = inventory.name
-      .toLowerCase()
-      .replace(/\s+/g, "-");
+    const slug = inventory.name.toLowerCase().replace(/\s+/g, "-");
 
     /* ===== CREATE PRODUCT ITEM ===== */
 
-    const product =
-      await ProductItem.create({
-        sellerInventory,
-        slug,
-        category,
-        subcategory,
-        subSubcategory,
-        productType,
-      });
+    const product = await ProductItem.create({
+      sellerInventory,
+      slug,
+      category,
+      subcategory,
+      subSubcategory,
+      productType,
+    });
 
     res.status(201).json({
       success: true,
-      message:
-        "Product item created successfully",
+      message: "Product item created successfully",
       product,
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -72,27 +59,19 @@ exports.addProduct = async (
    GET ALL PRODUCTS
 ======================================= */
 
-exports.getProducts = async (
-  req,
-  res
-) => {
+exports.getProducts = async (req, res) => {
   try {
-    const products =
-      await ProductItem.find()
-        .populate({
-          path: "sellerInventory",
-          select:
-            "name price media quantity isActive",
-        })
-        .populate(
-  "category subcategory subSubcategory productType"
-);
+    const products = await ProductItem.find()
+      .populate({
+        path: "sellerInventory",
+        select: "name price media quantity isActive",
+      })
+      .populate("category subcategory subSubcategory productType");
 
     res.json({
       success: true,
       products,
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -105,217 +84,158 @@ exports.getProducts = async (
    GET PRODUCTS BY SUB SUBCATEGORY
 ======================================= */
 
-exports.getProductsBySubSubcategory =
-  async (req, res) => {
-    try {
-      const products =
-        await ProductItem.find({
-          subSubcategory:
-            req.params.subSubcategoryId,
-        })
-          .populate({
-            path: "sellerInventory",
-            select:
-              "name price media quantity isActive",
-          })
-          .populate(
-                 "category subcategory subSubcategory productType"
-          );
+exports.getProductsBySubSubcategory = async (req, res) => {
+  try {
+    const products = await ProductItem.find({
+      subSubcategory: req.params.subSubcategoryId,
+    })
+      .populate({
+        path: "sellerInventory",
+        select: "name price media quantity isActive",
+      })
+      .populate("category subcategory subSubcategory productType");
 
-      res.json({
-        success: true,
-        products,
-      });
+    res.json({
+      success: true,
+      products,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
-    } catch (error) {
-      res.status(500).json({
+exports.getProductsByType = async (req, res) => {
+  try {
+    const { typeName } = req.params;
+
+    console.log("TYPE PARAM:", typeName);
+
+    const type = await ProductType.findOne({
+      name: new RegExp(`^${typeName}$`, "i"),
+    });
+
+    console.log("FOUND TYPE:", type);
+
+    if (!type) {
+      return res.status(404).json({
         success: false,
-        message: error.message,
+        message: "Product type not found",
       });
     }
-  };
 
-exports.getProductsByType =
-  async (req, res) => {
+    const products = await ProductItem.find({
+      productType: type._id,
+    })
 
-    try {
+      .populate({
+        path: "sellerInventory",
 
-      const { typeName } =
-        req.params;
+        select: "name price media quantity isActive",
+      })
 
-      console.log(
-        "TYPE PARAM:",
-        typeName,
-      );
+      .populate("category subcategory subSubcategory productType");
 
-      const type =
-        await ProductType.findOne({
-          name: new RegExp(
-            `^${typeName}$`,
-            "i",
-          ),
-        });
+    console.log("FOUND PRODUCTS:", products);
 
-      console.log(
-        "FOUND TYPE:",
-        type,
-      );
+    res.json({
+      success: true,
+      products,
+    });
+  } catch (error) {
+    console.log(error);
 
-      if (!type) {
-
-        return res.status(404).json({
-          success: false,
-          message:
-            "Product type not found",
-        });
-
-      }
-
-      const products =
-        await ProductItem.find({
-          productType: type._id,
-        })
-
-          .populate({
-            path:
-              "sellerInventory",
-
-            select:
-              "name price media quantity isActive",
-          })
-
-          .populate(
-             "category subcategory subSubcategory productType"
-          );
-
-      console.log(
-        "FOUND PRODUCTS:",
-        products,
-      );
-
-      res.json({
-        success: true,
-        products,
-      });
-
-    } catch (error) {
-
-      console.log(error);
-
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
-
-    }
-  };
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 /* =======================================
    GET PRODUCTS BY SUBCATEGORY
 ======================================= */
 
-exports.getProductsBySubcategory =
-  async (req, res) => {
-    try {
-      const { subcategoryId } =
-        req.params;
+exports.getProductsBySubcategory = async (req, res) => {
+  try {
+    const { subcategoryId } = req.params;
 
-      const products =
-        await ProductItem.find({
-          subcategory:
-            subcategoryId,
-        })
-          .populate({
-            path: "sellerInventory",
-            select:
-              "name price media quantity isActive",
-          })
-          .populate(
-            "category subcategory"
-          );
+    const products = await ProductItem.find({
+      subcategory: subcategoryId,
+    })
+      .populate({
+        path: "sellerInventory",
+        select: "name price media quantity isActive",
+      })
+      .populate("category subcategory");
 
-      res.json({
-        success: true,
-        count: products.length,
-        products,
-      });
-
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-  };
+    res.json({
+      success: true,
+      count: products.length,
+      products,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 /* =======================================
    GET PRODUCTS BY TYPE + SUBSUBCATEGORY
 ======================================= */
 
-exports.getProductsByTypeAndSubSubCategory =
-  async (req, res) => {
-    try {
-      const {
-        productType,
-        subSubcategoryId,
-      } = req.query;
+exports.getProductsByTypeAndSubSubCategory = async (req, res) => {
+  try {
+    const { productType, subSubcategoryId } = req.query;
 
-      let filter = {};
+    let filter = {};
 
-      if (productType) {
-        filter.productType =
-          productType;
-      }
-
-      if (subSubcategoryId) {
-        filter.subSubcategory =
-          subSubcategoryId;
-      }
-
-      const products =
-        await ProductItem.find(filter)
-          .populate({
-            path: "sellerInventory",
-            select:
-              "name price media quantity isActive",
-          })
-          .populate(
-             "category subcategory subSubcategory"
-          );
-
-      res.json({
-        success: true,
-        products,
-      });
-
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
+    if (productType) {
+      filter.productType = productType;
     }
-  };
+
+    if (subSubcategoryId) {
+      filter.subSubcategory = subSubcategoryId;
+    }
+
+    const products = await ProductItem.find(filter)
+      .populate({
+        path: "sellerInventory",
+        select: "name price media quantity isActive",
+      })
+      .populate("category subcategory subSubcategory");
+
+    res.json({
+      success: true,
+      products,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 /* =======================================
    UPDATE PRODUCT ITEM
 ======================================= */
 
-exports.updateProduct = async (
-  req,
-  res
-) => {
+exports.updateProduct = async (req, res) => {
   try {
-    const product =
-      await ProductItem.findByIdAndUpdate(
-        req.params.id,
-        req.body,
-        { new: true }
-      );
+    const product = await ProductItem.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true },
+    );
 
     if (!product) {
       return res.status(404).json({
         success: false,
-        message:
-          "Product item not found",
+        message: "Product item not found",
       });
     }
 
@@ -323,7 +243,6 @@ exports.updateProduct = async (
       success: true,
       product,
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -336,30 +255,21 @@ exports.updateProduct = async (
    DELETE PRODUCT ITEM
 ======================================= */
 
-exports.deleteProduct = async (
-  req,
-  res
-) => {
+exports.deleteProduct = async (req, res) => {
   try {
-    const product =
-      await ProductItem.findByIdAndDelete(
-        req.params.id
-      );
+    const product = await ProductItem.findByIdAndDelete(req.params.id);
 
     if (!product) {
       return res.status(404).json({
         success: false,
-        message:
-          "Product item not found",
+        message: "Product item not found",
       });
     }
 
     res.json({
       success: true,
-      message:
-        "Product item deleted successfully",
+      message: "Product item deleted successfully",
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
