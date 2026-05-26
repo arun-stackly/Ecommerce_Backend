@@ -16,4 +16,13 @@ router.get(
   "/:categoryId/in-stock",
   ctrl.getInStockProducts
 );
+router.get(
+  "/:categoryId/brands",
+  ctrl.getBrandsByCategory
+);
+
+router.get(
+  "/:categoryId/brands/:brandName/products",
+  ctrl.getProductsByBrand
+);
 module.exports = router;

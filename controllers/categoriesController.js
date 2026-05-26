@@ -322,3 +322,179 @@ exports.getPriceRanges =
     }
 
   };
+
+  exports.getBrandsByCategory = async (req, res) => {
+
+  try {
+
+    const { categoryId } = req.params;
+
+    // GET PRODUCTS
+    const products = await SellerInventory.find({
+
+      category: categoryId,
+      isActive: true
+
+    }).select("brands");
+
+    // STORE UNIQUE BRANDS
+    const brandsMap = new Map();
+
+    products.forEach(product => {
+
+      product.brands?.forEach(brand => {
+
+        if (brandsMap.has(brand.name)) {
+
+          brandsMap.get(brand.name).count += 1;
+
+        } else {
+
+          brandsMap.set(brand.name, {
+
+            name: brand.name,
+            logo: brand.logo,
+            count: 1
+
+          });
+
+        }
+
+      });
+
+    });
+
+    // FINAL ARRAY
+    const brands = Array.from(
+      brandsMap.values()
+    );
+
+    res.status(200).json({
+
+      success: true,
+      totalBrands: brands.length,
+      brands
+
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+
+      success: false,
+      message: error.message
+
+    });
+
+  }
+
+};
+
+exports.getProductsByBrand = async (req, res) => {
+
+  try {
+
+    const {
+      categoryId,
+      brandName
+    } = req.params;
+
+    const {
+      page = 1,
+      limit = 12,
+      minPrice,
+      maxPrice,
+      sort
+    } = req.query;
+
+    // FILTER
+    let filter = {
+
+      category: categoryId,
+
+      isActive: true,
+
+      "brands.name": brandName
+
+    };
+
+    // PRICE FILTER
+    if (minPrice || maxPrice) {
+
+      filter.salePrice = {};
+
+      if (minPrice) {
+        filter.salePrice.$gte = Number(minPrice);
+      }
+
+      if (maxPrice) {
+        filter.salePrice.$lte = Number(maxPrice);
+      }
+
+    }
+
+    // QUERY
+    let query = SellerInventory.find(filter)
+
+      .populate("category")
+      .populate("subcategory");
+
+    // SORTING
+    if (sort === "price-low-high") {
+
+      query = query.sort({
+        salePrice: 1
+      });
+
+    }
+
+    if (sort === "price-high-low") {
+
+      query = query.sort({
+        salePrice: -1
+      });
+
+    }
+
+    // PRODUCTS
+    const products = await query
+
+      .skip((page - 1) * limit)
+
+      .limit(Number(limit));
+
+    // TOTAL COUNT
+    const totalProducts =
+      await SellerInventory.countDocuments(filter);
+
+    res.status(200).json({
+
+      success: true,
+
+      brand: brandName,
+
+      totalProducts,
+
+      currentPage: Number(page),
+
+      totalPages: Math.ceil(
+        totalProducts / limit
+      ),
+
+      products
+
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+
+      success: false,
+
+      message: error.message
+
+    });
+
+  }
+
+};
