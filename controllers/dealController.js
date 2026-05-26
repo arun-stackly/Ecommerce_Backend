@@ -1,5 +1,5 @@
 const Deal = require("../models/Deal");
-const ProductItem = require("../models/ProductItem");
+const ProductItem = require("../models/productitem");
 
 /* =========================================
    ADD DEAL
