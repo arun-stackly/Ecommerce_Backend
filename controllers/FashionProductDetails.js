@@ -1,7 +1,7 @@
 const SellerInventory = require("../models/SellerInventory");
 const Deal = require("../models/Deal");
 const mongoose = require("mongoose");
-const ProductItem = require("../models/ProductItem");
+const ProductItem = require("../models/productitem");
 
 /* =========================================
    GET SIMILAR PRODUCTS (STRICT CATEGORY)
