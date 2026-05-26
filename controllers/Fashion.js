@@ -1,7 +1,7 @@
 const SellerInventory = require("../models/SellerInventory");
 const Deal = require("../models/Deal");
 const mongoose = require("mongoose");
-const ProductItem = require("../models/productitem");
+const ProductItem = require("../models/ProductItem");
 
 /* =======================================
    1. Get All Products
