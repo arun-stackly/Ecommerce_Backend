@@ -6,7 +6,7 @@ const router =
 
 const controller =
   require(
-    "../controllers/productTypeController",
+    "../controllers/ProductTypeController",
   );
 
 router.post(
