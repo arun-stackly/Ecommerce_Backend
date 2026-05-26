@@ -1,33 +1,31 @@
-// routes/productDetails.routes.js
-
 const express = require("express");
 
 const router = express.Router();
 
 const ProductDetailsController =
-  require("../controllers/productDetails.controller");
+  require("../controllers/Electronics_ProductDetails");
 
 // PRODUCT DETAILS
 router.get(
-  "/products/:id",
+  "/:id",
   ProductDetailsController.getProductDetails
 );
 
 // PRODUCT STOCK
 router.get(
-  "/products/:id/stock",
+  "/:id/stock",
   ProductDetailsController.getProductStock
 );
 
 // SIMILAR PRODUCTS
 router.get(
-  "/products/:id/similar",
+  "/:id/similar",
   ProductDetailsController.getSimilarProducts
 );
 
 // SEARCH PRODUCTS
 router.get(
-  "/products/search",
+  "/search",
   ProductDetailsController.searchProducts
 );
 
@@ -39,25 +37,25 @@ router.get(
 
 // REVIEWS
 router.get(
-  "/products/:id/reviews",
+  "/:id/reviews",
   ProductDetailsController.getProductReviews
 );
 
 // ADD REVIEW
 router.post(
-  "/products/:id/reviews",
+  "/:id/reviews",
   ProductDetailsController.addReview
 );
 
 // RECENTLY VIEWED
 router.get(
-  "/products/recently-viewed",
+  "/recently-viewed",
   ProductDetailsController.getRecentlyViewed
 );
 
 // ACCESSORIES
 router.get(
-  "/products/:id/accessories",
+  "/:id/accessories",
   ProductDetailsController.getAccessoriesProducts
 );
 
@@ -69,7 +67,7 @@ router.get(
 
 // RECOMMENDED PRODUCTS
 router.get(
-  "/products/:id/recommended",
+  "/:id/recommended",
   ProductDetailsController.getRecommendedProducts
 );
 

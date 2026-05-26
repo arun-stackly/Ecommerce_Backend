@@ -1,5 +1,5 @@
 const ProductItem =
-  require("../models/ProductItem");
+  require("../models/productitem");
 
 const SellerInventory =
   require("../models/SellerInventory");
