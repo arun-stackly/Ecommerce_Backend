@@ -44,7 +44,7 @@ const productitemRoutes = require("./routes/productitemRoutes");
 const fashionRoutes = require("./routes/Fashion");
 const fashionProductDeatailRoutes = require("./routes/FashionProductDetails");
 const specificationRoutes = require("./routes/ProductSpecification")
-const producttypesRoutes = require("./routes/productTypeRoutes");
+const producttypesRoutes = require("./routes/ProductTypeRoutes");
 const ElectronicshomeRoutes = require("./routes/ElectronicshomeRoutes");
 const ElectronicsmobilehomeRoutes = require("./routes/Electronics_MobilePhone_Home");
 const ElectronicsbestsellerRoutes = require("./routes/Electronics_bestseller_MobileRoutes");
@@ -59,7 +59,7 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 app.use("/api/products", require("./routes/productRoutes"));
-app.use( "/api/product-types", require("./routes/productTypeRoutes"));
+app.use( "/api/product-types", require("./routes/ProductTypeRoutes"));
 app.use("/api/productitems", productitemRoutes);
 app.use("/api/productspecs", specificationRoutes);
 app.use(express.json({ limit: "20mb" }));
