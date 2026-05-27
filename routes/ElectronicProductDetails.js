@@ -1,3 +1,5 @@
+// routes/productDetails.routes.js
+
 const express = require("express");
 
 const router = express.Router();
@@ -5,70 +7,87 @@ const router = express.Router();
 const ProductDetailsController =
   require("../controllers/Electronics_ProductDetails");
 
-// PRODUCT DETAILS
+/* =========================================
+   PRODUCT DETAILS
+   GET /api/products/:id
+========================================= */
+
 router.get(
   "/:id",
-  ProductDetailsController.getProductDetails
+  ProductDetailsController.getProductById
 );
 
-// PRODUCT STOCK
+/* =========================================
+   PRODUCT STOCK
+   GET /api/products/:id/stock
+========================================= */
+
 router.get(
   "/:id/stock",
   ProductDetailsController.getProductStock
 );
 
-// SIMILAR PRODUCTS
+/* =========================================
+   SIMILAR PRODUCTS
+   GET /api/products/:id/similar
+========================================= */
+
 router.get(
   "/:id/similar",
   ProductDetailsController.getSimilarProducts
 );
 
-// SEARCH PRODUCTS
-router.get(
-  "/search",
-  ProductDetailsController.searchProducts
-);
+/* =========================================
+   PRODUCT REVIEWS
+   GET /api/products/:id/reviews
+========================================= */
 
-// DEALS
-router.get(
-  "/deals",
-  ProductDetailsController.getAllDeals
-);
-
-// REVIEWS
 router.get(
   "/:id/reviews",
   ProductDetailsController.getProductReviews
 );
 
-// ADD REVIEW
-router.post(
-  "/:id/reviews",
-  ProductDetailsController.addReview
-);
 
-// RECENTLY VIEWED
+/* =========================================
+   RECENTLY VIEWED PRODUCTS
+   GET /api/products/recently-viewed
+========================================= */
+
 router.get(
   "/recently-viewed",
   ProductDetailsController.getRecentlyViewed
 );
 
-// ACCESSORIES
+/* =========================================
+   ACCESSORIES PRODUCTS
+   GET /api/products/:id/accessories
+========================================= */
+
 router.get(
   "/:id/accessories",
   ProductDetailsController.getAccessoriesProducts
 );
 
-// BEST SELLERS
+/* =========================================
+   BEST SELLERS
+   GET /api/products/categories/:categoryId/best-sellers
+========================================= */
+
 router.get(
   "/categories/:categoryId/best-sellers",
   ProductDetailsController.getBestSellers
 );
 
-// RECOMMENDED PRODUCTS
+/* =========================================
+   RECOMMENDED PRODUCTS
+   GET /api/products/:id/recommended
+========================================= */
+
 router.get(
   "/:id/recommended",
   ProductDetailsController.getRecommendedProducts
 );
+
+
 
 module.exports = router;
