@@ -5,26 +5,20 @@ const specificationSchema =
     {
       sellerInventoryId: {
         type: mongoose.Schema.Types.ObjectId,
-
         ref: "SellerInventory",
-
         required: true,
-
         unique: true,
       },
 
-      specs: {
-        type: Map,
-
-        of: String,
-
+      specifications: {
+        type: Object,
         default: {},
       },
     },
-    { timestamps: true },
+    { timestamps: true }
   );
 
 module.exports = mongoose.model(
   "Specification",
-  specificationSchema,
+  specificationSchema
 );

@@ -12,7 +12,7 @@ exports.addSpecifications =
       const { sellerInventoryId } =
         req.params;
 
-      const { specs } = req.body;
+     const { specifications } = req.body;
 
       /* ===== INVENTORY CHECK ===== */
 
@@ -49,7 +49,7 @@ exports.addSpecifications =
         await Specification.create({
           sellerInventoryId,
 
-          specs,
+          specifications,
         });
 
       res.status(201).json({
@@ -93,7 +93,7 @@ exports.getSpecifications =
       res.status(200).json({
         success: true,
 
-        specs: specification.specs,
+       specifications: specification.specifications,
       });
 
     } catch (error) {
@@ -115,7 +115,7 @@ exports.updateSpecifications =
       const { sellerInventoryId } =
         req.params;
 
-      const { specs } = req.body;
+     const { specifications } = req.body;
 
       const specification =
         await Specification.findOneAndUpdate(
@@ -123,8 +123,8 @@ exports.updateSpecifications =
             sellerInventoryId,
           },
           {
-            specs,
-          },
+        specifications,
+         },
           {
             new: true,
           },

@@ -9,15 +9,15 @@ const {
 } = require("../controllers/ProductSpecificationController");
 
 // Create
-router.post("/:productId", addSpecifications);
+router.post("/:sellerInventoryId", addSpecifications);
 
 // Read
-router.get("/:productId", getSpecifications);
+router.get("/:sellerInventoryId", getSpecifications);
 
 // Update
-router.put("/:productId", updateSpecifications);
+router.put("/:sellerInventoryId", updateSpecifications);
 
 // Delete
-router.delete("/:productId", deleteSpecifications);
+router.delete("/:sellerInventoryId", deleteSpecifications);
 
 module.exports = router;
