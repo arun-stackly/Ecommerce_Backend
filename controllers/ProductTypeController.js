@@ -1,5 +1,5 @@
 const ProductType =
-  require("../models/ProductType");
+  require("../models/producttype");
 
 const Category =
   require("../models/Category");
