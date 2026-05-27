@@ -1,6 +1,6 @@
 const ProductItem = require("../models/productitem");
 const SellerInventory = require("../models/SellerInventory");
-const ProductType = require("../models/producttype");
+const ProductType = require("../models/ProductType");
 
 /* =======================================
    ADD PRODUCT ITEM
