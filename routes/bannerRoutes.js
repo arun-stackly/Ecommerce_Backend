@@ -12,4 +12,8 @@ router.get("/monthly", bannerController.getMonthlyBanner);
 // OPTIONAL (query based)
 router.get("/", bannerController.getBanners);
 
+router.get(
+  "/:categoryId",
+  bannerController.getBannersByCategory
+);
 module.exports = router;

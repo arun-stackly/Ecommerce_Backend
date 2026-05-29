@@ -10,19 +10,27 @@ exports.addBanner = async (req, res) => {
       redirectUrl,
       type,
       category,
+      subcategory,
+      subSubcategory,
+      productType,
     } = req.body;
 
     const banner = await Banner.create({
       title,
       image,
       redirectUrl,
-      category,
       type,
+     category,
+     subcategory,
+     subSubcategory,
+     productType
+     
     });
 
     res.status(201).json({
       success: true,
-      message: "Banner added successfully",
+      message:
+        "Banner added successfully",
       banner,
     });
 
@@ -83,6 +91,39 @@ exports.getBanners = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      banners,
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+
+  }
+};
+// ✅ GET BANNERS BY CATEGORY ID
+exports.getBannersByCategory = async (req, res) => {
+  try {
+
+    const { categoryId } = req.params;
+
+    const banners = await Banner.find({
+      category: categoryId,
+      isActive: true,
+    });
+
+    if (!banners.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No banners found for this category",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: banners.length,
       banners,
     });
 

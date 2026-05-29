@@ -33,7 +33,7 @@ const sellerInventorySchema = new mongoose.Schema(
        
          subSubcategory: {
            type: mongoose.Schema.Types.ObjectId,
-           ref: "subSubcategory",
+           ref: "SubSubcategory",
            required: false
          },
         brands: [
