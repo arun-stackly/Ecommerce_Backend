@@ -52,6 +52,10 @@ const ElectronicstopratedRoutes = require('./routes/Electronics_TopRatedRoutes')
 const Electronics_ProductDetailsRoutes = require("./routes/ElectronicProductDetails");
 const Elecronics_specificationRoutes = require("./routes/Elecronics_SpecificationRoutes");
 const Electronics_Cases_HomepageRoutes = require("./routes/Electronics_Cases_Home");
+const AppliancehomepageRoutes = require("./routes/ApplianceshomepageRoutes");
+const ApplianceRoutes = require("./routes/ApplianceRoutes");
+const ApplianceProductdetailsRoutes = require("./routes/ApplianceProductdetailRoutes");
+
 
 const app = express();
 
@@ -77,6 +81,9 @@ app.use("/api/electronics/productdetails", Electronics_ProductDetailsRoutes);
 app.use("/api/elctronics/specifications", Elecronics_specificationRoutes);
 app.use("/api/cases/home", Electronics_Cases_HomepageRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use( "/api/appliance/homepage", AppliancehomepageRoutes);
+app.use( "/api/appliance", ApplianceRoutes);
+app.use("/api/appliance/productdetails", ApplianceProductdetailsRoutes);
 
 app.use("/api/ads", adsRoutes);
 app.use("/api/wishlist", wishlistRoutes);

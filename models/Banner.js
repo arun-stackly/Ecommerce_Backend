@@ -15,6 +15,24 @@ category: {
   type: mongoose.Schema.Types.ObjectId,
   ref: "Category",
 },
+ subcategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Subcategory",
+      default: null,
+    },
+
+    subSubcategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SubSubcategory",
+      default: null,
+    },
+
+    productType: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ProductType",
+      default: null,
+    },
+  
   },
   { timestamps: true }
 );

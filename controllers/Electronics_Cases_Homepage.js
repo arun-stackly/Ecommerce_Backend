@@ -379,3 +379,190 @@ exports.searchProducts =
 
     }
 };
+
+/* =========================================
+
+   TOP SALE OF THE MONTH
+
+========================================= */
+ 
+exports.getTopSaleOfMonth = async (req, res) => {
+
+  try {
+
+    const { categoryId } = req.params;
+ 
+    const products = await ProductItem.find({
+
+      category: categoryId,
+
+    }).populate({
+
+      path: "sellerInventory",
+
+      match: {
+
+        isActive: true,
+
+      },
+
+      select:
+
+        "name description price media rating soldCount",
+
+    });
+ 
+    const response = products
+
+      .filter((item) => item.sellerInventory)
+
+      .map((item) => item.sellerInventory)
+
+      .sort((a, b) => b.soldCount - a.soldCount);
+ 
+    res.status(200).json({
+
+      success: true,
+
+      products: response,
+
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+
+      success: false,
+
+      message: error.message,
+
+    });
+
+  }
+
+};
+ 
+/* =========================================
+
+   LOW TO HIGH PRICE
+
+========================================= */
+ 
+exports.getPriceLowToHigh = async (req, res) => {
+
+  try {
+
+    const { categoryId } = req.params;
+ 
+    const products = await ProductItem.find({
+
+      category: categoryId,
+
+    }).populate({
+
+      path: "sellerInventory",
+
+      match: {
+
+        isActive: true,
+
+      },
+
+      select:
+
+        "name description price media rating soldCount",
+
+    });
+ 
+    const response = products
+
+      .filter((item) => item.sellerInventory)
+
+      .map((item) => item.sellerInventory)
+
+      .sort((a, b) => a.price - b.price);
+ 
+    res.status(200).json({
+
+      success: true,
+
+      products: response,
+
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+
+      success: false,
+
+      message: error.message,
+
+    });
+
+  }
+
+};
+ 
+/* =========================================
+
+   HIGH TO LOW PRICE
+
+========================================= */
+ 
+exports.getPriceHighToLow = async (req, res) => {
+
+  try {
+
+    const { categoryId } = req.params;
+ 
+    const products = await ProductItem.find({
+
+      category: categoryId,
+
+    }).populate({
+
+      path: "sellerInventory",
+
+      match: {
+
+        isActive: true,
+
+      },
+
+      select:
+
+        "name description price media rating soldCount",
+
+    });
+ 
+    const response = products
+
+      .filter((item) => item.sellerInventory)
+
+      .map((item) => item.sellerInventory)
+
+      .sort((a, b) => b.price - a.price);
+ 
+    res.status(200).json({
+
+      success: true,
+
+      products: response,
+
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+
+      success: false,
+
+      message: error.message,
+
+    });
+
+  }
+
+};
+ 
