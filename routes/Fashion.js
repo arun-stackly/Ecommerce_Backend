@@ -3,11 +3,7 @@ const router = express.Router();
 
 const FashionController = require("../controllers/Fashion");
 
-// =======================================
-// 1. Get All Products
-// GET /api/products
-// =======================================
-router.get("/products", FashionController.getProducts);
+
 
 
 // =======================================
@@ -49,14 +45,9 @@ router.get(
 );
 
 
-// =======================================
-// 6. Get Brands
-// GET /api/category/:producttypeId/brands
-// =======================================
 router.get(
-  "/category/:productTypeId/brands",
-  FashionController.getCategoryBrands
+  "/:productTypeId/brands",
+  FashionController.getBrandsByProductType
 );
-
 
 module.exports = router;
