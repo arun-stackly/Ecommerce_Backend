@@ -9,6 +9,7 @@ const {
   getInventory,
   updateInventoryItem,
   deleteInventoryItem,
+  getInventoryById,
 } = require("../controllers/sellerInventoryController");
 
 router.use(protect);
@@ -16,6 +17,7 @@ router.use(sellerOnly);
 
 router.post("/", createInventoryItem);
 router.get("/", getInventory);
+router.get("/:id", getInventoryById);
 router.put("/:id", updateInventoryItem);
 router.delete("/:id", deleteInventoryItem);
 

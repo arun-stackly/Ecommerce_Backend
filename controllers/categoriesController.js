@@ -3,10 +3,21 @@ const slugify = s => s.toLowerCase().replace(/\s+/g, '-');
 
 exports.getCategories = async (req, res) => {
   try {
-    const cats = await Category.find().sort('name');
-    return res.json({ categories: cats.map(c => c.name) });
+    const cats = await Category.find().sort("name");
+
+    return res.status(200).json({
+      success: true,
+      count: cats.length,
+      categories: cats,
+    });
+
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+
   }
 };
 

@@ -23,6 +23,11 @@ const adSchema = new mongoose.Schema(
     default: ""
   },
 
+  adType: {
+      type: String,
+      enum: ["weekend", "monthly", "seasonal"],
+      required: true,
+    },
   isActive: {
     type: Boolean,
     default: true
