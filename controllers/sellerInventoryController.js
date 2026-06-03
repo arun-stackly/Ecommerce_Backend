@@ -21,7 +21,7 @@ exports.createInventoryItem = async (
 
         seller: req.user._id,
       });
-
+console.log("Saved Item:", inventoryItem);
     res.status(201).json({
       success: true,
 
@@ -110,6 +110,20 @@ exports.getInventory = async (
         preserveNullAndEmptyArrays: true
       }
     },
+    {
+  $lookup: {
+    from: "producttypes",
+    localField: "productType",
+    foreignField: "_id",
+    as: "productType"
+  }
+},
+{
+  $unwind: {
+    path: "$productType",
+    preserveNullAndEmptyArrays: true
+  }
+},
 
     // YOUR SALES LOOKUP
     {
@@ -165,7 +179,44 @@ exports.getInventory = async (
     });
   }
 };
+/* =======================================
+   GET INVENTORY BY ID
+======================================= */
 
+exports.getInventoryById = async (req, res) => {
+  try {
+    
+
+    const inventoryItem =
+      await SellerInventory.findOne({
+        _id: req.params.id,
+        seller: req.user._id,
+      })
+      .populate("category")
+      .populate("subcategory")
+      .populate("subSubcategory")
+      .populate("productType");
+
+   
+    if (!inventoryItem) {
+      return res.status(404).json({
+        success: false,
+        message: "Inventory item not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      inventoryItem,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 /* =======================================
    UPDATE INVENTORY ITEM
 ======================================= */

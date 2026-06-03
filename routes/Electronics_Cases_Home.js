@@ -53,5 +53,23 @@ router.get(
   "/:categoryId/search",
   homeController.searchProducts
 );
+/* =========================================
+   TOP SALE
+========================================= */
+ 
+router.get("/:categoryId/top-sale", homeController.getTopSaleOfMonth);
+ 
+/* =========================================
+   PRICE LOW TO HIGH
+========================================= */
+ 
+router.get("/:categoryId/price-low-high", homeController.getPriceLowToHigh);
+ 
+/* =========================================
+   PRICE HIGH TO LOW
+========================================= */
+ 
+router.get("/:categoryId/price-high-low", homeController.getPriceHighToLow);
+ 
 
 module.exports = router;

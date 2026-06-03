@@ -16,4 +16,9 @@ router.get(
   "/:categoryId",
   bannerController.getBannersByCategory
 );
+
+router.get(
+  "/product-type/:productTypeId",
+  bannerController.getBannersByProductType
+);
 module.exports = router;

@@ -20,40 +20,43 @@ const sellerInventorySchema = new mongoose.Schema(
     },
 
     category: {
-           type: mongoose.Schema.Types.ObjectId,
-           ref: "Category",
-           required: true
-         },
-       
-         subcategory: {
-           type: mongoose.Schema.Types.ObjectId,
-           ref: "Subcategory",
-           required: false
-         },
-       
-         subSubcategory: {
-           type: mongoose.Schema.Types.ObjectId,
-           ref: "SubSubcategory",
-           required: false
-         },
-        brands: [
-     {
-       name: { type: String, required: true },
-       logo: { type: String }
-     }
-   ],
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+    },
 
-   // Product Variants
+    subcategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Subcategory",
+      required: false,
+    },
 
-sizes: {
-  type: [String],
-  default: []
-},
+    subSubcategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SubSubcategory",
+      required: false,
+    },
+    productType: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ProductType",
+      required: false,
+    },
+    brand: {
+      name: String,
+      logo: String,
+    },
 
-colours: {
-  type: [String],
-  default: []
-},
+    // Product Variants
+
+    sizes: {
+      type: [String],
+      default: [],
+    },
+
+    colours: {
+      type: [String],
+      default: [],
+    },
 
     countryOfOrigin: {
       type: String,
@@ -65,6 +68,16 @@ colours: {
       required: true,
     },
 
+    discountPrice: {
+      type: Number,
+      default: 0,
+    },
+
+    returnStatus: {
+      type: String,
+      enum: ["returnable", "non-returnable"],
+      default: "returnable",
+    },
     quantity: {
       type: Number,
       default: 0,
@@ -82,23 +95,23 @@ colours: {
       },
     ],
     isFeatured: {
-  type: Boolean,
-  default: false
-},
-reviews: {
-  type: Array,
-  default: [],
-},
+      type: Boolean,
+      default: false,
+    },
+    reviews: {
+      type: Array,
+      default: [],
+    },
 
-rating: {
-  type: Number,
-  default: 0,
-},
+    rating: {
+      type: Number,
+      default: 0,
+    },
 
-reviewCount: {
-  type: Number,
-  default: 0,
-},
+    reviewCount: {
+      type: Number,
+      default: 0,
+    },
     // Compliance Section
     compliance: {
       notHazardous: {
@@ -118,9 +131,9 @@ reviewCount: {
     },
 
     soldCount: {
-  type: Number,
-  default: 0,
-},
+      type: Number,
+      default: 0,
+    },
 
     isActive: {
       type: Boolean,
@@ -134,4 +147,3 @@ reviewCount: {
 module.exports =
   mongoose.models.SellerInventory ||
   mongoose.model("SellerInventory", sellerInventorySchema);
-

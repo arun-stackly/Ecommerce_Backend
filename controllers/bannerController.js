@@ -136,3 +136,36 @@ exports.getBannersByCategory = async (req, res) => {
 
   }
 };
+// ✅ GET BANNERS BY PRODUCT TYPE ID
+exports.getBannersByProductType = async (req, res) => {
+  try {
+
+    const { productTypeId } = req.params;
+
+    const banners = await Banner.find({
+      productType: productTypeId,
+      isActive: true,
+    });
+
+    if (!banners.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No banners found for this product type",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: banners.length,
+      banners,
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+
+  }
+};
