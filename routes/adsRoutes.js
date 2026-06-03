@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+
 const adController = require("../controllers/adsController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -9,12 +10,16 @@ router.post("/bulk", protect, adController.createMultipleAds);
 
 router.get("/my-ads", protect, adController.getSellerAds);
 
+router.get("/active", adController.getActiveAds);
+
+router.get("/:id", protect, adController.getAdById);
+
+router.put("/:id/update", protect, adController.updateAd);
+
 router.patch("/:id/pause", protect, adController.pauseAd);
 
 router.patch("/:id/resume", protect, adController.resumeAd);
 
 router.delete("/:id", protect, adController.deleteAd);
-
-router.get("/active", adController.getActiveAds);
 
 module.exports = router;

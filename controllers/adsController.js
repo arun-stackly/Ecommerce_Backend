@@ -1,255 +1,342 @@
 const Ad = require("../models/Ad");
 
-/*
------------------------------------------
-Create Advertisement
-Used when user clicks "Continue"
------------------------------------------
-POST /api/ads
-*/
+/* =========================================
+   CREATE ADVERTISEMENT
+========================================= */
 exports.createAd = async (req, res) => {
   try {
-    const { productName, description, mediaUrl } = req.body;
-
-    if (!productName || !mediaUrl) {
-      return res.status(400).json({
-        success: false,
-        message: "Product name and image are required"
-      });
-    }
+    const {
+      product,
+      category,
+      subcategory,
+      subSubcategory,
+      productType,
+      description,
+      mediaUrl,
+      adType,
+    } = req.body;
 
     const ad = await Ad.create({
-      seller: req.user.id,
-      productName,
+      seller: req.user._id,
+      product,
+      category,
+      subcategory,
+      subSubcategory,
+      productType,
       description,
-      mediaUrl
+      mediaUrl,
+      adType,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Advertisement created successfully",
-      ad
+      ad,
     });
 
   } catch (error) {
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
+
   }
 };
 
-
-
-/*
------------------------------------------
-Bulk Create Ads
-Used for "Save & Add More"
------------------------------------------
-POST /api/ads/bulk
-*/
+/* =========================================
+   BULK CREATE ADS
+========================================= */
 exports.createMultipleAds = async (req, res) => {
   try {
 
-    const adsData = req.body.ads;
+    const { ads } = req.body;
 
-    if (!adsData || adsData.length === 0) {
+    if (!ads || !ads.length) {
       return res.status(400).json({
         success: false,
-        message: "Ads data required"
+        message: "Ads data is required",
       });
     }
 
-    const ads = adsData.map(ad => ({
+    const adsData = ads.map((ad) => ({
       ...ad,
-      seller: req.user.id
+      seller: req.user._id,
     }));
 
-    const createdAds = await Ad.insertMany(ads);
+    const createdAds =
+      await Ad.insertMany(adsData);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: "Ads created successfully",
-      ads: createdAds
+      message: "Advertisements created successfully",
+      ads: createdAds,
     });
 
   } catch (error) {
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
+
   }
 };
 
-
-
-/*
------------------------------------------
-Get Seller Ads
-Used to display ads in Advertisement Page
------------------------------------------
-GET /api/ads/my-ads
-*/
+/* =========================================
+   GET SELLER ADS
+========================================= */
 exports.getSellerAds = async (req, res) => {
   try {
 
-    const ads = await Ad.find({ seller: req.user.id })
+    const ads = await Ad.find({
+      seller: req.user._id,
+    })
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .populate("productType", "name")
+      .populate("product", "name price media")
       .sort({ createdAt: -1 });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: ads.length,
-      ads
+      ads,
     });
 
   } catch (error) {
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
+
   }
 };
 
+/* =========================================
+   GET AD BY ID
+========================================= */
+exports.getAdById = async (req, res) => {
+  try {
 
+    const ad = await Ad.findOne({
+      _id: req.params.id,
+      seller: req.user._id,
+    })
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .populate("productType", "name")
+      .populate("product", "name price media");
 
-/*
------------------------------------------
-Pause Advertisement
-Pause button in UI
------------------------------------------
-PATCH /api/ads/:id/pause
-*/
+    if (!ad) {
+      return res.status(404).json({
+        success: false,
+        message: "Advertisement not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      ad,
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+
+  }
+};
+
+/* =========================================
+   UPDATE AD
+========================================= */
+exports.updateAd = async (req, res) => {
+  try {
+
+    const ad = await Ad.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        seller: req.user._id,
+      },
+      req.body,
+      { new: true }
+    );
+
+    if (!ad) {
+      return res.status(404).json({
+        success: false,
+        message: "Advertisement not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Advertisement updated successfully",
+      ad,
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+
+  }
+};
+
+/* =========================================
+   PAUSE AD
+========================================= */
 exports.pauseAd = async (req, res) => {
   try {
 
     const ad = await Ad.findOneAndUpdate(
-      { _id: req.params.id, seller: req.user.id },
-      { isActive: false },
-      { new: true }
+      {
+        _id: req.params.id,
+        seller: req.user._id,
+      },
+      {
+        isActive: false,
+      },
+      {
+        new: true,
+      }
     );
 
     if (!ad) {
       return res.status(404).json({
         success: false,
-        message: "Ad not found"
+        message: "Advertisement not found",
       });
     }
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      message: "Ad paused successfully",
-      ad
+      message: "Advertisement paused successfully",
+      ad,
     });
 
   } catch (error) {
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
+
   }
 };
 
-
-
-/*
------------------------------------------
-Resume Advertisement
------------------------------------------
-PATCH /api/ads/:id/resume
-*/
+/* =========================================
+   RESUME AD
+========================================= */
 exports.resumeAd = async (req, res) => {
   try {
 
     const ad = await Ad.findOneAndUpdate(
-      { _id: req.params.id, seller: req.user.id },
-      { isActive: true },
-      { new: true }
+      {
+        _id: req.params.id,
+        seller: req.user._id,
+      },
+      {
+        isActive: true,
+      },
+      {
+        new: true,
+      }
     );
 
     if (!ad) {
       return res.status(404).json({
         success: false,
-        message: "Ad not found"
+        message: "Advertisement not found",
       });
     }
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      message: "Ad resumed successfully",
-      ad
+      message: "Advertisement resumed successfully",
+      ad,
     });
 
   } catch (error) {
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
+
   }
 };
 
-
-
-/*
------------------------------------------
-Delete Advertisement
-Remove button in UI
------------------------------------------
-DELETE /api/ads/:id
-*/
+/* =========================================
+   DELETE AD
+========================================= */
 exports.deleteAd = async (req, res) => {
   try {
 
     const ad = await Ad.findOneAndDelete({
       _id: req.params.id,
-      seller: req.user.id
+      seller: req.user._id,
     });
 
     if (!ad) {
       return res.status(404).json({
         success: false,
-        message: "Ad not found"
+        message: "Advertisement not found",
       });
     }
 
-    res.json({
+    return res.status(200).json({
       success: true,
-      message: "Ad removed successfully"
+      message: "Advertisement deleted successfully",
     });
 
   } catch (error) {
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
+
   }
 };
 
-
-
-/*
------------------------------------------
-Get Active Ads
-Used in Landing Page
------------------------------------------
-GET /api/ads/active
-*/
+/* =========================================
+   GET ACTIVE ADS
+========================================= */
 exports.getActiveAds = async (req, res) => {
   try {
 
-    const ads = await Ad.find({ isActive: true })
+    const ads = await Ad.find({
+      isActive: true,
+    })
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .populate("productType", "name")
+      .populate("product", "name price media")
       .populate("seller", "name email")
       .sort({ createdAt: -1 });
 
-    res.json({
+    return res.status(200).json({
       success: true,
       count: ads.length,
-      ads
+      ads,
     });
 
   } catch (error) {
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
+
   }
 };

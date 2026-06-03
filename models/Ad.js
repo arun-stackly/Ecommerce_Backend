@@ -8,11 +8,33 @@ const adSchema = new mongoose.Schema(
     required: true,
   },
 
-  productName: {
-    type: String,
-    required: true
+  product: {
+     type: mongoose.Schema.Types.ObjectId,
+    ref: "SellerInventory",
+    required: true,
   },
+ category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+    },
 
+    subcategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Subcategory",
+      required: false,
+    },
+
+    subSubcategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SubSubcategory",
+      required: false,
+    },
+    productType: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ProductType",
+      required: false,
+    },
   mediaUrl: {
     type: String,
     required: true
@@ -25,7 +47,7 @@ const adSchema = new mongoose.Schema(
 
   adType: {
       type: String,
-      enum: ["weekend", "monthly", "seasonal"],
+      enum: ["Weekend sale ads", "Monthly sale ads", "Seasonal sale ads"],
       required: true,
     },
   isActive: {

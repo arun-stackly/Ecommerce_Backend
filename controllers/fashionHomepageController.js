@@ -1,5 +1,6 @@
 const Banner = require("../models/Banner");
 const SellerInventory = require("../models/SellerInventory");
+const Ad = require("../models/Ad");
 
 exports.getHomePage = async (req, res) => {
   try {
@@ -15,14 +16,7 @@ exports.getHomePage = async (req, res) => {
       "title image redirectUrl category"
     );
 
-    // Top Deals Of Week
-    const topDealsOfWeek = await Banner.find({
-      type: "top-deals-week",
-      isActive: true,
-      category: categoryId
-    }).select(
-      "title image redirectUrl category"
-    );
+    
 
     // Trending Deals
     const trendingDeals = await Banner.find({
@@ -33,6 +27,17 @@ exports.getHomePage = async (req, res) => {
       "title image redirectUrl category"
     );
 
+
+    // Top Deals Of Week
+    const topDealsOfWeek = await Ad.find({
+  adType: "Monthly sale ads",
+  isActive: true,
+  category: categoryId
+})
+.populate("product", "name")
+.select(
+  "product  mediaUrl category"
+);
     // Latest Launches
     const latestLaunches =
       await SellerInventory.find({
@@ -82,8 +87,8 @@ exports.getHomePage = async (req, res) => {
       categoryId,
       homeBanner,
       latestLaunches,
+       trendingDeals,
       topDealsOfWeek,
-      trendingDeals,
       topBrandsForYou
     });
 
