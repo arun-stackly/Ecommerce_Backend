@@ -197,315 +197,254 @@ exports.getPriceRanges =
 
   };
 
-  exports.getProductsByPriceRange =
-  async (req, res) => {
-
-    try {
-
-      const { categoryId } =
-        req.params;
-
-      const {
-        min,
-        max
-      } = req.query;
-
-      let filter = {
-
-        category:
-          new mongoose.Types.ObjectId(
-            categoryId
-          ),
-
-        isActive: true,
-
-        price: {}
-
-      };
-
-      // MIN PRICE
-      if (min) {
-
-        filter.price.$gte =
-          Number(min);
-
-      }
-
-      // MAX PRICE
-      if (max) {
-
-        filter.price.$lt =
-          Number(max);
-
-      }
-
-      const products =
-        await SellerInventory.find(
-          filter
-        )
-
-        .populate(
-          "category subcategory"
-        )
-
-        .sort({
-          price: 1
-        });
-
-      res.status(200).json({
-
-        success: true,
-
-        count:
-          products.length,
-
-        products,
-
-      });
-
-    } catch (error) {
-
-      res.status(500).json({
-
-        success: false,
-
-        message: error.message,
-
-      });
-
-    }
-
-  };
-
-  exports.getInStockProducts =
-  async (req, res) => {
-
-    try {
-
-      const { categoryId } =
-        req.params;
-
-      const products =
-        await SellerInventory.find({
-
-          category:
-            new mongoose.Types.ObjectId(
-              categoryId
-            ),
-
-          isActive: true,
-
-          quantity: {
-            $gt: 0
-          }
-
-        })
-
-        .populate(
-          "category subcategory"
-        )
-
-        .sort({
-          createdAt: -1
-        });
-
-      res.status(200).json({
-
-        success: true,
-
-        count:
-          products.length,
-
-        products,
-
-      });
-
-    } catch (error) {
-
-      res.status(500).json({
-
-        success: false,
-
-        message: error.message,
-
-      });
-
-    }
-
-  };
-
-  exports.getBrandsByCategory = async (req, res) => {
-
+ exports.getProductsByPriceRange = async (req, res) => {
   try {
-
     const { categoryId } = req.params;
 
-    // GET PRODUCTS
-    const products = await SellerInventory.find({
+    const { min, max } = req.query;
 
-      category: categoryId,
-      isActive: true
+    let filter = {
+      category: new mongoose.Types.ObjectId(categoryId),
+      isActive: true,
+      price: {},
+    };
 
-    }).select("brands");
+    // ==========================
+    // MIN PRICE
+    // ==========================
+    if (min) {
+      filter.price.$gte = Number(min);
+    }
 
-    // STORE UNIQUE BRANDS
-    const brandsMap = new Map();
+    // ==========================
+    // MAX PRICE
+    // ==========================
+    if (max) {
+      filter.price.$lte = Number(max);
+    }
 
-    products.forEach(product => {
+    // ==========================
+    // QUERY (LIMIT FIELDS)
+    // ==========================
+    const products = await SellerInventory.find(filter)
+      .select("name price discountPrice brand media")
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .sort({ price: 1 });
 
-      product.brands?.forEach(brand => {
+    // ==========================
+    // FORMAT RESPONSE
+    // ==========================
+    const formattedProducts = products.map((p) => {
+      const originalPrice = p.price;
+      const finalPrice = p.discountPrice || p.price;
 
-        if (brandsMap.has(brand.name)) {
+      return {
+        _id: p._id,
+        name: p.name,
 
-          brandsMap.get(brand.name).count += 1;
+        price: originalPrice,        // MRP (strikethrough)
+        discountPrice: finalPrice,   // selling price
 
-        } else {
+        brand: p.brand?.name || null,
+        logo: p.brand?.logo || null,
 
-          brandsMap.set(brand.name, {
-
-            name: brand.name,
-            logo: brand.logo,
-            count: 1
-
-          });
-
-        }
-
-      });
-
+        image: p.media?.[0]?.url || null,
+      };
     });
-
-    // FINAL ARRAY
-    const brands = Array.from(
-      brandsMap.values()
-    );
 
     res.status(200).json({
-
       success: true,
-      totalBrands: brands.length,
-      brands
-
+      count: formattedProducts.length,
+      products: formattedProducts,
     });
-
   } catch (error) {
-
     res.status(500).json({
-
       success: false,
-      message: error.message
+      message: error.message,
+    });
+  }
+};
+ exports.getInStockProducts = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
 
+    const products = await SellerInventory.find({
+      category: new mongoose.Types.ObjectId(categoryId),
+      isActive: true,
+      quantity: { $gt: 0 },
+    })
+      .select("name price discountPrice brand media")
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .sort({ createdAt: -1 });
+
+    // ==========================
+    // FORMAT RESPONSE
+    // ==========================
+    const formattedProducts = products.map((p) => {
+      const originalPrice = p.price;
+      const finalPrice = p.discountPrice || p.price;
+
+      return {
+        _id: p._id,
+        name: p.name,
+
+        price: originalPrice,
+        discountPrice: finalPrice,
+
+        brand: p.brand?.name || null,
+        logo: p.brand?.logo || null,
+
+        image: p.media?.[0]?.url || null,
+
+        inStock: p.quantity > 0, // optional but useful
+      };
     });
 
+    res.status(200).json({
+      success: true,
+      count: formattedProducts.length,
+      products: formattedProducts,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
-
 };
 
-exports.getProductsByBrand = async (req, res) => {
-
+  exports.getBrandsByCategory = async (req, res) => {
   try {
+    const { categoryId } = req.params;
 
-    const {
-      categoryId,
-      brandName
-    } = req.params;
+    const products = await SellerInventory.find({
+      category: categoryId,
+      isActive: true,
+    }).select("brand");
+
+    const brandsMap = new Map();
+
+    products.forEach((product) => {
+      const brand = product.brand;
+
+      if (!brand?.name) return;
+
+      if (brandsMap.has(brand.name)) {
+        brandsMap.get(brand.name).count += 1;
+      } else {
+        brandsMap.set(brand.name, {
+          name: brand.name,
+          logo: brand.logo || null,
+          count: 1,
+        });
+      }
+    });
+
+    const brands = Array.from(brandsMap.values());
+
+    res.status(200).json({
+      success: true,
+      totalBrands: brands.length,
+      brands,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.getProductsByBrand = async (req, res) => {
+  try {
+    const { categoryId, brandName } = req.params;
 
     const {
       page = 1,
       limit = 12,
       minPrice,
       maxPrice,
-      sort
+      sort,
     } = req.query;
 
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+
+    // ==========================
     // FILTER
+    // ==========================
     let filter = {
-
       category: categoryId,
-
       isActive: true,
-
-      "brands.name": brandName
-
+      "brand.name": {
+        $regex: new RegExp(`^${brandName}$`, "i"),
+      },
     };
 
+    // ==========================
     // PRICE FILTER
+    // ==========================
     if (minPrice || maxPrice) {
+      filter.price = {};
 
-      filter.salePrice = {};
-
-      if (minPrice) {
-        filter.salePrice.$gte = Number(minPrice);
-      }
-
-      if (maxPrice) {
-        filter.salePrice.$lte = Number(maxPrice);
-      }
-
+      if (minPrice) filter.price.$gte = Number(minPrice);
+      if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
 
-    // QUERY
+    // ==========================
+    // QUERY (LIMIT FIELDS)
+    // ==========================
     let query = SellerInventory.find(filter)
+      .select("name price brand media discountPrice") // ✅ ONLY REQUIRED FIELDS
+      .populate("category", "name")
+      .populate("subcategory", "name");
 
-      .populate("category")
-      .populate("subcategory");
-
-    // SORTING
+    // ==========================
+    // SORT
+    // ==========================
     if (sort === "price-low-high") {
-
-      query = query.sort({
-        salePrice: 1
-      });
-
+      query = query.sort({ price: 1 });
     }
 
     if (sort === "price-high-low") {
-
-      query = query.sort({
-        salePrice: -1
-      });
-
+      query = query.sort({ price: -1 });
     }
 
-    // PRODUCTS
+    // ==========================
+    // PAGINATION
+    // ==========================
     const products = await query
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
 
-      .skip((page - 1) * limit)
+    // ==========================
+    // FORMAT RESPONSE (clean UI)
+    // ==========================
+    const formattedProducts = products.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      price: p.price,
+      discountPrice: p.discountPrice, // ✅ ADDED HERE
+      brand: p.brand?.name || null,
+      logo: p.brand?.logo || null,
+      image: p.media?.[0]?.url || null, // ✅ first image only
+    }));
 
-      .limit(Number(limit));
-
-    // TOTAL COUNT
-    const totalProducts =
-      await SellerInventory.countDocuments(filter);
+    const totalProducts = await SellerInventory.countDocuments(filter);
 
     res.status(200).json({
-
       success: true,
-
       brand: brandName,
-
       totalProducts,
-
-      currentPage: Number(page),
-
-      totalPages: Math.ceil(
-        totalProducts / limit
-      ),
-
-      products
-
+      currentPage: pageNum,
+      totalPages: Math.ceil(totalProducts / limitNum),
+      products: formattedProducts,
     });
-
   } catch (error) {
-
     res.status(500).json({
-
       success: false,
-
-      message: error.message
-
+      message: error.message,
     });
-
   }
-
 };

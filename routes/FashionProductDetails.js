@@ -6,17 +6,19 @@ const {
   searchProducts,
   getAllDeals,
   getProductById,
-  getProductStock
+  getProductStock,
+  checkDelivery,
 } = require("../controllers/FashionProductDetails");
 
 const { protectUser } = require("../middleware/userAuthMiddleware"); // for review
 
 // 🔹 Product APIs
 router.get("/search", searchProducts);
-router.get("/deals", getAllDeals);
+router.get("/check", checkDelivery);
 router.get("/:id", getProductById);
 router.get("/:id/similar", getSimilarProducts);
 router.get("/:id/stock", getProductStock);
+
 
 
 module.exports = router;

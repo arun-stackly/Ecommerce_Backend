@@ -3,36 +3,11 @@ const Deal = require("../models/Deal");
 const mongoose = require("mongoose");
 const ProductItem = require("../models/productitem");
 
-/* =========================================
-   GET SIMILAR PRODUCTS (STRICT CATEGORY)
-   GET /api/products/:id/similar?producttypeId=xxx
-========================================= */
-
-
 exports.getSimilarProducts = async (req, res) => {
   try {
-    const inventoryId = req.params.id;
-    const { productType } = req.query;
+    const { id } = req.params;
 
-    /* =========================
-       Validate productType
-    ========================= */
-
-    if (!productType) {
-      return res.status(400).json({
-        success: false,
-        message: "productType is required",
-      });
-    }
-
-    /* =========================
-       Find current product
-    ========================= */
-
-    const currentProduct =
-      await SellerInventory.findById(
-        inventoryId
-      );
+    const currentProduct = await SellerInventory.findById(id);
 
     if (!currentProduct) {
       return res.status(404).json({
@@ -41,117 +16,93 @@ exports.getSimilarProducts = async (req, res) => {
       });
     }
 
-    /* =========================
-       Find ProductItems
-    ========================= */
+    const productTypeId = currentProduct.productType;
 
-    const productItems =
-      await ProductItem.find({
-        productType: productType,
-      }).populate({
-        path: "sellerInventory",
-        match: {
-          _id: { $ne: inventoryId },
-          isActive: true,
-        },
-      });
+    const similarProducts = await SellerInventory.find({
+      productType: new mongoose.Types.ObjectId(productTypeId),
+      isActive: true,
+      _id: { $ne: currentProduct._id },
+    })
+      .select("name price discountPrice brand media")
+      .limit(8)
+      .sort({ createdAt: -1 });
 
-    /* =========================
-       Remove null values
-    ========================= */
+    const formatted = similarProducts.map((p) => {
+      const price = p.price || 0;
+      const discountPrice = p.discountPrice || price;
 
-    const similarProducts =
-      productItems
-        .filter(
-          (item) => item.sellerInventory
-        )
-        .map(
-          (item) => item.sellerInventory
-        );
+      const discountPercentage =
+        price > 0
+          ? Math.round(((price - discountPrice) / price) * 100)
+          : 0;
 
-    /* =========================
-       Response
-    ========================= */
+      return {
+        _id: p._id,
+        name: p.name,
 
-    res.status(200).json({
+        // ✅ PRICE DETAILS
+        price,
+        discountPrice,
+        discountPercentage,
+
+        // ✅ BRAND + IMAGE
+        brand: p.brand || null,
+        image: p.media?.[0]?.url || null,
+      };
+    });
+
+    return res.status(200).json({
       success: true,
-      count: similarProducts.length,
-      products: similarProducts,
+      count: formatted.length,
+      products: formatted,
     });
 
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
-
-/* =========================================
-   SEARCH PRODUCTS
-   GET /api/products/search?q=shirt
-========================================= */
-exports.searchProducts = async (
-  req,
-  res,
-) => {
+exports.searchProducts = async (req, res) => {
   try {
     const q = req.query.q;
 
-    const products =
-      await SellerInventory.find({
-        name: {
-          $regex: q,
-          $options: "i",
-        },
-
-        isActive: true,
+    if (!q) {
+      return res.status(400).json({
+        success: false,
+        message: "Search query is required",
       });
+    }
 
-    res.status(200).json({
-      success: true,
-      products,
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
-
-/* =========================================
-   GET ALL DEALS
-   GET /api/deals
-========================================= */
-exports.getAllDeals = async (req, res) => {
-  try {
-
-    const deals = await Deal.find({
+    const products = await SellerInventory.find({
+      name: { $regex: q, $options: "i" },
       isActive: true,
-    }).populate({
-      path: "productItem",
-      model: "ProductItem",
-    });
+    })
+      .select("name price discountPrice brand media") // ✅ minimize DB data
+      
+    const formatted = products.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      price: p.price,
+      discountPrice: p.discountPrice || p.price,
+       brand: p.brand || null,   // ✅ keep full object
+      image: p.media?.[0]?.url || null,
+    }));
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      count: deals.length,
-      deals,
+      count: formatted.length,
+      products: formatted,
     });
-
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
+
 
 /* =========================================
    GET SINGLE PRODUCT
@@ -226,6 +177,115 @@ exports.getProductStock = async (
 
   } catch (error) {
     res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.checkDelivery = async (req, res) => {
+  try {
+    const { pincode, productId } = req.query;
+
+    // =========================
+    // VALIDATION
+    // =========================
+    if (!pincode) {
+      return res.status(400).json({
+        success: false,
+        message: "Pincode is required",
+      });
+    }
+
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        message: "ProductId is required",
+      });
+    }
+
+    // =========================
+    // PINCODE VALIDATION
+    // =========================
+    const isValid = /^[1-9][0-9]{5}$/.test(pincode);
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid pincode",
+      });
+    }
+
+    // =========================
+    // FIND PRODUCT
+    // =========================
+    const product = await SellerInventory.findById(productId);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    // =========================
+    // DELIVERY LOGIC
+    // =========================
+
+    const now = new Date();
+
+    // cutoff time (you can make dynamic later)
+    const cutoffTime = "1:07 PM";
+
+    // delivery rules based on pincode
+    let minDays = 2;
+    let maxDays = 4;
+
+    const firstDigit = pincode.charAt(0);
+
+    if (["6", "7", "8", "9"].includes(firstDigit)) {
+      minDays = 2;
+      maxDays = 4;
+    } else {
+      minDays = 4;
+      maxDays = 7;
+    }
+
+    // estimated delivery date
+    const deliveryDate = new Date();
+    deliveryDate.setDate(now.getDate() + maxDays);
+
+    // format date like "24 Dec, Wednesday"
+    const formattedDate = deliveryDate.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      weekday: "long",
+    });
+
+    // =========================
+    // RESPONSE
+    // =========================
+    return res.status(200).json({
+      success: true,
+      pincode,
+      serviceable: true,
+
+      delivery: {
+        title: "When will I receive my order",
+        estimatedDeliveryText: `Secure delivery by ${formattedDate}`,
+        cutoffText: `If ordered before ${cutoffTime}`,
+        estimatedDeliveryDate: deliveryDate.toISOString().split("T")[0],
+        deliveryDays: `${minDays}-${maxDays} days`,
+      },
+
+      shipping: {
+        isFreeShipping: true,
+        message: "Free Shipping on orders above INR 699",
+        minOrderValue: 699,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
