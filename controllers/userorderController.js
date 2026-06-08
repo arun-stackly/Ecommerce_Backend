@@ -3,6 +3,7 @@ const SellerInventory = require("../models/SellerInventory");
 const Address = require("../models/addressModel");
 const Cart = require("../models/cartModel");
 const generateOrderId = require("../utils/generateOrderid");
+ const Seller = require("../models/SellerProfile"); // adjust if different
 
 /* =========================
    CREATE ORDER
@@ -213,25 +214,44 @@ exports.createOrder = async (req, res) => {
     });
   }
 };
-/* =========================
-   GET ALL ORDERS (Pagination)
-========================= */
 exports.getOrders = async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
 
     const orders = await UserOrder.find({ customerId: req.user.id })
+      .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .sort({ createdAt: -1 });
+      .select(
+        "orderId orderStatus createdAt items estimatedDeliveryDate paymentMode"
+      );
 
-    res.json({ success: true, data: orders });
+    const formattedOrders = orders.map((order) => ({
+      orderId: order.orderId,
+      status: order.orderStatus,
+      createdAt: order.createdAt,
+      estimatedDeliveryDate: order.estimatedDeliveryDate,
+      paymentMode: order.paymentMode,
+
+      items: order.items.map((item) => ({
+        name: item.name,
+        image: item.image,
+        quantity: item.quantity,
+        size: item.size,
+        price: item.price,
+        itemStatus: item.itemStatus,
+      })),
+    }));
+
+    res.json({
+      success: true,
+      data: formattedOrders,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
 /* =========================
    GET SINGLE ORDER
 ========================= */
@@ -272,17 +292,10 @@ exports.updateOrderStatus = async (req, res) => {
 
     order.orderStatus = orderStatus;
     /* ===== UPDATE ITEM STATUS ===== */
-
-order.items.forEach((item) => {
-
-  item.itemStatus = orderStatus;
-
-});
-
-    // If delivered → set deliveredAt
-    if (orderStatus === "delivered") {
-      order.deliveredAt = new Date();
-    }
+    
+if (orderStatus === "delivered") {
+  order.deliveredAt = order.deliveredAt || new Date();
+}
 
     await order.save();
 
@@ -453,6 +466,115 @@ exports.verifyPayment = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: err.message,
+    });
+  }
+};
+exports.getOrderInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await UserOrder.findById(id);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Only delivered orders can have invoices
+    if (order.orderStatus !== "delivered") {
+      return res.status(400).json({
+        success: false,
+        message: "Invoice is available only for delivered orders",
+      });
+    }
+
+    /* ================= SELLER INFO ================= */
+
+    const seller = await Seller.findById(order.items?.[0]?.sellerId);
+
+    /* ================= TAX CALCULATION ================= */
+
+    const grossAmount = order.totalItemsPrice || 0;
+
+    // Adjust if GST is actually stored separately
+    const cgst = 0;
+    const sgst = 0;
+    const igst = 0;
+
+    const taxAmount = cgst + sgst + igst;
+
+    const totalInvoiceValue = order.totalAmount || 0;
+
+    /* ================= ITEMS ================= */
+
+    const invoiceItems = order.items.map((item) => ({
+      productName: item.name,
+      quantity: item.quantity,
+      grossAmount: item.itemTotal,
+      taxableValue: item.itemTotal,
+      cgst: 0,
+      sgst: 0,
+      total: item.itemTotal,
+      size: item.size,
+    }));
+
+    /* ================= INVOICE RESPONSE ================= */
+
+    const invoice = {
+      invoiceNumber: `INV-${Date.now()}`,
+      orderId: order.orderId,
+
+      orderDate: order.orderPlacedDate,
+      invoiceDate: order.deliveredAt || new Date(),
+
+      seller: {
+        name: seller?.storeName || "Stackly",
+        address: seller?.address || "",
+        gstin: seller?.gstin || "",
+      },
+
+      customer: {
+        name: order.customerName,
+        id: order.customerId,
+      },
+
+      billingAddress: order.billingAddress,
+      shippingAddress: order.shippingAddress,
+
+      items: invoiceItems,
+
+      totals: {
+        grossAmount,
+        taxableValue: grossAmount,
+        cgst,
+        sgst,
+        igst,
+        taxAmount,
+        totalInvoiceValue,
+        totalAmountInWords:
+          `${totalInvoiceValue} Rupees Only`,
+      },
+
+    
+
+     delivery: {
+  status: order.orderStatus,
+  deliveredAt: order.deliveredAt || new Date(),
+  estimatedDeliveryDate: order.estimatedDeliveryDate || null,
+},
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: invoice,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
     });
   }
 };
