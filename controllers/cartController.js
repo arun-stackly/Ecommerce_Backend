@@ -4,127 +4,120 @@ const SellerInventory = require("../models/SellerInventory");
 const Coupon = require("../models/couponModel");
 
 
+/* ================= OFFER CALCULATION ================= */
 function getOfferDetails(inventory, qty = 1) {
   const discount = inventory.discountPercentage || 0;
 
-  let offerPercentage = 0;
-  let offerPrice = 0;
+  let finalPrice = inventory.price;
 
   if (discount > 0) {
-    offerPercentage = discount;
-    offerPrice =
+    finalPrice =
       inventory.price - (inventory.price * discount) / 100;
   }
 
   return {
-    offerPercentage,
-    offerPrice,
-    finalPrice: offerPrice > 0 ? offerPrice : inventory.price,
+    offerPercentage: discount,
+    offerPrice: finalPrice,
+    finalPrice,
   };
 }
- 
-/* ================= GET CART ================= */
 
+/* ================= CART TOTALS ================= */
+function calculateCartTotals(cart) {
+  let totalPrice = 0;
+
+  cart.sellerGroups.forEach((seller) => {
+    let sellerTotal = 0;
+
+    seller.items.forEach((item) => {
+      sellerTotal += item.totalPrice;
+    });
+
+    seller.sellerTotal = sellerTotal;
+    totalPrice += sellerTotal;
+  });
+
+  cart.priceDetails.price = totalPrice;
+  cart.priceDetails.platformFee = totalPrice > 0 ? 40 : 0;
+
+  cart.priceDetails.totalAmount =
+    cart.priceDetails.price -
+    (cart.priceDetails.discount || 0) -
+    (cart.priceDetails.couponDiscount || 0) +
+    cart.priceDetails.platformFee;
+}
+
+/* ================= GET CART ================= */
 exports.getCart = async (req, res) => {
   try {
-    let cart = await Cart.findOne({ userId: req.user._id }).populate({
+    const cart = await Cart.findOne({ userId: req.user._id }).populate({
       path: "sellerGroups.items.sellerInventoryId",
       select:
         "name price media seller quantity isActive sizes discountPercentage",
     });
 
     if (!cart) {
-      cart = await Cart.create({
-        userId: req.user._id,
-        sellerGroups: [],
-        priceDetails: {
-          price: 0,
-          discount: 0,
-          couponDiscount: 0,
-          platformFee: 0,
-          totalAmount: 0,
-        },
-      });
-
-      return res.status(200).json({
+      return res.json({
         success: true,
         cart: {
           sellerGroups: [],
           itemsCount: 0,
-          deliveryTo: null,
-          deliveryMessage: null,
-          priceDetails: cart.priceDetails,
+          priceDetails: {
+            price: 0,
+            discount: 0,
+            couponDiscount: 0,
+            platformFee: 0,
+            totalAmount: 0,
+          },
         },
       });
     }
 
     let itemsCount = 0;
 
-    const formattedCart = {
+    const formatted = {
       _id: cart._id,
       userId: cart.userId,
+      sellerGroups: cart.sellerGroups.map((seller) => {
+        return {
+          sellerId: seller.sellerId,
+          sellerName: seller.sellerName,
+          sellerTotal: seller.sellerTotal,
+
+          items: seller.items.map((item) => {
+            const inventory = item.sellerInventoryId;
+
+            const { offerPercentage, finalPrice } =
+              getOfferDetails(inventory, item.quantity);
+
+            itemsCount += item.quantity;
+
+            return {
+              cartItemId: item._id,
+              sellerInventoryId: inventory._id,
+              name: inventory.name,
+              image:
+                inventory.media?.find((m) => m.type === "image")?.url ||
+                "",
+              price: inventory.price,
+              offerPercentage: `${offerPercentage}%`,
+              offerPrice: finalPrice,
+              quantity: item.quantity,
+              size: item.size || "",
+              totalPrice: finalPrice * item.quantity,
+            };
+          }),
+        };
+      }),
+
+      itemsCount,
+      priceDetails: cart.priceDetails,
+      coupon: cart.coupon || null,
     };
 
-    formattedCart.itemsCount = 0;
-
-    formattedCart.sellerGroups = cart.sellerGroups.map((seller) => {
-      return {
-        sellerId: seller.sellerId,
-        sellerName: seller.sellerName,
-        sellerTotal: seller.sellerTotal,
-
-        items: seller.items.map((item) => {
-          const inventory = item.sellerInventoryId;
-
-          const { offerPercentage, offerPrice } =
-            getOfferDetails(inventory, item.quantity);
-
-          itemsCount += item.quantity;
-
-          return {
-            cartItemId: item._id,
-            sellerInventoryId: inventory._id,
-            name: inventory.name,
-            image:
-              inventory.media?.find((m) => m.type === "image")?.url || "",
-            price: inventory.price,
-
-            offerPercentage: `${offerPercentage}%`,
-            offerPrice,
-
-            quantity: item.quantity,
-            size: item.size || "",
-            availableSizes: inventory.sizes || [],
-            deliveryIn: "5-7 Days",
-
-            totalPrice:
-              (offerPrice > 0 ? offerPrice : inventory.price) *
-              item.quantity,
-          };
-        }),
-      };
-    });
-
-    formattedCart.itemsCount = itemsCount;
-
-    formattedCart.deliveryTo =
-      cart.deliveryTo?.city && cart.deliveryTo?.pincode
-        ? `${cart.deliveryTo.city} - ${cart.deliveryTo.pincode}`
-        : null;
-
-    formattedCart.deliveryMessage =
-      cart.priceDetails.price >= 500 ? "Free Delivery" : null;
-
-    formattedCart.priceDetails = cart.priceDetails;
-
-    const discount = cart.priceDetails?.discount || 0;
-
-formattedCart.savingsMessage =
-  discount > 0 ? `You will save ₹${discount} on this order` : null;
-
-    return res.status(200).json({
+    return res.json({
       success: true,
-      cart: formattedCart,
+      cart: formatted,
     });
   } catch (error) {
     return res.status(500).json({
@@ -139,13 +132,6 @@ exports.addToCart = async (req, res) => {
   try {
     const { sellerInventoryId, quantity, size } = req.body;
 
-    if (!sellerInventoryId || !quantity) {
-      return res.status(400).json({
-        success: false,
-        message: "sellerInventoryId, quantity are required",
-      });
-    }
-
     const qty = Number(quantity);
 
     const inventory = await SellerInventory.findById(
@@ -159,8 +145,18 @@ exports.addToCart = async (req, res) => {
       });
     }
 
-    const { offerPercentage, offerPrice, finalPrice } =
-      getOfferDetails(inventory, qty);
+    /* ❗ STOCK CHECK */
+    if (inventory.quantity < qty) {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient stock",
+      });
+    }
+
+    const { offerPrice, offerPercentage } = getOfferDetails(
+      inventory,
+      qty
+    );
 
     let cart = await Cart.findOne({ userId: req.user._id });
 
@@ -179,7 +175,8 @@ exports.addToCart = async (req, res) => {
     }
 
     let sellerGroup = cart.sellerGroups.find(
-      (s) => s.sellerId.toString() === inventory.seller._id.toString()
+      (s) =>
+        s.sellerId.toString() === inventory.seller._id.toString()
     );
 
     if (!sellerGroup) {
@@ -190,19 +187,21 @@ exports.addToCart = async (req, res) => {
         sellerTotal: 0,
       });
 
-      sellerGroup = cart.sellerGroups[cart.sellerGroups.length - 1];
+      sellerGroup =
+        cart.sellerGroups[cart.sellerGroups.length - 1];
     }
 
     const existingItem = sellerGroup.items.find(
       (item) =>
-        item.sellerInventoryId.toString() === sellerInventoryId &&
+        item.sellerInventoryId.toString() ===
+          sellerInventoryId &&
         (item.size || "") === (size || "")
     );
 
     if (existingItem) {
       existingItem.quantity += qty;
-      const updated = getOfferDetails(inventory, existingItem.quantity);
-      existingItem.totalPrice = updated.finalPrice * existingItem.quantity;
+      existingItem.totalPrice =
+        offerPrice * existingItem.quantity;
     } else {
       sellerGroup.items.push({
         sellerInventoryId,
@@ -210,85 +209,21 @@ exports.addToCart = async (req, res) => {
         size: size || "",
         offerPercentage: `${offerPercentage}%`,
         offerPrice,
-        totalPrice: finalPrice * qty,
+        totalPrice: offerPrice * qty,
       });
     }
+
+    /* ❗ REDUCE STOCK */
+    inventory.quantity -= qty;
+    await inventory.save();
 
     calculateCartTotals(cart);
     await cart.save();
 
-    const updatedCart = await Cart.findById(cart._id).populate({
-      path: "sellerGroups.items.sellerInventoryId",
-      select:
-        "name price media seller quantity isActive sizes discountPercentage",
-    });
-
-    let itemsCount = 0;
-
-    const discount = updatedCart.priceDetails?.discount || 0;
-
-   const savingsMessage =
-  discount > 0 ? `You will save ₹${discount} on this order` : null;
-
-    
-
-    const response = {
-      _id: updatedCart._id,
-      userId: updatedCart.userId,
-      /* ================= DELIVERY ================= */
-  deliveryTo:
-    updatedCart.deliveryTo?.city && updatedCart.deliveryTo?.pincode
-      ? `${updatedCart.deliveryTo.city} - ${updatedCart.deliveryTo.pincode}`
-      : null,
-
-  deliveryMessage:
-    updatedCart.priceDetails.price >= 500
-      ? "Free Delivery"
-      : "Delivery Charges Applicable",
-
-      itemsCount,
-      sellerGroups: updatedCart.sellerGroups.map((seller) => {
-        return {
-          sellerId: seller.sellerId,
-          sellerName: seller.sellerName,
-          sellerTotal: seller.sellerTotal,
-
-          items: seller.items.map((item) => {
-            const inventory = item.sellerInventoryId;
-
-            const { offerPercentage, offerPrice } =
-              getOfferDetails(inventory, item.quantity);
-
-            itemsCount += item.quantity;
-
-            return {
-              cartItemId: item._id,
-              sellerInventoryId: inventory._id,
-              name: inventory.name,
-              image:
-                inventory.media?.find((m) => m.type === "image")?.url || "",
-              price: inventory.price,
-
-              offerPercentage,
-              offerPrice,
-
-              quantity: item.quantity,
-              size: item.size || "",
-              totalPrice:
-                (offerPrice > 0 ? offerPrice : inventory.price) *
-                item.quantity,
-            };
-          }),
-        };
-      }),
-      itemsCount,
-      priceDetails: updatedCart.priceDetails,
-      savingsMessage, 
-    };
-    return res.status(200).json({
+    return res.json({
       success: true,
-      message: "Product added to cart",
-      cart: response,
+      message: "Added to cart",
+      cart,
     });
   } catch (error) {
     return res.status(500).json({
@@ -297,16 +232,13 @@ exports.addToCart = async (req, res) => {
     });
   }
 };
+
 /* ================= REMOVE ITEM ================= */
 exports.removeCartItem = async (req, res) => {
   try {
-
     const { cartItemId } = req.body;
-    console.log("BODY:", req.body);
 
-    const cart = await Cart.findOne({
-      userId: req.user._id,
-    });
+    const cart = await Cart.findOne({ userId: req.user._id });
 
     if (!cart) {
       return res.status(404).json({
@@ -315,53 +247,41 @@ exports.removeCartItem = async (req, res) => {
       });
     }
 
-    let itemFound = false;
+    let removedItem = null;
 
     cart.sellerGroups = cart.sellerGroups
-      .map((sellerGroup) => {
-
-        sellerGroup.items =
-          sellerGroup.items.filter((item) => {
-
-            if (
-              item._id.toString() ===
-              cartItemId
-            ) {
-              itemFound = true;
-              return false;
-            }
-
-            return true;
-          });
-
-        return sellerGroup;
+      .map((seller) => {
+        seller.items = seller.items.filter((item) => {
+          if (item._id.toString() === cartItemId) {
+            removedItem = item;
+            return false;
+          }
+          return true;
+        });
+        return seller;
       })
+      .filter((s) => s.items.length > 0);
 
-      .filter(
-        (sellerGroup) =>
-          sellerGroup.items.length > 0
+    if (removedItem) {
+      const inventory = await SellerInventory.findById(
+        removedItem.sellerInventoryId
       );
 
-    if (!itemFound) {
-      return res.status(404).json({
-        success: false,
-        message: "Item not found",
-      });
+      if (inventory) {
+        inventory.quantity += removedItem.quantity;
+        await inventory.save();
+      }
     }
 
     calculateCartTotals(cart);
-
     await cart.save();
- 
-    return res.status(200).json({
+
+    return res.json({
       success: true,
-      message:
-        "Item removed from cart",
+      message: "Item removed",
       cart,
     });
-
   } catch (error) {
-
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -700,48 +620,48 @@ exports.setDeliveryAddress = async (req, res) => {
 /* ================= PRICE CALCULATION ================= */
 
 
-function calculateCartTotals(cart) {
+// function calculateCartTotals(cart) {
 
-  let totalPrice = 0;
+//   let totalPrice = 0;
 
-  cart.sellerGroups.forEach((seller) => {
+//   cart.sellerGroups.forEach((seller) => {
 
-    let sellerTotal = 0;
+//     let sellerTotal = 0;
 
-    seller.items.forEach((item) => {
+//     seller.items.forEach((item) => {
 
-      sellerTotal += item.totalPrice;
+//       sellerTotal += item.totalPrice;
 
-    });
+//     });
 
-    seller.sellerTotal = sellerTotal;
+//     seller.sellerTotal = sellerTotal;
 
-    totalPrice += sellerTotal;
+//     totalPrice += sellerTotal;
 
-  });
+//   });
 
-  /* ===== PRICE ===== */
+//   /* ===== PRICE ===== */
 
-  cart.priceDetails.price = totalPrice;
+//   cart.priceDetails.price = totalPrice;
 
-  /* ===== COUPON ===== */
+//   /* ===== COUPON ===== */
 
-  cart.priceDetails.couponDiscount =
-    cart.coupon?.couponDiscount || 0;
+//   cart.priceDetails.couponDiscount =
+//     cart.coupon?.couponDiscount || 0;
 
-  /* ===== PLATFORM FEE ===== */
+//   /* ===== PLATFORM FEE ===== */
 
-  cart.priceDetails.platformFee =
-    totalPrice > 0 ? 40 : 0;
+//   cart.priceDetails.platformFee =
+//     totalPrice > 0 ? 40 : 0;
 
-  /* ===== TOTAL ===== */
+//   /* ===== TOTAL ===== */
 
-  cart.priceDetails.totalAmount =
-    cart.priceDetails.price -
-    cart.priceDetails.discount -
-    cart.priceDetails.couponDiscount +
-    cart.priceDetails.platformFee;
-}
+//   cart.priceDetails.totalAmount =
+//     cart.priceDetails.price -
+//     cart.priceDetails.discount -
+//     cart.priceDetails.couponDiscount +
+//     cart.priceDetails.platformFee;
+// }
 
 
 
