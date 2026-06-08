@@ -19,4 +19,6 @@ router.patch("/:id/status", protect,  userOrderController.updateOrderStatus);
 router.get("/:id", protectUser, userOrderController.getSingleOrder);
 router.post("/:id/review", protectUser, userOrderController.addReview);
 router.get("/:id/reviews", userOrderController.getProductReviews);
+// Get invoice by order id
+router.get("/invoice/:id", userOrderController.getOrderInvoice);
 module.exports = router;

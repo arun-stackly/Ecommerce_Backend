@@ -57,6 +57,7 @@ const ApplianceRoutes = require("./routes/ApplianceRoutes");
 const ApplianceProductdetailsRoutes = require("./routes/ApplianceProductdetailRoutes");
 
 
+
 const app = express();
 
 connectDB();

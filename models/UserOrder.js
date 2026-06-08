@@ -22,8 +22,8 @@ const orderItemSchema = new mongoose.Schema({
   itemTotal: { type: Number, required: true },
   itemStatus: {
     type: String,
-    enum: ["placed", "shipped", "delivered", "cancelled"],
-    default: "placed",
+    enum: ["ordered", "shipped", "delivered", "cancelled", "exchange", "return"],
+    default: "ordered",
   },
 });
 
@@ -75,17 +75,18 @@ const userOrderSchema = new mongoose.Schema(
       type: Date,
     },
 
-    orderStatus: {
-      type: String,
-      enum: [
-        "placed",
-        "processed",
-        "shipped",
-        "delivered",
-        "cancelled",
-      ],
-      default: "placed",
-    },
+   orderStatus: {
+  type: String,
+  enum: [
+    "ordered",
+    "shipped",
+    "delivered",
+    "cancelled",
+    "exchange",
+    "return",
+  ],
+  default: "ordered",
+},
 
     paymentDetails: {
   paymentType: { type: String },
