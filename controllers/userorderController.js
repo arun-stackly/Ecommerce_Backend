@@ -95,7 +95,7 @@ exports.createOrder = async (req, res) => {
           quantity: item.quantity,
           size: item.size,
           itemTotal,
-          itemStatus: "placed",
+          itemStatus: "ordered",
         });
 
         // reduce stock
@@ -182,7 +182,7 @@ exports.createOrder = async (req, res) => {
 
       orderPlacedDate,
       estimatedDeliveryDate,
-      orderStatus: "placed",
+      orderStatus: "ordered",
 
       // ✅ STORE IN DB
       paymentDetails,

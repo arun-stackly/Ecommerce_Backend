@@ -98,6 +98,10 @@ const userOrderSchema = new mongoose.Schema(
     enum: ["pending", "paid", "failed"],
     default: "pending",
   },
+  deliveredAt: {
+  type: Date,
+  default: null,
+},
   transactionId: { type: String },
 },
   },

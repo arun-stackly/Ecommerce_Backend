@@ -19,7 +19,7 @@ const kycRoutes = require("./routes/kycRoutes");
 const bankRoutes = require("./routes/bankRoutes");
 
 const dashboardRoutes = require("./routes/dashboardRoutes");
-const orderRoutes = require("./routes/orderRoutes");
+
 const sellerProfileRoutes = require("./routes/sellerProfileRoutes");
 const sellerBankRoutes = require("./routes/sellerBankRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
@@ -103,7 +103,6 @@ app.use("/api/seller/business-info", businessInfoRoutes);
 app.use("/api/seller/kyc", kycRoutes);
 app.use("/api/seller/bank", bankRoutes);
 app.use("/api/seller/dashboard", dashboardRoutes);
-app.use("/api/seller/orders", orderRoutes);
 app.use("/api/seller/profile", sellerProfileRoutes);
 app.use("/api/business-profile", require("./routes/businessProfileRoutes"));
 app.use("/api/seller/bank-details", sellerBankRoutes);
