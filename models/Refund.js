@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+ 
 const refundSchema = new mongoose.Schema(
   {
     sellerId: {
@@ -7,33 +7,33 @@ const refundSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-
+ 
     orderId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Order",
+      ref: "UserOrder",
       required: true,
     },
-
+ 
     amount: {
       type: Number,
       required: true,
     },
-
+ 
     reason: String,
-
+ 
     // ✅ NEW FIELDS (Refund Processing Page)
     returnShippingCharge: {
       type: Number,
       default: 0,
     },
-
+ 
     additionalRefund: {
       type: Number,
       default: 0,
     },
-
+ 
     note: String,
-
+ 
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
@@ -42,5 +42,7 @@ const refundSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
-
+ 
 module.exports = mongoose.model("Refund", refundSchema);
+ 
+ 

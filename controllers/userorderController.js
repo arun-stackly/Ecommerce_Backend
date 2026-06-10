@@ -1,20 +1,21 @@
 const UserOrder = require("../models/UserOrder");
 const SellerInventory = require("../models/SellerInventory");
 const Address = require("../models/addressModel");
+const Refund = require("../models/Refund");
 const Cart = require("../models/cartModel");
 const generateOrderId = require("../utils/generateOrderid");
- const Seller = require("../models/SellerProfile"); // adjust if different
-
+const Seller = require("../models/SellerProfile"); // adjust if different
+ 
 /* =========================
    CREATE ORDER
 ========================= */
-
+ 
 exports.createOrder = async (req, res) => {
   try {
     const { shippingAddressId, paymentMode } = req.body;
-
+ 
     const user = req.user;
-
+ 
     /* ================= USER CHECK ================= */
     if (!user) {
       return res.status(404).json({
@@ -22,60 +23,59 @@ exports.createOrder = async (req, res) => {
         message: "User not found",
       });
     }
-
+ 
     /* ================= GET CART ================= */
     const cart = await Cart.findOne({ userId: user._id });
-
+ 
     if (!cart || !cart.sellerGroups.length) {
       return res.status(400).json({
         success: false,
         message: "Cart is empty",
       });
     }
-
+ 
     /* ================= SHIPPING ADDRESS ================= */
     const shippingAddress = await Address.findById(shippingAddressId);
-
+ 
     if (!shippingAddress) {
       return res.status(404).json({
         success: false,
         message: "Shipping address not found",
       });
     }
-
+ 
     /* ================= BILLING ADDRESS ================= */
     const billingAddress = await Address.findOne({
       userId: user._id,
       isDefault: true,
     });
-
+ 
     if (!billingAddress) {
       return res.status(400).json({
         success: false,
         message: "Please set default billing address",
       });
     }
-
+ 
     /* ================= ORDER ITEMS ================= */
     let orderItems = [];
-
+ 
     for (const sellerGroup of cart.sellerGroups) {
       for (const item of sellerGroup.items) {
-        const inventory = await SellerInventory.findById(item.sellerInventoryId);
-
+        const inventory = await SellerInventory.findById(
+          item.sellerInventoryId,
+        );
+ 
         if (!inventory || !inventory.isActive) continue;
-
+ 
         // size validation
-        if (
-          inventory.sizes?.length &&
-          !inventory.sizes.includes(item.size)
-        ) {
+        if (inventory.sizes?.length && !inventory.sizes.includes(item.size)) {
           return res.status(400).json({
             success: false,
             message: `Size not available for ${inventory.name}`,
           });
         }
-
+ 
         // stock check
         if (item.quantity > inventory.quantity) {
           return res.status(400).json({
@@ -83,9 +83,9 @@ exports.createOrder = async (req, res) => {
             message: `${inventory.name} out of stock`,
           });
         }
-
+ 
         const itemTotal = inventory.price * item.quantity;
-
+ 
         orderItems.push({
           sellerId: inventory.seller,
           sellerInventoryId: inventory._id,
@@ -97,34 +97,33 @@ exports.createOrder = async (req, res) => {
           itemTotal,
           itemStatus: "ordered",
         });
-
+ 
         // reduce stock
         await SellerInventory.findByIdAndUpdate(inventory._id, {
-          $inc: { quantity: -item.quantity,
-          soldCount: item.quantity  },
+          $inc: { quantity: -item.quantity, soldCount: item.quantity },
         });
       }
     }
-
+ 
     if (!orderItems.length) {
       return res.status(400).json({
         success: false,
         message: "No valid items found",
       });
     }
-
+ 
     /* ================= CART TOTALS ================= */
     const totalItemsPrice = cart.priceDetails.price;
     const platformFee = cart.priceDetails.platformFee;
     const discount = cart.priceDetails.discount;
     const couponDiscount = cart.priceDetails.couponDiscount;
     const totalAmount = cart.priceDetails.totalAmount;
-
+ 
     /* ================= DELIVERY ================= */
     const orderPlacedDate = new Date();
     const estimatedDeliveryDate = new Date();
     estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 5);
-
+ 
     /* ================= PAYMENT DETAILS (IMPORTANT FIX) ================= */
     const paymentDetails =
       paymentMode === "COD"
@@ -142,15 +141,15 @@ exports.createOrder = async (req, res) => {
             currency: "INR",
             paymentStatus: "pending",
           };
-
+ 
     /* ================= CREATE ORDER ================= */
     const order = await UserOrder.create({
       orderId: generateOrderId(),
       customerId: user._id,
       customerName: user.firstName,
-
+ 
       items: orderItems,
-
+ 
       shippingAddress: {
         fullName: shippingAddress.fullName,
         phoneNumber: shippingAddress.phoneNumber,
@@ -161,7 +160,7 @@ exports.createOrder = async (req, res) => {
         state: shippingAddress.state,
         landmark: shippingAddress.landmark,
       },
-
+ 
       billingAddress: {
         fullName: billingAddress.fullName,
         phoneNumber: billingAddress.phoneNumber,
@@ -172,22 +171,22 @@ exports.createOrder = async (req, res) => {
         state: billingAddress.state,
         landmark: billingAddress.landmark,
       },
-
+ 
       paymentMode,
-
+ 
       totalItemsPrice,
       platformFee,
       discount: discount + couponDiscount,
       totalAmount,
-
+ 
       orderPlacedDate,
       estimatedDeliveryDate,
       orderStatus: "ordered",
-
+ 
       // ✅ STORE IN DB
       paymentDetails,
     });
-
+ 
     /* ================= CLEAR CART ================= */
     cart.sellerGroups = [];
     cart.priceDetails = {
@@ -198,9 +197,9 @@ exports.createOrder = async (req, res) => {
       totalAmount: 0,
     };
     cart.coupon = undefined;
-
+ 
     await cart.save();
-
+ 
     /* ================= RESPONSE ================= */
     return res.status(201).json({
       success: true,
@@ -218,22 +217,22 @@ exports.getOrders = async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-
+ 
     const orders = await UserOrder.find({ customerId: req.user.id })
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .select(
-        "orderId orderStatus createdAt items estimatedDeliveryDate paymentMode"
+        "orderId orderStatus createdAt items estimatedDeliveryDate paymentMode",
       );
-
+ 
     const formattedOrders = orders.map((order) => ({
       orderId: order.orderId,
       status: order.orderStatus,
       createdAt: order.createdAt,
       estimatedDeliveryDate: order.estimatedDeliveryDate,
       paymentMode: order.paymentMode,
-
+ 
       items: order.items.map((item) => ({
         name: item.name,
         image: item.image,
@@ -243,7 +242,7 @@ exports.getOrders = async (req, res) => {
         itemStatus: item.itemStatus,
       })),
     }));
-
+ 
     res.json({
       success: true,
       data: formattedOrders,
@@ -259,20 +258,20 @@ exports.getSingleOrder = async (req, res) => {
   try {
     const order = await UserOrder.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Order not found" });
-
+ 
     res.json({ success: true, data: order });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
+ 
 /* =========================
    UPDATE ORDER STATUS (Admin/Seller Only)
 ========================= */
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { orderStatus } = req.body;
-
+ 
     // 🔒 ROLE CHECK
     if (req.user.role !== "admin" && req.user.role !== "seller") {
       return res.status(403).json({
@@ -280,25 +279,25 @@ exports.updateOrderStatus = async (req, res) => {
         message: "You are not authorized to update order status",
       });
     }
-
+ 
     const order = await UserOrder.findById(req.params.id);
-
+ 
     if (!order) {
       return res.status(404).json({
         success: false,
         message: "Order not found",
       });
     }
-
+ 
     order.orderStatus = orderStatus;
     /* ===== UPDATE ITEM STATUS ===== */
-    
-if (orderStatus === "delivered") {
-  order.deliveredAt = order.deliveredAt || new Date();
-}
-
+ 
+    if (orderStatus === "delivered") {
+      order.deliveredAt = order.deliveredAt || new Date();
+    }
+ 
     await order.save();
-
+ 
     res.json({
       success: true,
       message: "Order status updated successfully",
@@ -318,51 +317,51 @@ if (orderStatus === "delivered") {
 exports.addReview = async (req, res) => {
   try {
     const { rating, comment } = req.body;
-
+ 
     if (!rating) {
       return res.status(400).json({
         success: false,
         message: "Rating is required",
       });
     }
-
+ 
     const inventory = await SellerInventory.findById(req.params.id);
-
+ 
     if (!inventory) {
       return res.status(404).json({
         success: false,
         message: "Product not found",
       });
     }
-
+ 
     const review = {
       user: req.user._id,
-
+ 
       name: `${req.user.firstName} ${req.user.lastName}`,
-
+ 
       rating,
-
+ 
       comment: comment || "",
     };
-
+ 
     const newReviewCount = (inventory.reviewCount || 0) + 1;
-
+ 
     const totalRating =
       (inventory.reviews || []).reduce((acc, item) => acc + item.rating, 0) +
       Number(rating);
-
+ 
     const newRating = totalRating / newReviewCount;
-
+ 
     await SellerInventory.findByIdAndUpdate(
       req.params.id,
       {
         $push: {
           reviews: review,
         },
-
+ 
         $set: {
           reviewCount: newReviewCount,
-
+ 
           rating: newRating,
         },
       },
@@ -371,7 +370,7 @@ exports.addReview = async (req, res) => {
         runValidators: false,
       },
     );
-
+ 
     res.status(201).json({
       success: true,
       message: "Review added",
@@ -392,37 +391,37 @@ exports.getProductReviews = async (req, res) => {
     const inventory = await SellerInventory.findById(req.params.id).select(
       "reviews rating reviewCount",
     );
-
+ 
     if (!inventory) {
       return res.status(404).json({
         success: false,
         message: "Product not found",
       });
     }
-
+ 
     const page = Number(req.query.page) || 1;
-
+ 
     const limit = Number(req.query.limit) || 5;
-
+ 
     const start = (page - 1) * limit;
-
+ 
     const end = start + limit;
-
+ 
     const reviews = inventory.reviews || [];
-
+ 
     const paginatedReviews = reviews.slice(start, end);
-
+ 
     res.status(200).json({
       success: true,
-
+ 
       reviews: paginatedReviews,
-
+ 
       rating: inventory.rating,
-
+ 
       reviewCount: inventory.reviewCount,
-
+ 
       currentPage: page,
-
+ 
       totalPages: Math.ceil(inventory.reviewCount / limit),
     });
   } catch (error) {
@@ -435,33 +434,32 @@ exports.getProductReviews = async (req, res) => {
 exports.verifyPayment = async (req, res) => {
   try {
     const { orderId, paymentId } = req.body;
-
+ 
     const order = await UserOrder.findById(orderId);
-
+ 
     if (!order) {
       return res.status(404).json({
         success: false,
         message: "Order not found",
       });
     }
-
+ 
     // safety check
     if (!order.paymentDetails) {
       order.paymentDetails = {};
     }
-
+ 
     // ✅ ONLY PAYMENT STATUS UPDATE
     order.paymentDetails.paymentStatus = "paid";
     order.paymentDetails.transactionId = paymentId;
-
+ 
     await order.save();
-
+ 
     return res.json({
       success: true,
       message: "Payment marked as PAID",
       data: order,
     });
-
   } catch (err) {
     return res.status(500).json({
       success: false,
@@ -472,16 +470,16 @@ exports.verifyPayment = async (req, res) => {
 exports.getOrderInvoice = async (req, res) => {
   try {
     const { id } = req.params;
-
+ 
     const order = await UserOrder.findById(id);
-
+ 
     if (!order) {
       return res.status(404).json({
         success: false,
         message: "Order not found",
       });
     }
-
+ 
     // Only delivered orders can have invoices
     if (order.orderStatus !== "delivered") {
       return res.status(400).json({
@@ -489,26 +487,26 @@ exports.getOrderInvoice = async (req, res) => {
         message: "Invoice is available only for delivered orders",
       });
     }
-
+ 
     /* ================= SELLER INFO ================= */
-
+ 
     const seller = await Seller.findById(order.items?.[0]?.sellerId);
-
+ 
     /* ================= TAX CALCULATION ================= */
-
+ 
     const grossAmount = order.totalItemsPrice || 0;
-
+ 
     // Adjust if GST is actually stored separately
     const cgst = 0;
     const sgst = 0;
     const igst = 0;
-
+ 
     const taxAmount = cgst + sgst + igst;
-
+ 
     const totalInvoiceValue = order.totalAmount || 0;
-
+ 
     /* ================= ITEMS ================= */
-
+ 
     const invoiceItems = order.items.map((item) => ({
       productName: item.name,
       quantity: item.quantity,
@@ -519,32 +517,32 @@ exports.getOrderInvoice = async (req, res) => {
       total: item.itemTotal,
       size: item.size,
     }));
-
+ 
     /* ================= INVOICE RESPONSE ================= */
-
+ 
     const invoice = {
       invoiceNumber: `INV-${Date.now()}`,
       orderId: order.orderId,
-
+ 
       orderDate: order.orderPlacedDate,
       invoiceDate: order.deliveredAt || new Date(),
-
+ 
       seller: {
         name: seller?.storeName || "Stackly",
         address: seller?.address || "",
         gstin: seller?.gstin || "",
       },
-
+ 
       customer: {
         name: order.customerName,
         id: order.customerId,
       },
-
+ 
       billingAddress: order.billingAddress,
       shippingAddress: order.shippingAddress,
-
+ 
       items: invoiceItems,
-
+ 
       totals: {
         grossAmount,
         taxableValue: grossAmount,
@@ -553,28 +551,296 @@ exports.getOrderInvoice = async (req, res) => {
         igst,
         taxAmount,
         totalInvoiceValue,
-        totalAmountInWords:
-          `${totalInvoiceValue} Rupees Only`,
+        totalAmountInWords: `${totalInvoiceValue} Rupees Only`,
       },
-
-    
-
-     delivery: {
-  status: order.orderStatus,
-  deliveredAt: order.deliveredAt || new Date(),
-  estimatedDeliveryDate: order.estimatedDeliveryDate || null,
-},
+ 
+      delivery: {
+        status: order.orderStatus,
+        deliveredAt: order.deliveredAt || new Date(),
+        estimatedDeliveryDate: order.estimatedDeliveryDate || null,
+      },
     };
-
+ 
     return res.status(200).json({
       success: true,
       data: invoice,
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
+};
+ 
+exports.cancelOrder = async (req, res) => {
+  try {
+    const order = await UserOrder.findById(req.params.id);
+ 
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+ 
+    if (order.orderStatus === "cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Order already cancelled",
+      });
+    }
+ 
+    if (order.orderStatus === "delivered") {
+      return res.status(400).json({
+        success: false,
+        message: "Delivered orders cannot be cancelled",
+      });
+    }
+ 
+    // Cancel Order
+    order.orderStatus = "cancelled";
+    order.cancelledAt = new Date();
+ 
+    // Cancel all items
+    order.items.forEach((item) => {
+      item.itemStatus = "cancelled";
+    });
+ 
+    /* =========================
+       PREPAID REFUND CREATION
+    ========================= */
+ 
+    if (order.paymentMode !== "COD") {
+      const existingRefund = await Refund.findOne({
+        orderId: order._id,
+      });
+ 
+      if (!existingRefund) {
+        await Refund.create({
+          sellerId: order.items[0].sellerId,
+          orderId: order._id,
+          amount: order.totalAmount,
+          reason: "Order Cancelled",
+          status: "approved",
+        });
+      }
+    }
+ 
+    await order.save();
+ 
+    return res.status(200).json({
+      success: true,
+      message: "Order cancelled successfully",
+      data: order,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+ 
+exports.getCancelledCODOrder = async (req, res) => {
+  try {
+    const order = await UserOrder.findById(req.params.id);
+ 
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+ 
+    if (order.paymentMode !== "COD") {
+      return res.status(400).json({
+        success: false,
+        message: "Not a COD order",
+      });
+    }
+ 
+    res.status(200).json({
+      success: true,
+ 
+      orderId: order.orderId,
+ 
+      product: {
+        name: order.items[0]?.name,
+        image: order.items[0]?.image,
+        size: order.items[0]?.size,
+        quantity: order.items[0]?.quantity,
+      },
+ 
+      orderPlacedDate: order.createdAt,
+ 
+      cancelledDate: order.cancelledAt,
+ 
+      paymentMode: order.paymentMode,
+ 
+      paymentDetails: {
+        title: "COD - Cash on Delivery",
+        message: `Pay in cash of ₹${order.totalAmount} when your order is delivered.`,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+ 
+exports.getCancelledPrepaidOrder = async (req, res) => {
+  try {
+    const order = await UserOrder.findById(req.params.id);
+ 
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+ 
+    if (order.paymentMode === "COD") {
+      return res.status(400).json({
+        success: false,
+        message: "This is not a prepaid order",
+      });
+    }
+ 
+    const refund = await Refund.findOne({
+      orderId: order._id,
+    });
+ 
+    res.status(200).json({
+      success: true,
+ 
+      orderId: order.orderId,
+ 
+      refundStatus: refund?.status || "pending",
+ 
+      product: {
+        name: order.items[0]?.name,
+        image: order.items[0]?.image,
+        size: order.items[0]?.size,
+        quantity: order.items[0]?.quantity,
+      },
+ 
+      paymentMode: order.paymentMode,
+ 
+      orderPlacedDate: order.createdAt,
+ 
+      cancelledDate: order.cancelledAt,
+ 
+      paymentDetails: {
+        title: `${order.paymentMode} Payment`,
+        message: "Your payment was refunded to your bank account.",
+      },
+ 
+      refund: {
+        amount: refund?.amount || 0,
+        status: refund?.status || "pending",
+        reason: refund?.reason || "",
+        refundDate: refund?.updatedAt || null,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+ 
+ exports.getOrdersByStatusWithItems = async (req, res) => {
+
+  try {
+
+    const { status } = req.params; // ✅ FIX HERE
+
+
+
+    const filter = {
+
+      customerId: req.user._id, // ✅ safer than req.user.id
+
+    };
+
+
+
+    if (status) {
+
+      filter.orderStatus = status;
+
+    }
+
+
+
+    const orders = await UserOrder.find(filter)
+
+      .sort({ createdAt: -1 })
+
+      .select("orderId orderStatus createdAt items estimatedDeliveryDate deliveredAt");
+
+
+
+    const formatted = orders.map((order) => ({
+
+      orderId: order.orderId,
+
+      status: order.orderStatus,
+
+      createdAt: order.createdAt,
+
+      estimatedDeliveryDate: order.estimatedDeliveryDate,
+
+      deliveredAt: order.deliveredAt,
+
+
+
+      products: order.items.map((item) => ({
+
+        productId: item.sellerInventoryId,
+
+        name: item.name,
+
+        image: item.image,
+
+        quantity: item.quantity,
+
+        size: item.size,
+
+        price: item.price,
+
+        itemStatus: item.itemStatus,
+
+      })),
+
+    }));
+
+
+
+    return res.json({
+
+      success: true,
+
+      count: formatted.length,
+
+      data: formatted,
+
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+
+      success: false,
+
+      message: error.message,
+
+    });
+
+  }
+
 };
