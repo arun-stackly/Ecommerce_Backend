@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+ 
 const orderItemSchema = new mongoose.Schema({
   sellerId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -15,32 +15,39 @@ const orderItemSchema = new mongoose.Schema({
   image: { type: String, required: true },
   price: { type: Number, required: true },
   quantity: { type: Number, required: true },
-   size: {
-      type: String,
-      required: false,
-    },
+  size: {
+    type: String,
+    required: false,
+  },
   itemTotal: { type: Number, required: true },
   itemStatus: {
     type: String,
-    enum: ["ordered", "shipped", "delivered", "cancelled", "exchange", "return"],
+    enum: [
+      "ordered",
+      "shipped",
+      "delivered",
+      "cancelled",
+      "exchange",
+      "return",
+    ],
     default: "ordered",
   },
 });
-
+ 
 const userOrderSchema = new mongoose.Schema(
   {
     orderId: { type: String, required: true, unique: true },
-
+ 
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-
+ 
     customerName: { type: String, required: true },
-
+ 
     items: [orderItemSchema],
-
+ 
     shippingAddress: {
       fullName: String,
       phoneNumber: String,
@@ -66,7 +73,7 @@ const userOrderSchema = new mongoose.Schema(
       enum: ["COD", "UPI", "CARD", "EMI"],
       required: true,
     },
-
+ 
     totalItemsPrice: Number,
     platformFee: { type: Number, default: 0 },
     discount: { type: Number, default: 0 },
@@ -74,38 +81,44 @@ const userOrderSchema = new mongoose.Schema(
     estimatedDeliveryDate: {
       type: Date,
     },
-
-   orderStatus: {
-  type: String,
-  enum: [
-    "ordered",
-    "shipped",
-    "delivered",
-    "cancelled",
-    "exchange",
-    "return",
-  ],
-  default: "ordered",
-},
-
+ 
+    orderStatus: {
+      type: String,
+      enum: [
+        "ordered",
+        "shipped",
+        "delivered",
+        "cancelled",
+        "exchange",
+        "return",
+      ],
+      default: "ordered",
+    },
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
+ 
     paymentDetails: {
-  paymentType: { type: String },
-  message: { type: String },
-  payableAmount: { type: Number },
-  currency: { type: String, default: "INR" },
-  paymentStatus: {
-    type: String,
-    enum: ["pending", "paid", "failed"],
-    default: "pending",
-  },
-  deliveredAt: {
-  type: Date,
-  default: null,
-},
-  transactionId: { type: String },
-},
+      paymentType: { type: String },
+      message: { type: String },
+      payableAmount: { type: Number },
+      currency: { type: String, default: "INR" },
+      paymentStatus: {
+        type: String,
+        enum: ["pending", "paid", "failed"],
+        default: "pending",
+      },
+      deliveredAt: {
+        type: Date,
+        default: null,
+      },
+      transactionId: { type: String },
+    },
   },
   { timestamps: true },
 );
-
+ 
 module.exports = mongoose.model("UserOrder", userOrderSchema);
+ 
+ 

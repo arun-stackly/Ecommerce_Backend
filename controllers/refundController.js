@@ -1,18 +1,25 @@
 const Refund = require("../models/Refund");
-
+ 
 /* ================= CREATE REFUND ================= */
 exports.createRefund = async (req, res) => {
-  const refund = await Refund.create({
-    sellerId: req.user._id,
-    orderId: req.body.orderId,
-    amount: req.body.amount,
-    reason: req.body.reason,
-  });
-
-  res.status(201).json(refund);
+  try {
+    const refund = await Refund.create({
+      sellerId: req.user._id,
+      orderId: req.body.orderId,
+      amount: req.body.amount,
+      reason: req.body.reason,
+    });
+ 
+    res.status(201).json(refund);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
-
-/* ================= GET SELLER REFUNDS (REFUNDS PAGE) ================= */
+ 
+/* ================= GET SELLER REFUNDS ================= */
 exports.getRefunds = async (req, res) => {
   try {
     const refunds = await Refund.find({
@@ -20,39 +27,51 @@ exports.getRefunds = async (req, res) => {
     })
       .populate({
         path: "orderId",
-        select: "orderId createdAt status totalAmount inventorySnapshot",
+        select: "orderId createdAt orderStatus totalAmount paymentMode items",
       })
       .sort({ createdAt: -1 });
-
-    const formattedRefunds = refunds.map((r) => ({
-      refundId: r._id,
-
-      orderId: r.orderId.orderId,
-      orderDate: r.orderId.createdAt,
-      orderStatus: r.orderId.status,
-
-      product: {
-        name: r.orderId.inventorySnapshot.name,
-        image: r.orderId.inventorySnapshot.image,
-      },
-
-      price: r.amount,
-      refundStatus: r.status,
-      reason: r.reason,
-    }));
-
-    res.json(formattedRefunds);
+ 
+    const formattedRefunds = refunds
+      .filter((refund) => refund.orderId)
+      .map((refund) => ({
+        refundId: refund._id,
+ 
+        orderId: refund.orderId.orderId,
+        orderDate: refund.orderId.createdAt,
+        orderStatus: refund.orderId.orderStatus,
+ 
+        product: {
+          name: refund.orderId.items?.[0]?.name || "",
+          image: refund.orderId.items?.[0]?.image || "",
+          quantity: refund.orderId.items?.[0]?.quantity || 0,
+        },
+ 
+        amount: refund.amount,
+        refundStatus: refund.status,
+        reason: refund.reason,
+ 
+        createdAt: refund.createdAt,
+      }));
+ 
+    res.json({
+      success: true,
+      count: formattedRefunds.length,
+      refunds: formattedRefunds,
+    });
   } catch (error) {
     console.error("Get Refunds Error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-
+ 
 /* ================= REFUND SUMMARY ================= */
 exports.refundSummary = async (req, res) => {
   try {
     const sellerId = req.user._id;
-
+ 
     const [
       openRefunds,
       newRefunds,
@@ -61,8 +80,11 @@ exports.refundSummary = async (req, res) => {
       rejectedRefunds,
       totalRefundAmount,
     ] = await Promise.all([
-      Refund.countDocuments({ sellerId, status: "pending" }),
-
+      Refund.countDocuments({
+        sellerId,
+        status: "pending",
+      }),
+ 
       Refund.countDocuments({
         sellerId,
         status: "pending",
@@ -70,17 +92,36 @@ exports.refundSummary = async (req, res) => {
           $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
         },
       }),
-
+ 
       Refund.countDocuments({ sellerId }),
-      Refund.countDocuments({ sellerId, status: "approved" }),
-      Refund.countDocuments({ sellerId, status: "rejected" }),
-
+ 
+      Refund.countDocuments({
+        sellerId,
+        status: "approved",
+      }),
+ 
+      Refund.countDocuments({
+        sellerId,
+        status: "rejected",
+      }),
+ 
       Refund.aggregate([
-        { $match: { sellerId } },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
+        {
+          $match: {
+            sellerId,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: "$amount",
+            },
+          },
+        },
       ]),
     ]);
-
+ 
     res.json({
       success: true,
       openRefunds,
@@ -97,67 +138,97 @@ exports.refundSummary = async (req, res) => {
     });
   }
 };
-
-/* =========================================================
-   NEW: GET REFUND PROCESSING PAGE DATA
-   (Used to load refund processing screen)
-========================================================= */
+ 
+/* ================= REFUND PROCESSING PAGE ================= */
 exports.getRefundProcessingData = async (req, res) => {
   try {
     const refund = await Refund.findById(req.params.id).populate({
       path: "orderId",
       select:
-        "orderId createdAt status totalAmount shippingAmount inventorySnapshot",
+        "orderId createdAt orderStatus totalAmount paymentMode customerName items",
     });
-
-    if (!refund) return res.status(404).json({ message: "Refund not found" });
-
+ 
+    if (!refund) {
+      return res.status(404).json({
+        success: false,
+        message: "Refund not found",
+      });
+    }
+ 
+    if (!refund.orderId) {
+      return res.status(404).json({
+        success: false,
+        message: "Associated order not found",
+      });
+    }
+ 
     res.json({
+      success: true,
+ 
       refundId: refund._id,
       status: refund.status,
       reason: refund.reason,
       requestedAmount: refund.amount,
-
-      product: refund.orderId.inventorySnapshot,
-
+ 
+      product: refund.orderId.items?.[0] || {},
+ 
       orderSummary: {
         orderId: refund.orderId.orderId,
         orderDate: refund.orderId.createdAt,
+        orderStatus: refund.orderId.orderStatus,
         totalAmount: refund.orderId.totalAmount,
-        shippingAmount: refund.orderId.shippingAmount,
+        paymentMode: refund.orderId.paymentMode,
+        customerName: refund.orderId.customerName,
+      },
+ 
+      refundDetails: {
+        returnShippingCharge: refund.returnShippingCharge,
+        additionalRefund: refund.additionalRefund,
+        note: refund.note,
       },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
-
-/* =========================================================
-   NEW: PROCESS REFUND (Submit Refund Button)
-========================================================= */
+ 
+/* ================= PROCESS REFUND ================= */
 exports.processRefund = async (req, res) => {
   try {
     const { amount, returnShippingCharge, additionalRefund, note, status } =
       req.body;
-
+ 
     const refund = await Refund.findById(req.params.id);
-
-    if (!refund) return res.status(404).json({ message: "Refund not found" });
-
+ 
+    if (!refund) {
+      return res.status(404).json({
+        success: false,
+        message: "Refund not found",
+      });
+    }
+ 
     refund.amount = amount;
     refund.returnShippingCharge = returnShippingCharge || 0;
     refund.additionalRefund = additionalRefund || 0;
-    refund.note = note;
+    refund.note = note || "";
     refund.status = status || "approved";
-
+ 
     await refund.save();
-
+ 
     res.json({
       success: true,
       message: "Refund processed successfully",
       refund,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
+ 
+ 

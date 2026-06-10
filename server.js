@@ -55,7 +55,9 @@ const Electronics_Cases_HomepageRoutes = require("./routes/Electronics_Cases_Hom
 const AppliancehomepageRoutes = require("./routes/ApplianceshomepageRoutes");
 const ApplianceRoutes = require("./routes/ApplianceRoutes");
 const ApplianceProductdetailsRoutes = require("./routes/ApplianceProductdetailRoutes");
+const dns = require("dns");
 
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 
 const app = express();

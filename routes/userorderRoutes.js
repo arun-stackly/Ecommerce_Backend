@@ -19,6 +19,27 @@ router.patch("/:id/status", protect,  userOrderController.updateOrderStatus);
 router.get("/:id", protectUser, userOrderController.getSingleOrder);
 router.post("/:id/review", protectUser, userOrderController.addReview);
 router.get("/:id/reviews", userOrderController.getProductReviews);
+/* =========================
+   NEW ROUTES
+========================= */
+ 
+// Cancel Order
+router.put("/cancel/:id", protectUser, userOrderController.cancelOrder);
+ 
+// COD Cancelled Order Details
+router.get(
+  "/cancelled/cod/:id",
+  protectUser,
+  userOrderController.getCancelledCODOrder,
+);
+ 
+router.get(
+  "/cancelled/prepaid/:id",
+  protectUser,
+  userOrderController.getCancelledPrepaidOrder,
+);
+ 
 // Get invoice by order id
 router.get("/invoice/:id", userOrderController.getOrderInvoice);
+router.get("/status-items/:status",protectUser, userOrderController.getOrdersByStatusWithItems);
 module.exports = router;

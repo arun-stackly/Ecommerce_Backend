@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const Order = require("../models/UserOrder");
+const UserOrder = require("../models/UserOrder");
 const Refund = require("../models/Refund");
 const SellerInventory = require("../models/SellerInventory");
  
@@ -50,9 +50,13 @@ exports.overview = async (req, res) => {
  
     const startDate = getStartDate(filter);
  
+    const sellerFilter = {
+      "items.sellerId": new mongoose.Types.ObjectId(sellerId),
+    };
+ 
     const completedMatch = {
-      sellerId,
-      status: "completed",
+      ...sellerFilter,
+      orderStatus: "delivered",
     };
  
     if (startDate) {
@@ -61,16 +65,29 @@ exports.overview = async (req, res) => {
  
     const [totalOrders, completedOrders, pendingOrders, revenue, customers] =
       await Promise.all([
-        Order.countDocuments({ sellerId }),
-        Order.countDocuments({ sellerId, status: "completed" }),
-        Order.countDocuments({ sellerId, status: "pending" }),
+        UserOrder.countDocuments(sellerFilter),
  
-        Order.aggregate([
+        UserOrder.countDocuments({
+          ...sellerFilter,
+          orderStatus: "delivered",
+        }),
+ 
+        UserOrder.countDocuments({
+          ...sellerFilter,
+          orderStatus: "ordered",
+        }),
+ 
+        UserOrder.aggregate([
           { $match: completedMatch },
-          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: "$totalAmount" },
+            },
+          },
         ]),
  
-        Order.distinct("userId", completedMatch),
+        UserOrder.distinct("customerId", completedMatch),
       ]);
  
     res.json({
@@ -82,11 +99,11 @@ exports.overview = async (req, res) => {
       dashboard: {
         customers: {
           total: customers.length,
-          growth: 37.8, // placeholder
+          growth: 37.8,
         },
         income: {
           total: revenue[0]?.total || 0,
-          growth: 37.8, // placeholder
+          growth: 37.8,
         },
       },
     });
@@ -98,12 +115,13 @@ exports.overview = async (req, res) => {
   }
 };
  
+/* ================= PRODUCT VIEWS ================= */
+ 
 exports.productViews = async (req, res) => {
   try {
     const sellerId = req.user._id;
     const { filter = "anytime" } = req.query;
  
-    const ALLOWED_FILTERS = ["anytime", "quarterly", "halfyearly", "yearly"];
     if (!ALLOWED_FILTERS.includes(filter)) {
       return res.status(400).json({
         success: false,
@@ -126,15 +144,15 @@ exports.productViews = async (req, res) => {
         : new Date(now.getFullYear(), now.getMonth() - totalMonths + 1, 1);
  
     const matchStage = {
-      sellerId: new mongoose.Types.ObjectId(sellerId),
-      status: "completed",
+      "items.sellerId": new mongoose.Types.ObjectId(sellerId),
+      orderStatus: "delivered",
     };
  
     if (startDate) {
       matchStage.createdAt = { $gte: startDate };
     }
  
-    const salesData = await Order.aggregate([
+    const salesData = await UserOrder.aggregate([
       { $match: matchStage },
       {
         $group: {
@@ -259,7 +277,6 @@ exports.stockAlerts = async (req, res) => {
           seller: new mongoose.Types.ObjectId(sellerId),
         },
       },
- 
       {
         $lookup: {
           from: "categories",
@@ -274,26 +291,20 @@ exports.stockAlerts = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
- 
       {
         $addFields: {
           listingStatus: {
             $cond: ["$isActive", "Active", "Inactive"],
           },
- 
           stockStatus: {
             $switch: {
               branches: [
                 {
-                  case: {
-                    $eq: ["$quantity", 0],
-                  },
+                  case: { $eq: ["$quantity", 0] },
                   then: "No Stock",
                 },
                 {
-                  case: {
-                    $lte: ["$quantity", 5],
-                  },
+                  case: { $lte: ["$quantity", 5] },
                   then: "Low Stock",
                 },
               ],
@@ -302,7 +313,6 @@ exports.stockAlerts = async (req, res) => {
           },
         },
       },
- 
       {
         $match: {
           stockStatus: {
@@ -310,7 +320,6 @@ exports.stockAlerts = async (req, res) => {
           },
         },
       },
- 
       {
         $project: {
           _id: 1,
@@ -323,7 +332,6 @@ exports.stockAlerts = async (req, res) => {
           price: 1,
         },
       },
- 
       {
         $sort: {
           itemStock: 1,
