@@ -381,21 +381,26 @@ exports.selectRefundMode = async (req, res) => {
       });
     }
 
-    const refund =
-      await Refund.findOneAndUpdate(
-        {
-          returnRequestId,
-        },
-        {
-          userId: returnRequest.userId,
-          refundMode,
-          bankDetails,
-        },
-        {
-          new: true,
-          upsert: true,
-        }
-      );
+    const order = await UserOrder.findById(
+  returnRequest.orderId
+);
+
+const refund = await Refund.findOneAndUpdate(
+  {
+    returnRequestId,
+  },
+  {
+    userId: returnRequest.userId,
+    refundMode,
+    bankDetails,
+    refundAmount: order.totalAmount
+  },
+  {
+    new: true,
+    upsert: true,
+    setDefaultsOnInsert: true
+  }
+);
 
     res.json({
       success: true,
