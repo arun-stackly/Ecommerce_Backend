@@ -55,6 +55,7 @@ const Electronics_Cases_HomepageRoutes = require("./routes/Electronics_Cases_Hom
 const AppliancehomepageRoutes = require("./routes/ApplianceshomepageRoutes");
 const ApplianceRoutes = require("./routes/ApplianceRoutes");
 const ApplianceProductdetailsRoutes = require("./routes/ApplianceProductdetailRoutes");
+const returnRoutes = require("./routes/returnRoutes");
 const dns = require("dns");
 
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
@@ -96,7 +97,7 @@ app.use("/api/auth/user", userAuthRoutes);
 app.use("/api/fashion", fashionHomeRoutes);
 app.use("/api/fashions", fashionRoutes);
 app.use("/api/productdetails", fashionProductDeatailRoutes);
-
+app.use("/api/returns", returnRoutes);
 app.use("/api/orders", userorderRoutes);
 
 app.use("/api/seller", protect, sellerOnly);
@@ -111,7 +112,7 @@ app.use("/api/seller/bank-details", sellerBankRoutes);
 app.use("/api/seller/invoices", invoiceRoutes);
 app.use("/api/seller/reports", sellerReportRoutes);
 
-app.use("/api/seller/refunds", refundRoutes);
+app.use("/api/refunds", refundRoutes);
 app.use("/api/seller/inventory", sellerInventoryRoutes);
 app.use("/api/seller-settings", require("./routes/sellerSettingsRoutes"));
 

@@ -1,16 +1,46 @@
 const Refund = require("../models/Refund");
+const ReturnRequest = require("../models/Return");
+const UserOrder = require("../models/UserOrder");
  
-/* ================= CREATE REFUND ================= */
 exports.createRefund = async (req, res) => {
   try {
+    const {
+      returnRequestId,
+      refundMode,
+      bankDetails,
+    } = req.body;
+
+    const returnRequest =
+      await ReturnRequest.findById(
+        returnRequestId
+      );
+
+    if (!returnRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Return request not found",
+      });
+    }
+
+    const order = await UserOrder.findById(
+      returnRequest.orderId
+    );
+
     const refund = await Refund.create({
-      sellerId: req.user._id,
-      orderId: req.body.orderId,
-      amount: req.body.amount,
-      reason: req.body.reason,
+      returnRequestId,
+      userId: returnRequest.userId,
+      refundMode,
+      refundAmount: order.totalAmount,
+      bankDetails:
+        refundMode === "BANK_ACCOUNT"
+          ? bankDetails
+          : {},
     });
- 
-    res.status(201).json(refund);
+
+    res.status(201).json({
+      success: true,
+      data: refund,
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -18,118 +48,112 @@ exports.createRefund = async (req, res) => {
     });
   }
 };
- 
-/* ================= GET SELLER REFUNDS ================= */
 exports.getRefunds = async (req, res) => {
   try {
-    const refunds = await Refund.find({
-      sellerId: req.user._id,
-    })
+    const refunds = await Refund.find()
       .populate({
-        path: "orderId",
-        select: "orderId createdAt orderStatus totalAmount paymentMode items",
+        path: "returnRequestId",
       })
       .sort({ createdAt: -1 });
- 
-    const formattedRefunds = refunds
-      .filter((refund) => refund.orderId)
-      .map((refund) => ({
-        refundId: refund._id,
- 
-        orderId: refund.orderId.orderId,
-        orderDate: refund.orderId.createdAt,
-        orderStatus: refund.orderId.orderStatus,
- 
-        product: {
-          name: refund.orderId.items?.[0]?.name || "",
-          image: refund.orderId.items?.[0]?.image || "",
-          quantity: refund.orderId.items?.[0]?.quantity || 0,
-        },
- 
-        amount: refund.amount,
-        refundStatus: refund.status,
-        reason: refund.reason,
- 
-        createdAt: refund.createdAt,
-      }));
- 
+
+    const formattedRefunds = await Promise.all(
+      refunds.map(async (refund) => {
+        const order = await UserOrder.findById(
+          refund.returnRequestId.orderId
+        );
+
+        return {
+          refundId: refund._id,
+
+          returnId:
+            refund.returnRequestId.returnId,
+
+          refundMode: refund.refundMode,
+
+          refundAmount:
+            refund.refundAmount,
+
+          refundStatus:
+            refund.refundStatus,
+
+          refundedAt:
+            refund.refundedAt,
+
+          orderId: order?.orderId,
+
+          product:
+            order?.items?.[0] || {},
+        };
+      })
+    );
+
     res.json({
       success: true,
       count: formattedRefunds.length,
       refunds: formattedRefunds,
     });
   } catch (error) {
-    console.error("Get Refunds Error:", error);
     res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
- 
-/* ================= REFUND SUMMARY ================= */
-exports.refundSummary = async (req, res) => {
+exports.refundSummary = async (
+  req,
+  res
+) => {
   try {
-    const sellerId = req.user._id;
- 
     const [
-      openRefunds,
-      newRefunds,
-      totalRefunds,
-      approvedRefunds,
-      rejectedRefunds,
-      totalRefundAmount,
+      pending,
+      processing,
+      completed,
+      failed,
+      totalAmount,
     ] = await Promise.all([
       Refund.countDocuments({
-        sellerId,
-        status: "pending",
+        refundStatus: "pending",
       }),
- 
+
       Refund.countDocuments({
-        sellerId,
-        status: "pending",
-        createdAt: {
-          $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        },
+        refundStatus: "processing",
       }),
- 
-      Refund.countDocuments({ sellerId }),
- 
+
       Refund.countDocuments({
-        sellerId,
-        status: "approved",
+        refundStatus: "completed",
       }),
- 
+
       Refund.countDocuments({
-        sellerId,
-        status: "rejected",
+        refundStatus: "failed",
       }),
- 
+
       Refund.aggregate([
-        {
-          $match: {
-            sellerId,
-          },
-        },
         {
           $group: {
             _id: null,
             total: {
-              $sum: "$amount",
+              $sum: "$refundAmount",
             },
           },
         },
       ]),
     ]);
- 
+
     res.json({
       success: true,
-      openRefunds,
-      newRefunds,
-      totalRefunds,
-      approvedRefunds,
-      rejectedRefunds,
-      totalRefundAmount: totalRefundAmount[0]?.total || 0,
+
+      pendingRefunds: pending,
+
+      processingRefunds:
+        processing,
+
+      completedRefunds:
+        completed,
+
+      failedRefunds: failed,
+
+      totalRefundAmount:
+        totalAmount[0]?.total || 0,
     });
   } catch (error) {
     res.status(500).json({
@@ -138,90 +162,197 @@ exports.refundSummary = async (req, res) => {
     });
   }
 };
- 
-/* ================= REFUND PROCESSING PAGE ================= */
-exports.getRefundProcessingData = async (req, res) => {
-  try {
-    const refund = await Refund.findById(req.params.id).populate({
-      path: "orderId",
-      select:
-        "orderId createdAt orderStatus totalAmount paymentMode customerName items",
-    });
- 
-    if (!refund) {
-      return res.status(404).json({
+exports.getRefundProcessingData =
+  async (req, res) => {
+    try {
+      const refund =
+        await Refund.findById(
+          req.params.id
+        )
+          .populate(
+            "returnRequestId"
+          )
+          .populate(
+            "userId",
+            "firstName lastName email"
+          );
+
+      if (!refund) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Refund not found",
+        });
+      }
+
+      const order =
+        await UserOrder.findById(
+          refund.returnRequestId
+            .orderId
+        );
+
+      res.json({
+        success: true,
+
+        refundId: refund._id,
+
+        refundMode:
+          refund.refundMode,
+
+        refundAmount:
+          refund.refundAmount,
+
+        refundStatus:
+          refund.refundStatus,
+
+        transactionId:
+          refund.transactionId,
+
+        refundedAt:
+          refund.refundedAt,
+
+        customer:
+          refund.userId,
+
+        returnRequest:
+          refund.returnRequestId,
+
+        product:
+          order?.items?.[0] || {},
+
+        orderSummary: {
+          orderId:
+            order?.orderId,
+
+          orderDate:
+            order?.createdAt,
+
+          totalAmount:
+            order?.totalAmount,
+
+          paymentMode:
+            order?.paymentMode,
+
+          orderStatus:
+            order?.orderStatus,
+        },
+
+        bankDetails:
+          refund.bankDetails,
+      });
+    } catch (error) {
+      res.status(500).json({
         success: false,
-        message: "Refund not found",
+        message:
+          error.message,
       });
     }
- 
-    if (!refund.orderId) {
-      return res.status(404).json({
-        success: false,
-        message: "Associated order not found",
-      });
-    }
- 
-    res.json({
-      success: true,
- 
-      refundId: refund._id,
-      status: refund.status,
-      reason: refund.reason,
-      requestedAmount: refund.amount,
- 
-      product: refund.orderId.items?.[0] || {},
- 
-      orderSummary: {
-        orderId: refund.orderId.orderId,
-        orderDate: refund.orderId.createdAt,
-        orderStatus: refund.orderId.orderStatus,
-        totalAmount: refund.orderId.totalAmount,
-        paymentMode: refund.orderId.paymentMode,
-        customerName: refund.orderId.customerName,
-      },
- 
-      refundDetails: {
-        returnShippingCharge: refund.returnShippingCharge,
-        additionalRefund: refund.additionalRefund,
-        note: refund.note,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
+  };
  
 /* ================= PROCESS REFUND ================= */
 exports.processRefund = async (req, res) => {
   try {
-    const { amount, returnShippingCharge, additionalRefund, note, status } =
-      req.body;
- 
-    const refund = await Refund.findById(req.params.id);
- 
+    const { refundStatus } = req.body;
+
+    const validStatuses = [
+      "pending",
+      "processing",
+      "completed",
+      "failed",
+    ];
+
+    if (
+      refundStatus &&
+      !validStatuses.includes(refundStatus)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid refund status",
+      });
+    }
+
+    const refund = await Refund.findById(
+      req.params.id
+    );
+
     if (!refund) {
       return res.status(404).json({
         success: false,
         message: "Refund not found",
       });
     }
- 
-    refund.amount = amount;
-    refund.returnShippingCharge = returnShippingCharge || 0;
-    refund.additionalRefund = additionalRefund || 0;
-    refund.note = note || "";
-    refund.status = status || "approved";
- 
+
+    refund.refundStatus =
+      refundStatus || "processing";
+
+    // Refund completed
+    if (refundStatus === "completed") {
+      refund.refundedAt = new Date();
+
+      // Auto generate transaction id
+      refund.transactionId = `REF-${Date.now()}-${Math.floor(
+        1000 + Math.random() * 9000
+      )}`;
+    }
+
+    // Refund failed
+    if (refundStatus === "failed") {
+      refund.refundedAt = null;
+      refund.transactionId = null;
+    }
+
     await refund.save();
- 
-    res.json({
+
+    return res.status(200).json({
       success: true,
       message: "Refund processed successfully",
-      refund,
+      data: refund,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.getRefundOptions = async (req, res) => {
+  try {
+    const returnRequest =
+      await ReturnRequest.findById(req.params.returnId);
+
+    if (!returnRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Return request not found",
+      });
+    }
+
+    const order = await UserOrder.findById(
+      returnRequest.orderId
+    );
+
+    res.json({
+      success: true,
+      data: {
+        refundAmount:
+          order.totalAmount,
+
+        options: [
+          {
+            code: "STACKLY_BALANCE",
+            title: "Stackly Balance",
+            description:
+              "Instant refund to wallet",
+          },
+
+          {
+            code: "BANK_ACCOUNT",
+            title: "Bank Account",
+            description:
+              "Refund to original bank account",
+          },
+        ],
+      },
     });
   } catch (error) {
     res.status(500).json({
@@ -230,5 +361,81 @@ exports.processRefund = async (req, res) => {
     });
   }
 };
- 
- 
+exports.selectRefundMode = async (req, res) => {
+  try {
+    const {
+      returnRequestId,
+      refundMode,
+      bankDetails,
+    } = req.body;
+
+    const returnRequest =
+      await ReturnRequest.findById(
+        returnRequestId
+      );
+
+    if (!returnRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Return request not found",
+      });
+    }
+
+    const refund =
+      await Refund.findOneAndUpdate(
+        {
+          returnRequestId,
+        },
+        {
+          userId: returnRequest.userId,
+          refundMode,
+          bankDetails,
+        },
+        {
+          new: true,
+          upsert: true,
+        }
+      );
+
+    res.json({
+      success: true,
+      message:
+        "Refund mode selected successfully",
+      data: refund,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.getRefundDetails = async (
+  req,
+  res
+) => {
+  try {
+    const refund =
+      await Refund.findOne({
+        returnRequestId:
+          req.params.returnId,
+      });
+
+    if (!refund) {
+      return res.status(404).json({
+        success: false,
+        message: "Refund not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: refund,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
