@@ -55,6 +55,10 @@ router.put(
   "/:id",protectUser,
   returnController.updateReturnReason)
 
-
+router.get(
+  "/tracking/:id",
+  protectUser,
+  returnController.getReturnTracking
+);
 
 module.exports = router;

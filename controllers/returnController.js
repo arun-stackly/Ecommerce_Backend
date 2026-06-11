@@ -1,6 +1,6 @@
 const ReturnRequest = require("../models/Return");
 const UserOrder = require("../models/UserOrder");
-
+const Refund = require("../models/Refund");
 
 /* =========================================
    CREATE RETURN / EXCHANGE REQUEST
@@ -402,6 +402,99 @@ exports.updateReturnReason = async (req, res) => {
 
   } catch (error) {
     return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+exports.getReturnTracking = async (req, res) => {
+  try {
+    const returnRequest =
+      await ReturnRequest.findById(req.params.id);
+
+    if (!returnRequest) {
+      return res.status(404).json({
+        success: false,
+        message: "Return not found"
+      });
+    }
+
+    const refund = await Refund.findOne({
+      returnRequestId: returnRequest._id
+    });
+
+    const order = await UserOrder.findById(
+      returnRequest.orderId
+    );
+
+    const product = order.items.find(
+      item =>
+        item._id.toString() ===
+        returnRequest.itemId.toString()
+    );
+
+    const requestDate =
+      returnRequest.createdAt;
+
+    const pickupDate = new Date(
+      requestDate.getTime() +
+      1 * 24 * 60 * 60 * 1000
+    );
+
+    const refundDate = new Date(
+      requestDate.getTime() +
+      2 * 24 * 60 * 60 * 1000
+    );
+
+    return res.json({
+      success: true,
+
+      returnId:
+        returnRequest.returnId,
+
+      product,
+
+      totalRefund:
+        refund?.refundAmount || 0,
+
+      refundMode:
+        refund?.refundMode || null,
+
+      bankDetails:
+        refund?.bankDetails || null,
+
+      timeline: [
+        {
+          title: "Return Requested",
+          date: requestDate,
+          completed: true
+        },
+
+        {
+          title: "Item Pickup",
+          date: pickupDate,
+          completed:
+            returnRequest.status !==
+            "requested"
+        },
+
+        {
+          title: "Refund Success",
+          date: refundDate,
+          completed:
+            refund?.refundStatus ===
+            "completed"
+        }
+      ],
+
+      notes: [
+        "Keep item in unused condition",
+        "Agent will check item before pickup"
+      ]
+    });
+
+  } catch (error) {
+    res.status(500).json({
       success: false,
       message: error.message
     });
