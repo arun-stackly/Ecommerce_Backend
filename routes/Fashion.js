@@ -24,6 +24,15 @@ router.get(
   FashionController.getFilteredProducts
 );
 
+//=======================================
+// 3. Filter Products
+// GET /api/category/:producttypeId/filter
+// =======================================
+router.get(
+  "/subcategory/:subcategoryId/filter",
+  FashionController.getProductsBySubcategory
+);
+
 
 // =======================================
 // 4. Upcoming Deals
@@ -43,11 +52,17 @@ router.get(
   "/category/:productTypeId/top-rated",
   FashionController.getTopRatedProducts
 );
-
+router.get(
+  "/subcategory/:subcategoryId/top-rated",
+  FashionController.getTopRatedProductsBySubcategory
+);
 
 router.get(
   "/:productTypeId/brands",
   FashionController.getBrandsByProductType
 );
-
+router.get(
+  "/subcategory/:subcategoryId/brands",
+  FashionController.getBrandsBySubcategory
+);
 module.exports = router;
