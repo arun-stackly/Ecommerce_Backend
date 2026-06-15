@@ -121,6 +121,31 @@ exports.getProductTypesBySubcategory =
 
     }
   };
+  /* ================= GET PRODUCT TYPES BY SUB SUB CATEGORY ================= */
+
+exports.getProductTypesBySubSubcategory = async (req, res) => {
+  try {
+    const { subSubcategoryId } = req.params;
+
+    const productTypes = await ProductType.find({
+      subSubcategory: subSubcategoryId,
+    })
+      .populate("category")
+      .populate("subcategory")
+      .populate("subSubcategory");
+
+    return res.status(200).json({
+      success: true,
+      count: productTypes.length,
+      productTypes,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 /* ================= UPDATE PRODUCT TYPE ================= */
 

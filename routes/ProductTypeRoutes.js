@@ -23,6 +23,10 @@ router.get(
   "/subcategory/:subcategoryId",
   controller.getProductTypesBySubcategory,
 );
+router.get(
+  "/subsubcategory/:subSubcategoryId",
+  controller.getProductTypesBySubSubcategory
+);
 
 router.put(
   "/:id",
