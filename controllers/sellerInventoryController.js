@@ -275,4 +275,86 @@ exports.deleteInventoryItem = async (req, res) => {
   }
 };
  
+ /* =======================================
+   UPDATE INVENTORY STOCK
+======================================= */
+ 
+exports.updateInventoryStock = async (req, res) => {
+  try {
+    const { action, quantity } = req.body;
+ 
+    // Validation
+    if (!["increase", "decrease"].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        message: "Action must be either 'increase' or 'decrease'",
+      });
+    }
+ 
+    if (!quantity || quantity <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a valid quantity",
+      });
+    }
+ 
+    const inventoryItem = await SellerInventory.findOne({
+      _id: req.params.id,
+      seller: req.user._id,
+    });
+ 
+    if (!inventoryItem) {
+      return res.status(404).json({
+        success: false,
+        message: "Inventory item not found",
+      });
+    }
+ 
+    // Decrease stock validation
+    if (action === "decrease" && inventoryItem.quantity < quantity) {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient stock",
+      });
+    }
+ 
+    // Calculate increment value
+    const stockChange = action === "increase" ? quantity : -quantity;
+ 
+    const updatedItem = await SellerInventory.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        seller: req.user._id,
+      },
+      {
+        $inc: {
+          quantity: stockChange,
+        },
+      },
+      {
+        new: true,
+      },
+    );
+ 
+    res.status(200).json({
+      success: true,
+      message:
+        action === "increase"
+          ? "Stock increased successfully"
+          : "Stock decreased successfully",
+ 
+      inventoryItem: {
+        _id: updatedItem._id,
+        productName: updatedItem.name,
+        itemStock: updatedItem.quantity,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+ 
  
