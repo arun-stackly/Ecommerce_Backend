@@ -14,6 +14,7 @@ const {
   setDeliveryAddress,
   updateCartQuantity,
   getRelatedProducts,
+  clearCart,
 } = require("../controllers/cartController");
 
 router.use(protectUser);
@@ -33,4 +34,5 @@ router.delete("/remove-coupon", removeCoupon);
 router.get("/coupons", getAvailableCoupons);
 router.put("/set-delivery-address", setDeliveryAddress);
 router.get("/similar/:sellerInventoryId", getRelatedProducts)
+router.delete("/clear-cart", clearCart);
 module.exports = router;

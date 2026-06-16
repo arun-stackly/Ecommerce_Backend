@@ -4,76 +4,116 @@ const SellerInventory = require("../models/SellerInventory");
 const Coupon = require("../models/couponModel");
 
 
-/* ================= OFFER CALCULATION ================= */
-function getOfferDetails(inventory, qty = 1) {
-  const discount = inventory.discountPercentage || 0;
+function getOfferDetails(inventory) {
+  const price = Number(inventory.price || 0);
 
-  let finalPrice = inventory.price;
+  const offerPrice =
+    inventory.discountPrice > 0
+      ? Number(inventory.discountPrice)
+      : price;
 
-  if (discount > 0) {
-    finalPrice =
-      inventory.price - (inventory.price * discount) / 100;
-  }
+  const offerPercentage =
+    inventory.discountPrice > 0
+      ? Math.round(
+          ((price - inventory.discountPrice) / price) * 100
+        )
+      : 0;
 
   return {
-    offerPercentage: discount,
-    offerPrice: finalPrice,
-    finalPrice,
+    offerPrice,
+    offerPercentage,
   };
 }
-
-/* ================= CART TOTALS ================= */
+/* ================= PRICE CALCULATION ================= */
 function calculateCartTotals(cart) {
-  let totalPrice = 0;
+  let originalPrice = 0;
+  let totalDiscount = 0;
+  let sellingPrice = 0;
 
   cart.sellerGroups.forEach((seller) => {
     let sellerTotal = 0;
 
     seller.items.forEach((item) => {
-      sellerTotal += item.totalPrice;
+      const inventory = item.sellerInventoryId;
+
+      const mrp =
+        Number(inventory.price || 0) *
+        Number(item.quantity || 0);
+
+      const offerPrice =
+        inventory.discountPrice > 0
+          ? inventory.discountPrice
+          : inventory.price;
+
+      const discountedTotal =
+        offerPrice * item.quantity;
+
+      originalPrice += mrp;
+
+      sellingPrice += discountedTotal;
+
+      totalDiscount += mrp - discountedTotal;
+
+      sellerTotal += discountedTotal;
     });
 
     seller.sellerTotal = sellerTotal;
-    totalPrice += sellerTotal;
   });
 
-  cart.priceDetails.price = totalPrice;
-  cart.priceDetails.platformFee = totalPrice > 0 ? 40 : 0;
+  cart.priceDetails.price = originalPrice;
+
+  cart.priceDetails.discount = totalDiscount;
+
+  cart.priceDetails.platformFee =
+    sellingPrice > 0 ? 40 : 0;
 
   cart.priceDetails.totalAmount =
-    cart.priceDetails.price -
-    (cart.priceDetails.discount || 0) -
+    originalPrice -
+    totalDiscount -
     (cart.priceDetails.couponDiscount || 0) +
     cart.priceDetails.platformFee;
 }
-
 /* ================= GET CART ================= */
 exports.getCart = async (req, res) => {
   try {
     const cart = await Cart.findOne({ userId: req.user._id }).populate({
       path: "sellerGroups.items.sellerInventoryId",
       select:
-        "name price media seller quantity isActive sizes discountPercentage",
+        "name price discountPrice media seller quantity isActive sizes discountPercentage",
     });
 
     if (!cart) {
-      return res.json({
-        success: true,
-        cart: {
-          sellerGroups: [],
-          itemsCount: 0,
-          priceDetails: {
-            price: 0,
-            discount: 0,
-            couponDiscount: 0,
-            platformFee: 0,
-            totalAmount: 0,
-          },
-        },
-      });
-    }
+  return res.json({
+    success: true,
+    cart: {
+      sellerGroups: [],
+      itemsCount: 0,
+      priceDetails: {
+        price: 0,
+        discount: 0,
+        couponDiscount: 0,
+        platformFee: 0,
+        totalAmount: 0,
+      },
+    },
+  });
+}
 
-    let itemsCount = 0;
+cart.sellerGroups.forEach((seller) => {
+  seller.items.forEach((item) => {
+    const inventory = item.sellerInventoryId;
+
+    const { offerPrice } = getOfferDetails(inventory);
+
+    item.totalPrice =
+      offerPrice * Number(item.quantity || 0);
+  });
+});
+
+calculateCartTotals(cart);
+await cart.save();
+
+let itemsCount = 0;
 
     const formatted = {
       _id: cart._id,
@@ -87,25 +127,25 @@ exports.getCart = async (req, res) => {
           items: seller.items.map((item) => {
             const inventory = item.sellerInventoryId;
 
-            const { offerPercentage, finalPrice } =
-              getOfferDetails(inventory, item.quantity);
-
+            const { offerPercentage, offerPrice } =
+  getOfferDetails(inventory);
             itemsCount += item.quantity;
 
-            return {
-              cartItemId: item._id,
-              sellerInventoryId: inventory._id,
-              name: inventory.name,
-              image:
-                inventory.media?.find((m) => m.type === "image")?.url ||
-                "",
-              price: inventory.price,
-              offerPercentage: `${offerPercentage}%`,
-              offerPrice: finalPrice,
-              quantity: item.quantity,
-              size: item.size || "",
-              totalPrice: finalPrice * item.quantity,
-            };
+           return {
+  cartItemId: item._id,
+  sellerInventoryId: inventory._id,
+  name: inventory.name,
+  image:
+    inventory.media?.find((m) => m.type === "image")?.url ||
+    "",
+  price: inventory.price,
+  discountPrice: inventory.discountPrice,
+  offerPercentage: `${offerPercentage}%`,
+  offerPrice,
+  quantity: item.quantity,
+  size: item.size || "",
+  totalPrice: offerPrice * item.quantity,
+};
           }),
         };
       }),
@@ -145,7 +185,6 @@ exports.addToCart = async (req, res) => {
       });
     }
 
-    /* ❗ STOCK CHECK */
     if (inventory.quantity < qty) {
       return res.status(400).json({
         success: false,
@@ -153,10 +192,7 @@ exports.addToCart = async (req, res) => {
       });
     }
 
-    const { offerPrice, offerPercentage } = getOfferDetails(
-      inventory,
-      qty
-    );
+    const { offerPrice } = getOfferDetails(inventory);
 
     let cart = await Cart.findOne({ userId: req.user._id });
 
@@ -176,7 +212,8 @@ exports.addToCart = async (req, res) => {
 
     let sellerGroup = cart.sellerGroups.find(
       (s) =>
-        s.sellerId.toString() === inventory.seller._id.toString()
+        s.sellerId.toString() ===
+        inventory.seller._id.toString()
     );
 
     if (!sellerGroup) {
@@ -199,25 +236,32 @@ exports.addToCart = async (req, res) => {
     );
 
     if (existingItem) {
-      existingItem.quantity += qty;
-      existingItem.totalPrice =
-        offerPrice * existingItem.quantity;
+      const newQty = existingItem.quantity + qty;
+
+      if (newQty > inventory.quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Only ${inventory.quantity} items available`,
+        });
+      }
+
+      existingItem.quantity = newQty;
+      existingItem.totalPrice = offerPrice * newQty;
     } else {
       sellerGroup.items.push({
         sellerInventoryId,
         quantity: qty,
         size: size || "",
-        offerPercentage: `${offerPercentage}%`,
-        offerPrice,
         totalPrice: offerPrice * qty,
       });
     }
 
-    /* ❗ REDUCE STOCK */
-    inventory.quantity -= qty;
-    await inventory.save();
-
+    await cart.populate({
+  path: "sellerGroups.items.sellerInventoryId",
+  select: "price discountPrice",
+});
     calculateCartTotals(cart);
+
     await cart.save();
 
     return res.json({
@@ -232,13 +276,16 @@ exports.addToCart = async (req, res) => {
     });
   }
 };
-
-/* ================= REMOVE ITEM ================= */
 exports.removeCartItem = async (req, res) => {
   try {
     const { cartItemId } = req.body;
 
-    const cart = await Cart.findOne({ userId: req.user._id });
+    const cart = await Cart.findOne({
+      userId: req.user._id,
+    }).populate({
+      path: "sellerGroups.items.sellerInventoryId",
+      select: "price discountPrice",
+    });
 
     if (!cart) {
       return res.status(404).json({
@@ -247,38 +294,23 @@ exports.removeCartItem = async (req, res) => {
       });
     }
 
-    let removedItem = null;
-
     cart.sellerGroups = cart.sellerGroups
       .map((seller) => {
-        seller.items = seller.items.filter((item) => {
-          if (item._id.toString() === cartItemId) {
-            removedItem = item;
-            return false;
-          }
-          return true;
-        });
+        seller.items = seller.items.filter(
+          (item) => item._id.toString() !== cartItemId
+        );
+
         return seller;
       })
-      .filter((s) => s.items.length > 0);
-
-    if (removedItem) {
-      const inventory = await SellerInventory.findById(
-        removedItem.sellerInventoryId
-      );
-
-      if (inventory) {
-        inventory.quantity += removedItem.quantity;
-        await inventory.save();
-      }
-    }
+      .filter((seller) => seller.items.length > 0);
 
     calculateCartTotals(cart);
+
     await cart.save();
 
     return res.json({
       success: true,
-      message: "Item removed",
+      message: "Item removed successfully",
       cart,
     });
   } catch (error) {
@@ -288,7 +320,6 @@ exports.removeCartItem = async (req, res) => {
     });
   }
 };
-
 /* ================= ADD COUPON ================= */
  
 exports.addCoupon = async (req, res) => {
@@ -486,7 +517,12 @@ return res.json({
  
 exports.removeCoupon = async (req, res) => {
   try {
-    const cart = await Cart.findOne({ userId: req.user._id });
+    const cart = await Cart.findOne({
+      userId: req.user._id,
+    }).populate({
+      path: "sellerGroups.items.sellerInventoryId",
+      select: "price discountPrice",
+    });
 
     if (!cart) {
       return res.status(404).json({
@@ -497,17 +533,18 @@ exports.removeCoupon = async (req, res) => {
 
     const removedCoupon = cart.coupon?.couponCode;
 
-cart.coupon = undefined;
+    cart.coupon = undefined;
+    cart.priceDetails.couponDiscount = 0;
 
-calculateCartTotals(cart);
+    calculateCartTotals(cart);
 
-await cart.save();
+    await cart.save();
 
-return res.json({
-  success: true,
-  message: "Coupon removed",
-  removedCoupon
-});
+    return res.json({
+      success: true,
+      message: "Coupon removed",
+      removedCoupon,
+    });
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -617,55 +654,9 @@ exports.setDeliveryAddress = async (req, res) => {
   }
 };
  
-/* ================= PRICE CALCULATION ================= */
 
 
-// function calculateCartTotals(cart) {
-
-//   let totalPrice = 0;
-
-//   cart.sellerGroups.forEach((seller) => {
-
-//     let sellerTotal = 0;
-
-//     seller.items.forEach((item) => {
-
-//       sellerTotal += item.totalPrice;
-
-//     });
-
-//     seller.sellerTotal = sellerTotal;
-
-//     totalPrice += sellerTotal;
-
-//   });
-
-//   /* ===== PRICE ===== */
-
-//   cart.priceDetails.price = totalPrice;
-
-//   /* ===== COUPON ===== */
-
-//   cart.priceDetails.couponDiscount =
-//     cart.coupon?.couponDiscount || 0;
-
-//   /* ===== PLATFORM FEE ===== */
-
-//   cart.priceDetails.platformFee =
-//     totalPrice > 0 ? 40 : 0;
-
-//   /* ===== TOTAL ===== */
-
-//   cart.priceDetails.totalAmount =
-//     cart.priceDetails.price -
-//     cart.priceDetails.discount -
-//     cart.priceDetails.couponDiscount +
-//     cart.priceDetails.platformFee;
-// }
-
-
-
- /* ================= UPDATE CART QUANTITY ================= */
+/* ================= UPDATE CART QUANTITY ================= */
 exports.updateCartQuantity = async (req, res) => {
   try {
     const { cartItemId, quantity } = req.body;
@@ -697,14 +688,39 @@ exports.updateCartQuantity = async (req, res) => {
 
     let found = false;
 
-    for (let seller of cart.sellerGroups) {
-      for (let item of seller.items) {
+    for (const seller of cart.sellerGroups) {
+      for (const item of seller.items) {
         if (item._id.toString() === cartItemId) {
+
+          const inventory = await SellerInventory.findById(
+            item.sellerInventoryId
+          );
+
+          if (!inventory) {
+            return res.status(404).json({
+              success: false,
+              message: "Product not found",
+            });
+          }
+
+          // Stock validation
+          if (qty > inventory.quantity) {
+            return res.status(400).json({
+              success: false,
+              message: `Only ${inventory.quantity} items available in stock`,
+            });
+          }
+
           item.quantity = qty;
+
+         const { offerPrice } = getOfferDetails(inventory);
+
+item.totalPrice = offerPrice * qty;
           found = true;
           break;
         }
       }
+
       if (found) break;
     }
 
@@ -714,12 +730,19 @@ exports.updateCartQuantity = async (req, res) => {
         message: "Cart item not found",
       });
     }
+await cart.populate({
+  path: "sellerGroups.items.sellerInventoryId",
+  select: "price discountPrice",
+});
+    // Recalculate seller totals and cart totals
+    calculateCartTotals(cart);
 
     await cart.save();
 
     return res.status(200).json({
       success: true,
       message: "Quantity updated successfully",
+      cart,
     });
   } catch (error) {
     return res.status(500).json({
@@ -777,6 +800,52 @@ exports.getRelatedProducts = async (req, res) => {
       success: true,
       message: "Related products fetched successfully",
       data: response,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+/* ================= CLEAR CART ================= */
+exports.clearCart = async (req, res) => {
+  try {
+    const cart = await Cart.findOne({
+      userId: req.user._id,
+    });
+
+    if (!cart) {
+      return res.status(404).json({
+        success: false,
+        message: "Cart not found",
+      });
+    }
+
+    // Remove all seller groups
+    cart.sellerGroups = [];
+
+    // Remove coupon
+    cart.coupon = undefined;
+
+    // Reset price details
+    cart.priceDetails = {
+      price: 0,
+      discount: 0,
+      couponDiscount: 0,
+      platformFee: 0,
+      totalAmount: 0,
+    };
+
+    // Reset delivery address (optional)
+    cart.deliveryTo = undefined;
+
+    await cart.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Cart cleared successfully",
+      cart,
     });
   } catch (error) {
     return res.status(500).json({
