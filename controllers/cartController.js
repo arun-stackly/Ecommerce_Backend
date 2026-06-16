@@ -73,6 +73,35 @@ function calculateCartTotals(cart) {
     (cart.priceDetails.couponDiscount || 0) +
     cart.priceDetails.platformFee;
 }
+/* ================= DELIVERY INFO ================= */
+
+const getEstimatedDeliveryDate = () => {
+  const date = new Date();
+
+  // Delivery after 5 days
+  date.setDate(date.getDate() + 5);
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const getDeliveryInfo = (cart) => {
+  if (!cart?.deliveryTo?.city || !cart?.deliveryTo?.pincode) {
+    return null;
+  }
+
+  return {
+    deliverTo: `${cart.deliveryTo.city} - ${cart.deliveryTo.pincode}`,
+    estimatedDelivery: getEstimatedDeliveryDate(),
+    deliveryMessage:
+      cart.priceDetails.totalAmount >= 500
+        ? "Free Delivery"
+        : "Delivery Charges Applicable",
+  };
+};
 /* ================= GET CART ================= */
 exports.getCart = async (req, res) => {
   try {
@@ -114,46 +143,73 @@ calculateCartTotals(cart);
 await cart.save();
 
 let itemsCount = 0;
+const formatted = {
+  _id: cart._id,
+  userId: cart.userId,
 
-    const formatted = {
-      _id: cart._id,
-      userId: cart.userId,
-      sellerGroups: cart.sellerGroups.map((seller) => {
+  deliveryInfo: getDeliveryInfo(cart),
+
+  sellerGroups: cart.sellerGroups.map((seller) => {
+    return {
+      sellerId: seller.sellerId,
+      sellerName: seller.sellerName,
+      sellerTotal: seller.sellerTotal,
+
+      items: seller.items.map((item) => {
+        const inventory = item.sellerInventoryId;
+
+        const { offerPercentage, offerPrice } =
+          getOfferDetails(inventory);
+
+        itemsCount += item.quantity;
+
         return {
-          sellerId: seller.sellerId,
-          sellerName: seller.sellerName,
-          sellerTotal: seller.sellerTotal,
+          cartItemId: item._id,
+          sellerInventoryId: inventory._id,
 
-          items: seller.items.map((item) => {
-            const inventory = item.sellerInventoryId;
+          name: inventory.name,
 
-            const { offerPercentage, offerPrice } =
-  getOfferDetails(inventory);
-            itemsCount += item.quantity;
+          image:
+            inventory.media?.find(
+              (m) => m.type === "image"
+            )?.url || "",
 
-           return {
-  cartItemId: item._id,
-  sellerInventoryId: inventory._id,
-  name: inventory.name,
-  image:
-    inventory.media?.find((m) => m.type === "image")?.url ||
-    "",
-  price: inventory.price,
-  discountPrice: inventory.discountPrice,
-  offerPercentage: `${offerPercentage}%`,
-  offerPrice,
-  quantity: item.quantity,
-  size: item.size || "",
-  totalPrice: offerPrice * item.quantity,
-};
-          }),
+          price: inventory.price,
+
+          discountPrice:
+            inventory.discountPrice || inventory.price,
+
+          offerPercentage: `${offerPercentage}%`,
+
+          offerPrice,
+
+          quantity: item.quantity,
+
+          size: item.size || "",
+
+          totalPrice:
+            offerPrice * item.quantity,
+
+          estimatedDelivery:
+            getEstimatedDeliveryDate(),
         };
       }),
-
-      itemsCount,
-      priceDetails: cart.priceDetails,
-      coupon: cart.coupon || null,
     };
+  }),
+
+  itemsCount,
+
+  priceDetails: {
+    ...cart.priceDetails,
+
+    savingsMessage:
+      cart.priceDetails.discount > 0
+        ? `You will save ₹${cart.priceDetails.discount} on this order`
+        : null,
+  },
+
+  coupon: cart.coupon || null,
+};
 
     return res.json({
       success: true,
