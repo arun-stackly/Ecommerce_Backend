@@ -171,8 +171,11 @@ exports.getSellerReturns = async (req, res) => {
 exports.getSingleReturn = async (req, res) => {
   try {
     const returnReq = await ReturnRequest.findById(req.params.id)
-      .populate("orderId")
-      .populate("userId", "firstName lastName email");
+      .populate("userId", "firstName lastName email")
+      .populate({
+        path: "orderId",
+        select: "orderId orderStatus createdAt items",
+      });
 
     if (!returnReq) {
       return res.status(404).json({
@@ -181,10 +184,35 @@ exports.getSingleReturn = async (req, res) => {
       });
     }
 
+    // 🔥 KEEP ONLY RETURNED ITEM
+    const returnedItem = returnReq.orderId.items.find(
+      (item) =>
+        item._id.toString() === returnReq.itemId.toString()
+    );
+
     return res.json({
       success: true,
-      data: returnReq,
+      data: {
+        returnId: returnReq.returnId,
+        status: returnReq.status,
+        reasonCode: returnReq.reasonCode,
+        reasonText: returnReq.reasonText,
+        refundAmount: returnReq.refundAmount,
+        isRefunded: returnReq.isRefunded,
+        createdAt: returnReq.createdAt,
+
+        user: returnReq.userId,
+
+        order: {
+          orderId: returnReq.orderId.orderId,
+          orderStatus: returnReq.orderId.orderStatus,
+        },
+
+        // ✅ ONLY RETURNED ITEM (NOT ALL ITEMS)
+        item: returnedItem || null,
+      },
     });
+
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -192,7 +220,6 @@ exports.getSingleReturn = async (req, res) => {
     });
   }
 };
-
 /* =========================================
    UPDATE RETURN STATUS (ADMIN / SELLER)
 ========================================= */

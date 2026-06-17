@@ -29,9 +29,10 @@ const returnRequestSchema = new mongoose.Schema(
       ref: "Seller",
     },
 
-    type: {
+      type: {
       type: String,
-      enum: ["return", "exchange"],
+      default: "return",
+      enum: ["return"],   // only return allowed
       required: true,
     },
 

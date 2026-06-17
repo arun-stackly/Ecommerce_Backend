@@ -58,52 +58,64 @@ exports.createOrder = async (req, res) => {
     }
  
     /* ================= ORDER ITEMS ================= */
-    let orderItems = [];
+   /* ================= ORDER ITEMS ================= */
+let orderItems = [];
+
+for (const sellerGroup of cart.sellerGroups) {
+  for (const item of sellerGroup.items) {
+
+    const inventory = await SellerInventory.findById(
+      item.sellerInventoryId
+    );
+
+    if (!inventory || !inventory.isActive) continue;
+
+    /* ================= SIZE VALIDATION ================= */
+
  
-    for (const sellerGroup of cart.sellerGroups) {
-      for (const item of sellerGroup.items) {
-        const inventory = await SellerInventory.findById(
-          item.sellerInventoryId,
-        );
- 
-        if (!inventory || !inventory.isActive) continue;
- 
-        // size validation
-        if (inventory.sizes?.length && !inventory.sizes.includes(item.size)) {
-          return res.status(400).json({
-            success: false,
-            message: `Size not available for ${inventory.name}`,
-          });
-        }
- 
-        // stock check
-        if (item.quantity > inventory.quantity) {
-          return res.status(400).json({
-            success: false,
-            message: `${inventory.name} out of stock`,
-          });
-        }
- 
-        const itemTotal = inventory.price * item.quantity;
- 
-        orderItems.push({
-          sellerId: inventory.seller,
-          sellerInventoryId: inventory._id,
-          name: inventory.name,
-          image: inventory.media?.find((m) => m.type === "image")?.url || "",
-          price: inventory.price,
-          quantity: item.quantity,
-          size: item.size,
-          itemTotal,
-          itemStatus: "ordered",
-        });
- 
-        // reduce stock
-        await SellerInventory.findByIdAndUpdate(inventory._id, {
-          $inc: { quantity: -item.quantity, soldCount: item.quantity },
-        });
-      }
+
+    /* ================= STOCK CHECK ================= */
+
+    if (item.quantity > inventory.quantity) {
+      return res.status(400).json({
+        success: false,
+        message: `${inventory.name} is out of stock`,
+      });
     }
+
+    const offerPrice =
+      inventory.discountPrice > 0
+        ? inventory.discountPrice
+        : inventory.price;
+
+    const itemTotal = offerPrice * item.quantity;
+
+    orderItems.push({
+      sellerId: inventory.seller,
+      sellerInventoryId: inventory._id,
+      name: inventory.name,
+      image:
+        inventory.media?.find((m) => m.type === "image")?.url || "",
+      price: inventory.price,
+      discountPrice: inventory.discountPrice || 0,
+      quantity: item.quantity,
+      size: item.size || "",
+      itemTotal,
+      itemStatus: "ordered",
+    });
+
+    // Reduce stock
+    await SellerInventory.findByIdAndUpdate(
+      inventory._id,
+      {
+        $inc: {
+          quantity: -item.quantity,
+          soldCount: item.quantity,
+        },
+      }
+    );
+  }
+}
  
     if (!orderItems.length) {
       return res.status(400).json({
@@ -234,6 +246,7 @@ exports.getOrders = async (req, res) => {
       paymentMode: order.paymentMode,
  
       items: order.items.map((item) => ({
+        itemId: item._id,   // ✅ ADD THIS
         name: item.name,
         image: item.image,
         quantity: item.quantity,
@@ -291,10 +304,15 @@ exports.updateOrderStatus = async (req, res) => {
  
     order.orderStatus = orderStatus;
     /* ===== UPDATE ITEM STATUS ===== */
- 
-    if (orderStatus === "delivered") {
-      order.deliveredAt = order.deliveredAt || new Date();
-    }
+ if (orderStatus === "delivered") {
+  const deliveredDate = new Date();
+
+  order.paymentDetails.deliveredAt = deliveredDate;
+
+  order.items.forEach((item) => {
+    item.itemStatus = "delivered";
+  });
+}
  
     await order.save();
  
@@ -598,9 +616,30 @@ exports.cancelOrder = async (req, res) => {
       });
     }
  
-    // Cancel Order
-    order.orderStatus = "cancelled";
-    order.cancelledAt = new Date();
+   // Cancel Order
+order.orderStatus = "cancelled";
+order.cancelledAt = new Date();
+
+// Restore stock
+for (const item of order.items) {
+  const inventory = await SellerInventory.findById(
+    item.sellerInventoryId
+  );
+
+  if (inventory) {
+    inventory.quantity += item.quantity;
+
+    inventory.soldCount = Math.max(
+      0,
+      (inventory.soldCount || 0) - item.quantity
+    );
+
+    await inventory.save();
+  }
+
+  item.itemStatus = "cancelled";
+}
+  
  
     // Cancel all items
     order.items.forEach((item) => {
