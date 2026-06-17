@@ -1,5 +1,86 @@
+const mongoose = require("mongoose");
 const Ad = require("../models/Ad");
+const SellerInventory = require("../models/SellerInventory");
 
+exports.getProductsForAd = async (req, res) => {
+  try {
+    const {
+      category,
+      subcategory,
+      subSubcategory,
+      productType,
+    } = req.query;
+
+    const filter = {
+      seller: req.user._id, // change to seller if your schema uses seller
+      isActive: true,
+    };
+
+    // Convert ObjectId fields
+    if (
+      category &&
+      mongoose.Types.ObjectId.isValid(category)
+    ) {
+      filter.category =
+        new mongoose.Types.ObjectId(category);
+    }
+
+    if (
+      subcategory &&
+      mongoose.Types.ObjectId.isValid(subcategory)
+    ) {
+      filter.subcategory =
+        new mongoose.Types.ObjectId(subcategory);
+    }
+
+    if (
+      subSubcategory &&
+      mongoose.Types.ObjectId.isValid(subSubcategory)
+    ) {
+      filter.subSubcategory =
+        new mongoose.Types.ObjectId(subSubcategory);
+    }
+
+    if (
+      productType &&
+      mongoose.Types.ObjectId.isValid(productType)
+    ) {
+      filter.productType =
+        new mongoose.Types.ObjectId(productType);
+    }
+
+    console.log("User ID:", req.user._id);
+    console.log("Filter:", filter);
+
+    const products = await SellerInventory.find(filter)
+      .populate("productType", "name")
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .select(
+        "_id name productType category subcategory subSubcategory media"
+      );
+
+    console.log(
+      "Products Found:",
+      products.length
+    );
+
+    return res.status(200).json({
+      success: true,
+      count: products.length,
+      data: products,
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 /* =========================================
    CREATE ADVERTISEMENT
 ========================================= */
@@ -15,6 +96,33 @@ exports.createAd = async (req, res) => {
       mediaUrl,
       adType,
     } = req.body;
+
+    // Validate Product
+    const inventory = await SellerInventory.findOne({
+      _id: product,
+      seller: req.user._id,
+      isActive: true,
+    });
+
+    if (!inventory) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found or does not belong to seller",
+      });
+    }
+
+    // Validate hierarchy
+    if (
+      inventory.category.toString() !== category ||
+      inventory.subcategory?.toString() !== subcategory ||
+      inventory.subSubcategory?.toString() !== subSubcategory ||
+      inventory.productType?.toString() !== productType
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Selected product does not match category hierarchy",
+      });
+    }
 
     const ad = await Ad.create({
       seller: req.user._id,
@@ -35,15 +143,12 @@ exports.createAd = async (req, res) => {
     });
 
   } catch (error) {
-
     return res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
-
 /* =========================================
    BULK CREATE ADS
 ========================================= */
