@@ -26,16 +26,33 @@ exports.createRefund = async (req, res) => {
       returnRequest.orderId
     );
 
-    const refund = await Refund.create({
-      returnRequestId,
-      userId: returnRequest.userId,
-      refundMode,
-      refundAmount: order.totalAmount,
-      bankDetails:
-        refundMode === "BANK_ACCOUNT"
-          ? bankDetails
-          : {},
-    });
+   const returnedItem = order.items.find(
+  (item) =>
+    item._id.toString() ===
+    returnRequest.itemId.toString()
+);
+
+if (!returnedItem) {
+  return res.status(404).json({
+    success: false,
+    message: "Returned item not found",
+  });
+}
+
+const refundAmount =
+  Number(returnedItem.price) *
+  Number(returnedItem.quantity);
+
+const refund = await Refund.create({
+  returnRequestId,
+  userId: returnRequest.userId,
+  refundMode,
+  refundAmount,
+  bankDetails:
+    refundMode === "BANK_ACCOUNT"
+      ? bankDetails
+      : {},
+});
 
     res.status(201).json({
       success: true,
@@ -317,8 +334,9 @@ exports.processRefund = async (req, res) => {
 };
 exports.getRefundOptions = async (req, res) => {
   try {
-    const returnRequest =
-      await ReturnRequest.findById(req.params.returnId);
+    const returnRequest = await ReturnRequest.findById(
+      req.params.returnId
+    );
 
     if (!returnRequest) {
       return res.status(404).json({
@@ -331,20 +349,49 @@ exports.getRefundOptions = async (req, res) => {
       returnRequest.orderId
     );
 
-    res.json({
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Find returned item
+    const returnedItem = order.items.find(
+      (item) =>
+        item._id.toString() ===
+        returnRequest.itemId.toString()
+    );
+
+    if (!returnedItem) {
+      return res.status(404).json({
+        success: false,
+        message: "Returned item not found in order",
+      });
+    }
+
+    const refundAmount =
+      returnedItem.price * returnedItem.quantity;
+
+    return res.json({
       success: true,
       data: {
-        refundAmount:
-          order.totalAmount,
+        refundAmount,
+
+        item: {
+          itemId: returnedItem._id,
+          name: returnedItem.name,
+          image: returnedItem.image,
+          quantity: returnedItem.quantity,
+          price: returnedItem.price,
+        },
 
         options: [
           {
             code: "STACKLY_BALANCE",
             title: "Stackly Balance",
-            description:
-              "Instant refund to wallet",
+            description: "Instant refund to wallet",
           },
-
           {
             code: "BANK_ACCOUNT",
             title: "Bank Account",
@@ -385,6 +432,22 @@ exports.selectRefundMode = async (req, res) => {
   returnRequest.orderId
 );
 
+const returnedItem = order.items.find(
+  (item) =>
+    item._id.toString() ===
+    returnRequest.itemId.toString()
+);
+
+if (!returnedItem) {
+  return res.status(404).json({
+    success: false,
+    message: "Returned item not found",
+  });
+}
+
+const refundAmount =
+  returnedItem.price * returnedItem.quantity;
+
 const refund = await Refund.findOneAndUpdate(
   {
     returnRequestId,
@@ -393,15 +456,14 @@ const refund = await Refund.findOneAndUpdate(
     userId: returnRequest.userId,
     refundMode,
     bankDetails,
-    refundAmount: order.totalAmount
+    refundAmount,
   },
   {
     new: true,
     upsert: true,
-    setDefaultsOnInsert: true
+    setDefaultsOnInsert: true,
   }
 );
-
     res.json({
       success: true,
       message:
