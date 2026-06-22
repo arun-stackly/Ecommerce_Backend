@@ -334,7 +334,7 @@ exports.updateOrderStatus = async (req, res) => {
 ========================================= */
 exports.addReview = async (req, res) => {
   try {
-    const { rating, comment } = req.body;
+    const { rating, comment, images } = req.body;
  
     if (!rating) {
       return res.status(400).json({
@@ -360,6 +360,8 @@ exports.addReview = async (req, res) => {
       rating,
  
       comment: comment || "",
+ 
+      images: Array.isArray(images) ? images : [],
     };
  
     const newReviewCount = (inventory.reviewCount || 0) + 1;
@@ -400,6 +402,7 @@ exports.addReview = async (req, res) => {
     });
   }
 };
+ 
 /* =========================================
    GET PRODUCT REVIEWS
    GET /api/products/:id/reviews

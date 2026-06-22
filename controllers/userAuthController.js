@@ -1,5 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const User = require("../models/UserAuth");
+const UserBank = require("../models/UserBank");
+const UserCard = require("../models/UserCard");
 const generateToken = require("../utils/generateToken");
  
 /* ================= GENERATE OTP ================= */
@@ -218,6 +220,227 @@ exports.logoutUser = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     message: "Logged out successfully",
+  });
+});
+ 
+/* ================= GET BANK DETAILS ================= */
+exports.getBankDetails = asyncHandler(async (req, res) => {
+  const bank = await UserBank.findOne({
+    user: req.user._id,
+  });
+ 
+  if (!bank) {
+    return res.status(200).json({
+      success: true,
+      data: null,
+    });
+  }
+ 
+  res.json({
+    success: true,
+    data: bank,
+  });
+});
+ 
+/* ================= UPDATE BANK DETAILS ================= */
+exports.updateBankDetails = asyncHandler(async (req, res) => {
+  const {
+    accountHolderName,
+    bankName,
+    country,
+    accountNumber,
+    ifscCode,
+    state,
+  } = req.body;
+ 
+  let bank = await UserBank.findOne({
+    user: req.user._id,
+  });
+ 
+  if (!bank) {
+    bank = await UserBank.create({
+      user: req.user._id,
+      accountHolderName,
+      bankName,
+      country: country || "India",
+      accountNumber,
+      ifscCode,
+      state,
+    });
+  } else {
+    bank.accountHolderName = accountHolderName || bank.accountHolderName;
+ 
+    bank.bankName = bankName || bank.bankName;
+ 
+    bank.country = country || bank.country;
+ 
+    bank.accountNumber = accountNumber || bank.accountNumber;
+ 
+    bank.ifscCode = ifscCode || bank.ifscCode;
+ 
+    bank.state = state || bank.state;
+ 
+    await bank.save();
+  }
+ 
+  res.json({
+    success: true,
+    message: "Bank details updated successfully",
+    data: bank,
+  });
+});
+ 
+/* ================= ADD UPI DETAILS ================= */
+exports.addUpiDetails = asyncHandler(async (req, res) => {
+  const { upiId } = req.body;
+ 
+  if (!upiId) {
+    res.status(400);
+    throw new Error("UPI ID is required");
+  }
+ 
+  const exists = await UserBank.findOne({
+    user: req.user._id,
+  });
+ 
+  if (exists && exists.upiId) {
+    res.status(400);
+    throw new Error("UPI details already exist");
+  }
+ 
+  let bank;
+ 
+  if (!exists) {
+    bank = await UserBank.create({
+      user: req.user._id,
+      upiId,
+    });
+  } else {
+    exists.upiId = upiId;
+ 
+    bank = await exists.save();
+  }
+ 
+  res.status(201).json({
+    success: true,
+    message: "UPI details added successfully",
+    data: {
+      upiId: bank.upiId,
+    },
+  });
+});
+/* ================= GET UPI DETAILS ================= */
+exports.getUpiDetails = asyncHandler(async (req, res) => {
+  const bank = await UserBank.findOne({
+    user: req.user._id,
+  }).select("upiId");
+ 
+  res.json({
+    success: true,
+    data: {
+      upiId: bank?.upiId || "",
+    },
+  });
+});
+/* ================= UPDATE UPI DETAILS ================= */
+exports.updateUpiDetails = asyncHandler(async (req, res) => {
+  const { upiId } = req.body;
+ 
+  let bank = await UserBank.findOne({
+    user: req.user._id,
+  });
+ 
+  if (!bank) {
+    bank = await UserBank.create({
+      user: req.user._id,
+      upiId,
+    });
+  } else {
+    bank.upiId = upiId;
+    await bank.save();
+  }
+ 
+  res.json({
+    success: true,
+    message: "UPI details updated successfully",
+    data: {
+      upiId: bank.upiId,
+    },
+  });
+});
+exports.addCardDetails = asyncHandler(async (req, res) => {
+  const { cardNumber, cardHolderName, expiryDate, cvv } = req.body;
+ 
+  const card = await UserCard.create({
+    user: req.user._id,
+    cardNumber,
+    cardHolderName,
+    expiryDate,
+    cvv,
+  });
+ 
+  res.status(201).json({
+    success: true,
+    message: "Card added successfully",
+    data: card,
+  });
+});
+exports.getCardDetails = asyncHandler(async (req, res) => {
+  const cards = await UserCard.find({
+    user: req.user._id,
+  });
+ 
+  res.json({
+    success: true,
+    count: cards.length,
+    data: cards,
+  });
+});
+exports.updateCardDetails = asyncHandler(async (req, res) => {
+  const card = await UserCard.findOne({
+    _id: req.params.id,
+    user: req.user._id,
+  });
+ 
+  if (!card) {
+    res.status(404);
+    throw new Error("Card not found");
+  }
+ 
+  const { cardNumber, cardHolderName, expiryDate, cvv } = req.body;
+ 
+  if (cardNumber) card.cardNumber = cardNumber;
+ 
+  if (cardHolderName) card.cardHolderName = cardHolderName;
+ 
+  if (expiryDate) card.expiryDate = expiryDate;
+ 
+  if (cvv) card.cvv = cvv;
+ 
+  await card.save();
+ 
+  res.json({
+    success: true,
+    message: "Card updated successfully",
+    data: card,
+  });
+});
+exports.deleteCardDetails = asyncHandler(async (req, res) => {
+  const card = await UserCard.findOne({
+    _id: req.params.id,
+    user: req.user._id,
+  });
+ 
+  if (!card) {
+    res.status(404);
+    throw new Error("Card not found");
+  }
+ 
+  await card.deleteOne();
+ 
+  res.json({
+    success: true,
+    message: "Card deleted successfully",
   });
 });
  
