@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+ 
 const sellerInventorySchema = new mongoose.Schema(
   {
     seller: {
@@ -7,30 +7,30 @@ const sellerInventorySchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-
+ 
     // Product Basic Info
     name: {
       type: String,
       required: true,
       trim: true,
     },
-
+ 
     description: {
       type: String,
     },
-
+ 
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
       required: true,
     },
-
+ 
     subcategory: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Subcategory",
       required: false,
     },
-
+ 
     subSubcategory: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "SubSubcategory",
@@ -45,34 +45,34 @@ const sellerInventorySchema = new mongoose.Schema(
       name: String,
       logo: String,
     },
-
+ 
     // Product Variants
-
+ 
     sizes: {
       type: [String],
       default: [],
     },
-
+ 
     colours: {
       type: [String],
       default: [],
     },
-
+ 
     countryOfOrigin: {
       type: String,
     },
-
+ 
     // Pricing & Quantity
     price: {
       type: Number,
       required: true,
     },
-
+ 
     discountPrice: {
       type: Number,
       default: 0,
     },
-
+ 
     returnStatus: {
       type: String,
       enum: ["returnable", "non-returnable"],
@@ -82,7 +82,7 @@ const sellerInventorySchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-
+ 
     // Media (Images or Videos)
     media: [
       {
@@ -98,16 +98,32 @@ const sellerInventorySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    reviews: {
-      type: Array,
-      default: [],
-    },
-
+    reviews: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+ 
+        name: String,
+ 
+        rating: Number,
+ 
+        comment: String,
+ 
+        images: [String],
+ 
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     rating: {
       type: Number,
       default: 0,
     },
-
+ 
     reviewCount: {
       type: Number,
       default: 0,
@@ -123,18 +139,18 @@ const sellerInventorySchema = new mongoose.Schema(
         default: false,
       },
     },
-
+ 
     // System Fields
     views: {
       type: Number,
       default: 0,
     },
-
+ 
     soldCount: {
       type: Number,
       default: 0,
     },
-
+ 
     isActive: {
       type: Boolean,
       default: true,
@@ -142,8 +158,10 @@ const sellerInventorySchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
-
+ 
 // Prevent OverwriteModelError
 module.exports =
   mongoose.models.SellerInventory ||
   mongoose.model("SellerInventory", sellerInventorySchema);
+ 
+ 

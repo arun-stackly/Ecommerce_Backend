@@ -356,6 +356,7 @@ exports.getPriceRanges =
     });
   }
 };
+
 exports.getProductsByBrand = async (req, res) => {
   try {
     const { categoryId, brandName } = req.params;
@@ -448,3 +449,121 @@ exports.getProductsByBrand = async (req, res) => {
     });
   }
 };
+exports.getProductsByBrandAndSubcategory = async (req, res) => {
+  try {
+    const { subcategoryId, brandName } = req.params;
+
+    console.log("subcategoryId:", subcategoryId);
+    console.log("brandName:", brandName);
+
+    const filter = {
+      subcategory: subcategoryId,
+      isActive: true,
+      "brand.name": {
+        $regex: new RegExp(`^${brandName}$`, "i"),
+      },
+    };
+
+    console.log("Filter:", filter);
+
+    const count = await SellerInventory.countDocuments(filter);
+    console.log("Matching Products:", count);
+
+    const products = await SellerInventory.find(filter)
+      .select("name price discountPrice brand media");
+
+    return res.status(200).json({
+      success: true,
+      brand: brandName,
+      totalProducts: products.length,
+      products,
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+  exports.getProductsByBrandAndSubSubcategory =
+  async (req, res) => {
+    try {
+      const {
+        subSubcategoryId,
+        brandName,
+      } = req.params;
+
+      const filter = {
+        subSubcategory:
+          subSubcategoryId,
+        isActive: true,
+        "brand.name": {
+          $regex: new RegExp(
+            `^${brandName}$`,
+            "i"
+          ),
+        },
+      };
+
+      const products =
+        await SellerInventory.find(filter)
+          .select(
+            "name price discountPrice brand media"
+          );
+
+      res.status(200).json({
+        success: true,
+        brand: brandName,
+        totalProducts:
+          products.length,
+        products,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  };
+  exports.getProductsByBrandAndProductType =
+  async (req, res) => {
+    try {
+      const {
+        productTypeId,
+        brandName,
+      } = req.params;
+
+      const filter = {
+        productType: productTypeId,
+        isActive: true,
+        "brand.name": {
+          $regex: new RegExp(
+            `^${brandName}$`,
+            "i"
+          ),
+        },
+      };
+
+      const products =
+        await SellerInventory.find(filter)
+          .select(
+            "name price discountPrice brand media"
+          );
+
+      res.status(200).json({
+        success: true,
+        brand: brandName,
+        totalProducts:
+          products.length,
+        products,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  };

@@ -25,4 +25,16 @@ router.get(
   "/:categoryId/brands/:brandName/products",
   ctrl.getProductsByBrand
 );
+router.get(
+  "/:subcategoryId/brands/:brandName/products",
+  ctrl.getProductsByBrandAndSubcategory
+);
+router.get(
+  "/:subSubcategoryId/brands/:brandName/products",
+  ctrl.getProductsByBrandAndSubSubcategory
+);
+router.get(
+  "/:productTypeId/brands/:brandName/products",
+  ctrl.getProductsByBrandAndProductType
+);
 module.exports = router;
