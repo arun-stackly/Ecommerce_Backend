@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const SellerInventory = require("../models/SellerInventory");
 
 const PRODUCT_FIELDS =
-  "name media brand price discountPrice category productType";
+  "name media brand price discountPrice category productType sizes";
 
 /* =======================================
    1. Get Products By Category
@@ -143,7 +143,7 @@ exports.getTopRatedProducts = async (req, res) => {
       isActive: true,
     })
       .select(
-        "name media brand price discountPrice category reviews"
+        "name media brand price discountPrice sizes category reviews"
       )
       .populate("category", "name");
 
@@ -169,6 +169,7 @@ exports.getTopRatedProducts = async (req, res) => {
           price: product.price,
           discountPrice: product.discountPrice,
           category: product.category,
+          sizes: product.sizes || [],
           avgRating: Number(
             avgRating.toFixed(1)
           ),
@@ -211,7 +212,7 @@ exports.getTopRatedProductsBySubcategory = async (req, res) => {
       isActive: true,
     })
       .select(
-        "name media brand price discountPrice category reviews"
+        "name media brand price discountPrice category sizes reviews"
       )
       .populate("category", "name");
 
@@ -236,6 +237,7 @@ exports.getTopRatedProductsBySubcategory = async (req, res) => {
           price: product.price,
           discountPrice: product.discountPrice,
           category: product.category,
+          sizes: product.sizes || [],
           avgRating: Number(avgRating.toFixed(1)),
           reviewCount: totalReviews,
         };
