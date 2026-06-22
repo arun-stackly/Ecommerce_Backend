@@ -22,19 +22,22 @@ router.get(
 );
 
 router.get(
-  "/:categoryId/brands/:brandName/products",
+  "/category/:categoryId/brands/:brandName/products",
   ctrl.getProductsByBrand
 );
+
 router.get(
-  "/:subcategoryId/brands/:brandName/products",
+  "/subcategory/:subcategoryId/brands/:brandName/products",
   ctrl.getProductsByBrandAndSubcategory
 );
+
 router.get(
-  "/:subSubcategoryId/brands/:brandName/products",
+  "/subsubcategory/:subSubcategoryId/brands/:brandName/products",
   ctrl.getProductsByBrandAndSubSubcategory
 );
+
 router.get(
-  "/:productTypeId/brands/:brandName/products",
+  "/producttype/:productTypeId/brands/:brandName/products",
   ctrl.getProductsByBrandAndProductType
 );
 module.exports = router;

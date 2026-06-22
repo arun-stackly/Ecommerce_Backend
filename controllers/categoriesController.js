@@ -450,6 +450,7 @@ exports.getProductsByBrand = async (req, res) => {
   }
 };
 exports.getProductsByBrandAndSubcategory = async (req, res) => {
+    console.log("SUBCATEGORY API CALLED");
   try {
     const { subcategoryId, brandName } = req.params;
 
