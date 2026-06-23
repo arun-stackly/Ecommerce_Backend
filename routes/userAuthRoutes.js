@@ -9,6 +9,7 @@ const {
   // Profile
   getProfile,
   updateProfile,
+  deleteProfile,
  
   // Bank Details
   getBankDetails,
@@ -48,6 +49,7 @@ router.post("/resend-otp", resendOTP);
 /* ================= PROFILE ================= */
 router.get("/profile", protectUser, getProfile);
 router.put("/profile", protectUser, updateProfile);
+router.delete("/profile", protectUser, deleteProfile )
  
 /* ================= BANK DETAILS ================= */
 router.get("/bank-details", protectUser, getBankDetails);

@@ -223,6 +223,22 @@ exports.logoutUser = asyncHandler(async (req, res) => {
   });
 });
  
+/* ================= DELETE PROFILE ================= */
+exports.deleteProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  await User.findByIdAndDelete(req.user._id);
+
+  res.json({
+    success: true,
+    message: "Profile deleted successfully",
+  });
+});
 /* ================= GET BANK DETAILS ================= */
 exports.getBankDetails = asyncHandler(async (req, res) => {
   const bank = await UserBank.findOne({
