@@ -5,6 +5,9 @@ const Refund = require("../models/Refund");
 const Cart = require("../models/cartModel");
 const generateOrderId = require("../utils/generateOrderid");
 const Seller = require("../models/SellerProfile"); // adjust if different
+const BankAccount = require("../models/UserBank");
+const Card = require("../models/UserCard");
+const Payment = require("../models/Payment");
  
 /* =========================
    CREATE ORDER
@@ -12,8 +15,12 @@ const Seller = require("../models/SellerProfile"); // adjust if different
  
 exports.createOrder = async (req, res) => {
   try {
-    const { shippingAddressId, paymentMode } = req.body;
- 
+   const {
+  shippingAddressId,
+  paymentMode,
+  paymentMethodId,
+   paymentId,
+} = req.body;
     const user = req.user;
  
     /* ================= USER CHECK ================= */
@@ -35,7 +42,10 @@ exports.createOrder = async (req, res) => {
     }
  
     /* ================= SHIPPING ADDRESS ================= */
-    const shippingAddress = await Address.findById(shippingAddressId);
+   const shippingAddress = await Address.findOne({
+  _id: shippingAddressId,
+  userId: user._id,
+});
  
     if (!shippingAddress) {
       return res.status(404).json({
@@ -57,7 +67,7 @@ exports.createOrder = async (req, res) => {
       });
     }
  
-    /* ================= ORDER ITEMS ================= */
+   
    /* ================= ORDER ITEMS ================= */
 let orderItems = [];
 
@@ -135,25 +145,185 @@ for (const sellerGroup of cart.sellerGroups) {
     const orderPlacedDate = new Date();
     const estimatedDeliveryDate = new Date();
     estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 5);
+
+  
  
     /* ================= PAYMENT DETAILS (IMPORTANT FIX) ================= */
-    const paymentDetails =
-      paymentMode === "COD"
-        ? {
-            paymentType: "Cash on Delivery",
-            message: `Pay ₹${totalAmount} on delivery`,
-            payableAmount: totalAmount,
-            currency: "INR",
-            paymentStatus: "pending",
-          }
-        : {
-            paymentType: "Online Payment",
-            message: "Payment pending confirmation",
-            payableAmount: totalAmount,
-            currency: "INR",
-            paymentStatus: "pending",
-          };
- 
+    let paymentDetails = {};
+   /* ================= PAYMENT MODE VALIDATION ================= */
+
+const validModes = ["COD", "UPI", "CARD", "BANK"];
+
+if (!validModes.includes(paymentMode)) {
+  return res.status(400).json({
+    success: false,
+    message: "Invalid payment mode",
+  });
+}
+
+if (
+  ["UPI", "CARD", "BANK"].includes(paymentMode) &&
+  !paymentMethodId
+) {
+  return res.status(400).json({
+    success: false,
+    message: "paymentMethodId is required",
+  });
+}
+
+if (
+  ["UPI", "CARD", "BANK"].includes(paymentMode) &&
+  !paymentId
+) {
+  return res.status(400).json({
+    success: false,
+    message: "paymentId is required",
+  });
+}
+
+/* ================= VERIFY PAYMENT ================= */
+
+let payment = null;
+
+if (paymentMode !== "COD") {
+  payment = await Payment.findOne({
+    _id: paymentId,
+    customerId: user._id,
+  });
+
+  if (!payment) {
+    return res.status(404).json({
+      success: false,
+      message: "Payment not found",
+    });
+  }
+
+  if (payment.method !== paymentMode) {
+    return res.status(400).json({
+      success: false,
+      message: "Payment method mismatch",
+    });
+  }
+
+  if (payment.status !== "success") {
+    return res.status(400).json({
+      success: false,
+      message: "Payment not completed",
+    });
+  }
+
+  const existingOrder = await UserOrder.findOne({
+    paymentId: payment._id,
+  });
+
+  if (existingOrder) {
+    return res.status(400).json({
+      success: false,
+      message: "Order already created for this payment",
+    });
+  }
+}
+
+if (paymentMode === "COD") {
+  paymentDetails = {
+    paymentType: "Cash on Delivery",
+    message: `Pay in cash  ₹${totalAmount} when your order is delivered`,
+    payableAmount: totalAmount,
+    currency: "INR",
+    paymentStatus: "pending",
+  };
+}
+
+else if (paymentMode === "UPI") {
+  const bankAccount = await BankAccount.findOne({
+    _id: paymentMethodId,
+    user: user._id,
+  });
+
+  if (!bankAccount || !bankAccount.upiId) {
+    return res.status(404).json({
+      success: false,
+      message: "UPI account not found",
+    });
+  }
+
+  paymentDetails = {
+    paymentType: "UPI",
+    upiId: bankAccount.upiId,
+    payableAmount: totalAmount,
+    transactionId: payment.transactionId,
+    currency: "INR",
+    paymentStatus:
+  payment?.status === "success"
+    ? "paid"
+    : "pending",
+    message: `Pay using ${bankAccount.upiId}`,
+  };
+}
+
+else if (paymentMode === "CARD") {
+  const card = await Card.findOne({
+    _id: paymentMethodId,
+    user: user._id,
+  });
+
+  if (!card) {
+    return res.status(404).json({
+      success: false,
+      message: "Card not found",
+    });
+  }
+
+  paymentDetails = {
+    paymentType: "Card",
+    cardHolderName: card.cardHolderName,
+    cardNumber: `XXXX-XXXX-${card.cardNumber.slice(-4)}`,
+    transactionId: payment.transactionId,
+    payableAmount: totalAmount,
+    currency: "INR",
+    paymentStatus:
+  payment?.status === "success"
+    ? "paid"
+    : "pending",
+    message: "Payment Completed",
+  };
+}
+
+else if (paymentMode === "BANK") {
+  const bankAccount = await BankAccount.findOne({
+    _id: paymentMethodId,
+    user: user._id,
+  });
+
+  if (!bankAccount) {
+    return res.status(404).json({
+      success: false,
+      message: "Bank account not found",
+    });
+  }
+
+  paymentDetails = {
+    paymentType: "Bank Transfer",
+    bankName: bankAccount.bankName,
+    accountNumber: `XXXX${bankAccount.accountNumber.slice(-4)}`,
+    ifscCode: bankAccount.ifscCode,
+    transactionId: payment.transactionId,
+    payableAmount: totalAmount,
+    currency: "INR",
+    paymentStatus:
+  payment?.status === "success"
+    ? "paid"
+    : "pending",
+    message: "Payment Completed",
+  };
+}
+
+else {
+  return res.status(400).json({
+    success: false,
+    message: "Invalid payment mode",
+  });
+}
     /* ================= CREATE ORDER ================= */
     const order = await UserOrder.create({
       orderId: generateOrderId(),
@@ -191,11 +361,15 @@ for (const sellerGroup of cart.sellerGroups) {
       discount: discount + couponDiscount,
       totalAmount,
  
-      orderPlacedDate,
+      orderPlacedDate: {
+  type: Date,
+  default: Date.now,
+},
       estimatedDeliveryDate,
       orderStatus: "ordered",
  
       // ✅ STORE IN DB
+      paymentId: payment?._id,
       paymentDetails,
     });
  
@@ -280,51 +454,120 @@ exports.getSingleOrder = async (req, res) => {
   }
 };
  
-/* =========================
-   UPDATE ORDER STATUS (Admin/Seller Only)
-========================= */
-exports.updateOrderStatus = async (req, res) => {
+exports.getSingleOrderItem = async (
+  req,
+  res
+) => {
   try {
-    const { orderStatus } = req.body;
- 
-    // 🔒 ROLE CHECK
-    if (req.user.role !== "admin" && req.user.role !== "seller") {
-      return res.status(403).json({
-        success: false,
-        message: "You are not authorized to update order status",
-      });
-    }
- 
-    const order = await UserOrder.findById(req.params.id);
- 
+    const { orderId, itemId } = req.params;
+
+    const order =
+      await UserOrder.findById(orderId);
+
     if (!order) {
       return res.status(404).json({
         success: false,
         message: "Order not found",
       });
     }
- 
-    order.orderStatus = orderStatus;
-    /* ===== UPDATE ITEM STATUS ===== */
- if (orderStatus === "delivered") {
-  const deliveredDate = new Date();
 
-  order.paymentDetails.deliveredAt = deliveredDate;
+    const item = order.items.id(itemId);
 
-  order.items.forEach((item) => {
-    item.itemStatus = "delivered";
-  });
-}
- 
-    await order.save();
- 
-    res.json({
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: "Item not found",
+      });
+    }
+
+    return res.json({
       success: true,
-      message: "Order status updated successfully",
+      data: {
+        orderId: order.orderId,
+        orderStatus: order.orderStatus,
+        estimatedDeliveryDate:
+          order.estimatedDeliveryDate,
+
+        item,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+/* =========================
+   UPDATE ORDER STATUS (Admin/Seller Only)
+========================= */
+exports.updateOrderStatus = async (req, res) => {
+  try {
+    const { orderStatus } = req.body;
+
+    if (
+      req.user.role !== "admin" &&
+      req.user.role !== "seller"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "You are not authorized to update order status",
+      });
+    }
+
+    const order = await UserOrder.findById(
+      req.params.id
+    );
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    const validStatuses = [
+      "ordered",
+      "shipped",
+      "delivered",
+      "cancelled",
+      "exchange",
+      "return",
+    ];
+
+    if (!validStatuses.includes(orderStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid order status",
+      });
+    }
+
+    order.orderStatus = orderStatus;
+
+    order.items.forEach((item) => {
+      item.itemStatus = orderStatus;
+    });
+
+    if (orderStatus === "delivered") {
+      order.paymentDetails.deliveredAt =
+        new Date();
+    }
+
+    if (orderStatus === "cancelled") {
+      order.cancelledAt = new Date();
+    }
+
+    await order.save();
+
+    return res.json({
+      success: true,
+      message:
+        "Order status updated successfully",
       data: order,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -454,42 +697,7 @@ exports.getProductReviews = async (req, res) => {
     });
   }
 };
-exports.verifyPayment = async (req, res) => {
-  try {
-    const { orderId, paymentId } = req.body;
- 
-    const order = await UserOrder.findById(orderId);
- 
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
- 
-    // safety check
-    if (!order.paymentDetails) {
-      order.paymentDetails = {};
-    }
- 
-    // ✅ ONLY PAYMENT STATUS UPDATE
-    order.paymentDetails.paymentStatus = "paid";
-    order.paymentDetails.transactionId = paymentId;
- 
-    await order.save();
- 
-    return res.json({
-      success: true,
-      message: "Payment marked as PAID",
-      data: order,
-    });
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
-};
+
 exports.getOrderInvoice = async (req, res) => {
   try {
     const { id } = req.params;

@@ -8,7 +8,7 @@ const userOrderController = require("../controllers/userorderController");
 
 // 🔥 STATIC ROUTES FIRST
 router.post("/create-order", protectUser, userOrderController.createOrder);
-router.post("/verifystatus", userOrderController.verifyPayment);
+
 
 
 // list routes
@@ -17,6 +17,11 @@ router.patch("/:id/status", protect,  userOrderController.updateOrderStatus);
 
 // 🔥 DYNAMIC ROUTES LAST
 router.get("/:id", protectUser, userOrderController.getSingleOrder);
+router.get(
+  "/:orderId/items/:itemId",
+  protectUser,
+  userOrderController.getSingleOrderItem
+);
 router.post("/:id/review", protectUser, userOrderController.addReview);
 router.get("/:id/reviews", userOrderController.getProductReviews);
 /* =========================

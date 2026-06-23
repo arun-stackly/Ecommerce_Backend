@@ -2,6 +2,7 @@ const asyncHandler = require("express-async-handler");
 const User = require("../models/UserAuth");
 const UserBank = require("../models/UserBank");
 const UserCard = require("../models/UserCard");
+const Address = require("../models/addressModel")
 const generateToken = require("../utils/generateToken");
  
 /* ================= GENERATE OTP ================= */
@@ -163,24 +164,38 @@ exports.resendOTP = asyncHandler(async (req, res) => {
   });
 });
  
-/* ================= GET PROFILE ================= */
+
+
 exports.getProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).select(
-    "firstName lastName email phone",
+    "firstName lastName email phone"
   );
- 
+
   if (!user) {
     res.status(404);
     throw new Error("User not found");
   }
- 
+
+  const [address, bankAccounts, cards] =
+    await Promise.all([
+      Address.find({ userId: req.user._id }),
+      UserBank.find({ user: req.user._id }),
+      UserCard.find({ user: req.user._id }),
+    ]);
+
   res.json({
     success: true,
     data: {
-      userId: user._id, // ✅ USER ID
-      name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+      userId: user._id,
+      name: `${user.firstName || ""} ${
+        user.lastName || ""
+      }`.trim(),
       email: user.email,
       phone: user.phone,
+
+      address,
+      bankAccounts,
+      cards,
     },
   });
 });
@@ -243,7 +258,7 @@ exports.deleteProfile = asyncHandler(async (req, res) => {
 exports.getBankDetails = asyncHandler(async (req, res) => {
   const bank = await UserBank.findOne({
     user: req.user._id,
-  });
+  }).select("-upiId"); // Exclude upiId
  
   if (!bank) {
     return res.status(200).json({
@@ -284,27 +299,38 @@ exports.updateBankDetails = asyncHandler(async (req, res) => {
       state,
     });
   } else {
-    bank.accountHolderName = accountHolderName || bank.accountHolderName;
+    if (accountHolderName)
+      bank.accountHolderName = accountHolderName;
  
-    bank.bankName = bankName || bank.bankName;
+    if (bankName)
+      bank.bankName = bankName;
  
-    bank.country = country || bank.country;
+    if (country)
+      bank.country = country;
  
-    bank.accountNumber = accountNumber || bank.accountNumber;
+    if (accountNumber)
+      bank.accountNumber = accountNumber;
  
-    bank.ifscCode = ifscCode || bank.ifscCode;
+    if (ifscCode)
+      bank.ifscCode = ifscCode;
  
-    bank.state = state || bank.state;
+    if (state)
+      bank.state = state;
  
     await bank.save();
   }
  
+  // Exclude upiId from response
+  const responseData = bank.toObject();
+  delete responseData.upiId;
+ 
   res.json({
     success: true,
     message: "Bank details updated successfully",
-    data: bank,
+    data: responseData,
   });
 });
+ 
  
 /* ================= ADD UPI DETAILS ================= */
 exports.addUpiDetails = asyncHandler(async (req, res) => {
