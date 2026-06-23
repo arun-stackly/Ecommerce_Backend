@@ -235,16 +235,18 @@ exports.getOrders = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(limit)
       .select(
-        "orderId orderStatus createdAt items estimatedDeliveryDate paymentMode",
+        "_id orderId orderStatus createdAt items shippingAddress billingAddress estimatedDeliveryDate paymentMode",
       );
  
     const formattedOrders = orders.map((order) => ({
+       _id: order._id, // MongoDB Order ObjectId
       orderId: order.orderId,
-      status: order.orderStatus,
+      Orderstatus: order.orderStatus,
       createdAt: order.createdAt,
       estimatedDeliveryDate: order.estimatedDeliveryDate,
       paymentMode: order.paymentMode,
- 
+      shippingAddress:order.shippingAddress,
+      billingAddress:order.billingAddress,
       items: order.items.map((item) => ({
         itemId: item._id,   // ✅ ADD THIS
         name: item.name,
@@ -795,94 +797,87 @@ exports.getCancelledPrepaidOrder = async (req, res) => {
   }
 };
  
- exports.getOrdersByStatusWithItems = async (req, res) => {
-
+exports.getOrdersByStatusWithItems = async (req, res) => {
   try {
+    const { status } = req.params;
 
-    const { status } = req.params; // ✅ FIX HERE
+    // Step 1: Check all orders in DB
+    const totalOrders = await UserOrder.countDocuments();
+    console.log("Total Orders In DB:", totalOrders);
 
+    // Step 2: Check orders for current user
+    const userOrders = await UserOrder.find({
+      customerId: req.user._id,
+    }).select("orderId customerId orderStatus");
 
+    console.log("=================================");
+    console.log("Orders For Current User:", userOrders.length);
 
+    userOrders.forEach((order) => {
+      console.log({
+        orderId: order.orderId,
+        customerId: order.customerId.toString(),
+        orderStatus: order.orderStatus,
+      });
+    });
+
+  
+
+    // Step 3: Apply filter
     const filter = {
+  customerId: req.user._id,
+};
 
-      customerId: req.user._id, // ✅ safer than req.user.id
+if (status) {
+  const statusMap = {
+    ordered: "placed",
+  };
 
-    };
-
-
-
-    if (status) {
-
-      filter.orderStatus = status;
-
-    }
-
+  filter.orderStatus = statusMap[status] || status;
+}
 
 
     const orders = await UserOrder.find(filter)
-
       .sort({ createdAt: -1 })
+      .select(
+        "_id orderId orderStatus createdAt items estimatedDeliveryDate deliveredAt shippingAddress paymentMode"
+      );
 
-      .select("orderId orderStatus createdAt items estimatedDeliveryDate deliveredAt");
-
-
+    console.log("Filtered Orders Found:", orders.length);
 
     const formatted = orders.map((order) => ({
-
+      _id: order._id,
       orderId: order.orderId,
-
-      status: order.orderStatus,
-
+      orderStatus: order.orderStatus,
       createdAt: order.createdAt,
-
       estimatedDeliveryDate: order.estimatedDeliveryDate,
-
       deliveredAt: order.deliveredAt,
-
-
+      paymentMode: order.paymentMode,
+      shippingAddress: order.shippingAddress,
 
       products: order.items.map((item) => ({
-
+        itemId: item._id,
         productId: item.sellerInventoryId,
-
         name: item.name,
-
         image: item.image,
-
         quantity: item.quantity,
-
         size: item.size,
-
         price: item.price,
-
         itemStatus: item.itemStatus,
-
       })),
-
     }));
 
-
-
-    return res.json({
-
+    return res.status(200).json({
       success: true,
-
       count: formatted.length,
-
       data: formatted,
-
     });
-
   } catch (error) {
+    console.error("Get Orders Error:", error);
 
     return res.status(500).json({
-
       success: false,
-
       message: error.message,
-
     });
-
   }
-
 };
