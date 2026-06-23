@@ -8,11 +8,7 @@ const paymentSchema = new mongoose.Schema(
       required: true,
     },
  
-    orderId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "UserOrder",
-      required: true,
-    },
+   
  
     amount: {
       type: Number,
@@ -21,7 +17,7 @@ const paymentSchema = new mongoose.Schema(
  
     method: {
       type: String,
-      enum: ["COD", "UPI", "CARD", "EMI"],
+      enum: ["COD", "UPI", "CARD", "BANK"],
       required: true,
     },
  

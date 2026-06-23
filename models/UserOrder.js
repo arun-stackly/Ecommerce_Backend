@@ -37,6 +37,10 @@ const orderItemSchema = new mongoose.Schema({
 const userOrderSchema = new mongoose.Schema(
   {
     orderId: { type: String, required: true, unique: true },
+    paymentId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Payment",
+},
  
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -70,7 +74,7 @@ const userOrderSchema = new mongoose.Schema(
     },
     paymentMode: {
       type: String,
-      enum: ["COD", "UPI", "CARD", "EMI"],
+      enum: ["COD", "UPI", "CARD", "BANK"],
       required: true,
     },
  
@@ -101,6 +105,20 @@ const userOrderSchema = new mongoose.Schema(
  
     paymentDetails: {
       paymentType: { type: String },
+      // Bank
+  bankName: String,
+  accountHolderName: String,
+  accountNumber: String,
+  ifscCode: String,
+
+  // UPI
+  upiId: String,
+
+  // Card
+  cardHolderName: String,
+  cardNumber: String,
+  expiryDate: String,
+
       message: { type: String },
       payableAmount: { type: Number },
       currency: { type: String, default: "INR" },

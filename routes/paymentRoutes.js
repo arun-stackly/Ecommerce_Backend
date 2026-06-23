@@ -9,9 +9,10 @@ router.use(protectUser);
 
 router.post("/create", paymentController.createPayment);
 
-router.post("/verify", paymentController.verifyPayment);
-router.post("/card/create", paymentController.cardPayment);
+router.post("/verify-payment", paymentController.verifyPayment);
+router.post("/verify", paymentController.verifyPayments);
+// router.post("/card/create", paymentController.cardPayment);
 
-router.post("/card/verify", paymentController.verifyCardPayment);
+// router.post("/card/verify", paymentController.verifyCardPayment);
 
 module.exports = router;
