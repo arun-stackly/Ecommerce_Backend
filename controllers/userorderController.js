@@ -399,45 +399,81 @@ else {
     });
   }
 };
+
+
 exports.getOrders = async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
- 
-    const orders = await UserOrder.find({ customerId: req.user.id })
+
+    const orders = await UserOrder.find({
+      customerId: req.user.id,
+    })
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .select(
-        "_id orderId orderStatus createdAt items shippingAddress billingAddress estimatedDeliveryDate paymentMode",
+        "_id orderId orderStatus createdAt items shippingAddress billingAddress estimatedDeliveryDate paymentMode"
       );
- 
-    const formattedOrders = orders.map((order) => ({
-       _id: order._id, // MongoDB Order ObjectId
-      orderId: order.orderId,
-      Orderstatus: order.orderStatus,
-      createdAt: order.createdAt,
-      estimatedDeliveryDate: order.estimatedDeliveryDate,
-      paymentMode: order.paymentMode,
-      shippingAddress:order.shippingAddress,
-      billingAddress:order.billingAddress,
-      items: order.items.map((item) => ({
-        itemId: item._id,   // ✅ ADD THIS
-        name: item.name,
-        image: item.image,
-        quantity: item.quantity,
-        size: item.size,
-        price: item.price,
-        itemStatus: item.itemStatus,
-      })),
-    }));
- 
-    res.json({
+
+    const formattedOrders = await Promise.all(
+      orders.map(async (order) => {
+        const itemsWithReviews = await Promise.all(
+          order.items.map(async (item) => {
+           
+
+            let product = null;
+
+            if (item.sellerInventoryId) {
+              product = await SellerInventory.findById(
+  item.sellerInventoryId
+).select("reviews rating reviewCount");
+            }
+
+           
+
+            return {
+              itemId: item._id,
+              productId: item.sellerInventoryId|| null,
+              name: item.name,
+              image: item.image,
+              quantity: item.quantity,
+              size: item.size,
+              price: item.price,
+              itemStatus: item.itemStatus,
+
+              rating: product?.rating || 0,
+              reviewCount: product?.reviewCount || 0,
+              reviews: product?.reviews || [],
+            };
+          })
+        );
+
+        return {
+          _id: order._id,
+          orderId: order.orderId,
+          orderStatus: order.orderStatus,
+          createdAt: order.createdAt,
+          estimatedDeliveryDate: order.estimatedDeliveryDate,
+          paymentMode: order.paymentMode,
+          shippingAddress: order.shippingAddress,
+          billingAddress: order.billingAddress,
+          items: itemsWithReviews,
+        };
+      })
+    );
+
+    res.status(200).json({
       success: true,
       data: formattedOrders,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get Orders Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 /* =========================
