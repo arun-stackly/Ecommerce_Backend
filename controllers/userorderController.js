@@ -490,15 +490,11 @@ exports.getSingleOrder = async (req, res) => {
   }
 };
  
-exports.getSingleOrderItem = async (
-  req,
-  res
-) => {
+exports.getSingleOrderItem = async (req, res) => {
   try {
     const { orderId, itemId } = req.params;
 
-    const order =
-      await UserOrder.findById(orderId);
+    const order = await UserOrder.findById(orderId);
 
     if (!order) {
       return res.status(404).json({
@@ -516,15 +512,26 @@ exports.getSingleOrderItem = async (
       });
     }
 
+    let rating = 0;
+
+    if (item.sellerInventoryId) {
+      const product = await SellerInventory.findById(
+        item.sellerInventoryId
+      ).select("rating");
+
+      rating = product?.rating || 0;
+    }
+
     return res.json({
       success: true,
       data: {
         orderId: order.orderId,
         orderStatus: order.orderStatus,
-        estimatedDeliveryDate:
-          order.estimatedDeliveryDate,
+        estimatedDeliveryDate: order.estimatedDeliveryDate,
 
         item,
+
+        rating, // rating from SellerInventory
       },
     });
   } catch (error) {
