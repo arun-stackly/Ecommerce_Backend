@@ -132,21 +132,23 @@ exports.createReturnRequest = async (req, res) => {
 exports.getMyReturns = async (req, res) => {
   try {
     const returns = await ReturnRequest.find({
-      userId: req.user._id
-    });
+      userId: req.user._id,
+    }).sort({ createdAt: -1 });
 
-    res.json({
+    const returnCount = returns.length;
+
+    res.status(200).json({
       success: true,
-      data: returns
+      returnCount,
+      data: returns,
     });
   } catch (err) {
     res.status(500).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
-
 exports.getSellerReturns = async (req, res) => {
   try {
     const returns = await ReturnRequest.find({
@@ -189,7 +191,10 @@ exports.getSingleReturn = async (req, res) => {
       (item) =>
         item._id.toString() === returnReq.itemId.toString()
     );
-
+const totalAmount = returnedItem
+  ? returnedItem.itemTotal ||
+    returnedItem.price * returnedItem.quantity
+  : 0;
     return res.json({
       success: true,
       data: {
@@ -197,6 +202,8 @@ exports.getSingleReturn = async (req, res) => {
         status: returnReq.status,
         reasonCode: returnReq.reasonCode,
         reasonText: returnReq.reasonText,
+         totalAmount, // amount paid for this item
+
         refundAmount: returnReq.refundAmount,
         isRefunded: returnReq.isRefunded,
         createdAt: returnReq.createdAt,
