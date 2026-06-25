@@ -94,6 +94,10 @@ app.use(
   "/api/electronics/toprated",
   require("./routes/Electronics_TopRatedRoutes"),
 );
+app.use(
+  "/api/specification-templates",
+  require("./routes/specificationTemplateRoutes")
+);
 app.use("/api/electronics/productdetails", Electronics_ProductDetailsRoutes);
 app.use("/api/elctronics/specifications", Elecronics_specificationRoutes);
 app.use("/api/cases/home", Electronics_Cases_HomepageRoutes);

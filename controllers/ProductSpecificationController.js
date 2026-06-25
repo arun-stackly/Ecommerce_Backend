@@ -6,67 +6,58 @@ const SellerInventory = require("../models/SellerInventory");
    ADD SPECIFICATIONS
    POST /api/specifications/:sellerInventoryId
 ========================================= */
-exports.addSpecifications =
-  async (req, res) => {
-    try {
-      const { sellerInventoryId } =
-        req.params;
+exports.addSpecifications = async (req, res) => {
+  try {
+    const { sellerInventoryId } = req.params;
 
-     const { specifications } = req.body;
+    const {
+      productTypeId,
+      specifications,
+    } = req.body;
 
-      /* ===== INVENTORY CHECK ===== */
+    const inventory =
+      await SellerInventory.findById(
+        sellerInventoryId
+      );
 
-      const inventory =
-        await SellerInventory.findById(
-          sellerInventoryId,
-        );
-
-      if (!inventory) {
-        return res.status(404).json({
-          success: false,
-          message: "Product not found",
-        });
-      }
-
-      /* ===== DUPLICATE CHECK ===== */
-
-      const existing =
-        await Specification.findOne({
-          sellerInventoryId,
-        });
-
-      if (existing) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Specifications already exist. Use update API.",
-        });
-      }
-
-      /* ===== CREATE ===== */
-
-      const specification =
-        await Specification.create({
-          sellerInventoryId,
-
-          specifications,
-        });
-
-      res.status(201).json({
-        success: true,
-
-        specification,
-      });
-
-    } catch (error) {
-      res.status(500).json({
+    if (!inventory) {
+      return res.status(404).json({
         success: false,
-
-        message: error.message,
+        message: "Product not found",
       });
     }
-  };
 
+    const existing =
+      await Specification.findOne({
+        sellerInventoryId,
+      });
+
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Specifications already exist",
+      });
+    }
+
+    const specification =
+      await Specification.create({
+        sellerInventoryId,
+        productTypeId,
+        specifications,
+      });
+
+    res.status(201).json({
+      success: true,
+      specification,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 /* =========================================
    GET SPECIFICATIONS
    GET /api/specifications/:sellerInventoryId
@@ -92,19 +83,16 @@ exports.getSpecifications =
 
       res.status(200).json({
         success: true,
-
-       specifications: specification.specifications,
+        specifications:
+          specification.specifications,
       });
-
     } catch (error) {
       res.status(500).json({
         success: false,
-
         message: error.message,
       });
     }
   };
-
 /* =========================================
    UPDATE SPECIFICATIONS
    PUT /api/specifications/:sellerInventoryId
