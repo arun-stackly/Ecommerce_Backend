@@ -56,6 +56,8 @@ const AppliancehomepageRoutes = require("./routes/ApplianceshomepageRoutes");
 const ApplianceRoutes = require("./routes/ApplianceRoutes");
 const ApplianceProductdetailsRoutes = require("./routes/ApplianceProductdetailRoutes");
 const returnRoutes = require("./routes/returnRoutes");
+const faqRoutes = require("./routes/faqRoutes");
+const contactRoutes = require("./routes/contactRoutes")
  
 const userBankRoutes = require("./routes/userBankRoutes");
  
@@ -110,6 +112,8 @@ app.use("/api/fashions", fashionRoutes);
 app.use("/api/productdetails", fashionProductDeatailRoutes);
 app.use("/api/returns", returnRoutes);
 app.use("/api/orders", userorderRoutes);
+app.use("/api/faq", faqRoutes);
+app.use("/api/contact", contactRoutes);
  
 app.use("/api/seller", protect, sellerOnly);
  

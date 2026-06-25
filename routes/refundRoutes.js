@@ -23,11 +23,7 @@ router.post(
   c.selectRefundMode
 );
 
-router.post(
-  "/create",
-  protectUser,
-  c.createRefund
-);
+
 
 router.get(
   "/details/:returnId",
@@ -38,6 +34,12 @@ router.get(
 /* =====================================
    SELLER ROUTES
 ===================================== */
+router.post(
+  "/create",
+  protect, 
+  sellerOnly,
+  c.createRefund
+);
 
 router.get(
   "/summary",
