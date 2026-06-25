@@ -1,66 +1,71 @@
 const mongoose = require("mongoose");
-
+ 
 const refundSchema = new mongoose.Schema(
   {
     returnRequestId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Return",
-      required: true,
+      required: false,
       unique: true,
+      sparse: true,
     },
-
+ 
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "UserOrder",
+      required: false,
+    },
+ 
+    sellerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
+ 
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-
+ 
     refundMode: {
       type: String,
-      enum: ["STACKLY_BALANCE", "BANK_ACCOUNT"],
+      enum: ["STACKLY_BALANCE", "BANK_ACCOUNT", "upi", "bank"],
       required: true,
     },
-
+ 
     refundAmount: {
       type: Number,
       default: 0,
     },
-
+ 
     refundStatus: {
       type: String,
-      enum: [
-        "pending",
-        "processing",
-        "completed",
-        "failed"
-      ],
+      enum: ["pending", "processing", "completed", "failed", "approved"],
       default: "pending",
     },
-
-    // Bank Details
-    bankDetails: {
-      accountHolderName: {
-        type: String,
-      },
-
-      bankName: {
-        type: String,
-      },
-
-      accountNumber: {
-        type: String,
-      },
-
-      ifscCode: {
-        type: String,
-      },
+ 
+    reason: {
+      type: String,
+      default: "",
     },
-
+ 
+    upiId: {
+      type: String,
+    },
+ 
+    bankDetails: {
+      accountHolderName: String,
+      bankName: String,
+      accountNumber: String,
+      ifscCode: String,
+    },
+ 
     transactionId: {
       type: String,
       default: null,
     },
-
+ 
     refundedAt: {
       type: Date,
       default: null,
@@ -68,10 +73,9 @@ const refundSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
-
-module.exports = mongoose.model(
-  "Refund",
-  refundSchema
-);
+ 
+module.exports = mongoose.model("Refund", refundSchema);
+ 
+ 
