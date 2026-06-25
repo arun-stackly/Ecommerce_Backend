@@ -102,7 +102,11 @@ const userOrderSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
- 
+ cancellationReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     paymentDetails: {
       paymentType: { type: String },
       // Bank
