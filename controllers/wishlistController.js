@@ -11,7 +11,7 @@ exports.getWishlist = async (req, res) => {
       userId: req.user._id,
     }).populate({
       path: "items.sellerInventoryId",
-      select: "name price discountPrice media quantity isActive",
+      select: "name price sizes colours  discountPrice media quantity isActive",
     });
 
     /* ===== EMPTY WISHLIST ===== */
@@ -61,7 +61,8 @@ exports.getWishlist = async (req, res) => {
             price,
             discountPrice,
             discountPercentage, // ✅ added %
-
+            sizes: inventory.sizes || [],
+  colours: inventory.colours || [],
             isActive: inventory.isActive,
           };
         }),
@@ -125,7 +126,7 @@ exports.addToWishlist = async (req, res) => {
     if (alreadyExists) {
       const existingWishlist = await Wishlist.findById(wishlist._id).populate({
         path: "items.sellerInventoryId",
-        select: "name price discountPrice media isActive",
+        select: "name price size colours discountPrice media isActive",
       });
 
       return res.status(200).json({
@@ -143,7 +144,7 @@ exports.addToWishlist = async (req, res) => {
     /* ===== POPULATE UPDATED WISHLIST ===== */
     const updatedWishlist = await Wishlist.findById(wishlist._id).populate({
       path: "items.sellerInventoryId",
-      select: "name price discountPrice media isActive",
+      select: "name price sizes colours discountPrice media isActive",
     });
 
     /* ===== FORMAT RESPONSE ===== */
@@ -191,6 +192,8 @@ function formatWishlist(wishlist) {
           image:
             inventory.media?.find((m) => m.type === "image")?.url || "",
           price,
+          sizes: inventory.sizes || [],
+  colours: inventory.colours || [],
           discountPrice,
           discountPercentage,
           isActive: inventory.isActive,
