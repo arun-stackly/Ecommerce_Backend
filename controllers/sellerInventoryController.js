@@ -133,6 +133,8 @@ exports.getInventory = async (req, res) => {
           _id: 1,
  
           productName: "$name",
+          productTypeId: "$productType", // <-- add this
+
  
           category: "$category.name",
  
