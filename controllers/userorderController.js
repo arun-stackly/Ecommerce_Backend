@@ -15,12 +15,8 @@ const Payment = require("../models/Payment");
  
 exports.createOrder = async (req, res) => {
   try {
-   const {
-  shippingAddressId,
-  paymentMode,
-  paymentMethodId,
-   paymentId,
-} = req.body;
+    const { shippingAddressId, paymentMode, paymentMethodId, paymentId } =
+      req.body;
     const user = req.user;
  
     /* ================= USER CHECK ================= */
@@ -42,10 +38,10 @@ exports.createOrder = async (req, res) => {
     }
  
     /* ================= SHIPPING ADDRESS ================= */
-   const shippingAddress = await Address.findOne({
-  _id: shippingAddressId,
-  userId: user._id,
-});
+    const shippingAddress = await Address.findOne({
+      _id: shippingAddressId,
+      userId: user._id,
+    });
  
     if (!shippingAddress) {
       return res.status(404).json({
@@ -67,65 +63,57 @@ exports.createOrder = async (req, res) => {
       });
     }
  
-   
-   /* ================= ORDER ITEMS ================= */
-let orderItems = [];
-
-for (const sellerGroup of cart.sellerGroups) {
-  for (const item of sellerGroup.items) {
-
-    const inventory = await SellerInventory.findById(
-      item.sellerInventoryId
-    );
-
-    if (!inventory || !inventory.isActive) continue;
-
-    /* ================= SIZE VALIDATION ================= */
-
+    /* ================= ORDER ITEMS ================= */
+    let orderItems = [];
  
-
-    /* ================= STOCK CHECK ================= */
-
-    if (item.quantity > inventory.quantity) {
-      return res.status(400).json({
-        success: false,
-        message: `${inventory.name} is out of stock`,
-      });
-    }
-
-    const offerPrice =
-      inventory.discountPrice > 0
-        ? inventory.discountPrice
-        : inventory.price;
-
-    const itemTotal = offerPrice * item.quantity;
-
-    orderItems.push({
-      sellerId: inventory.seller,
-      sellerInventoryId: inventory._id,
-      name: inventory.name,
-      image:
-        inventory.media?.find((m) => m.type === "image")?.url || "",
-      price: inventory.price,
-      discountPrice: inventory.discountPrice || 0,
-      quantity: item.quantity,
-      size: item.size || "",
-      itemTotal,
-      itemStatus: "ordered",
-    });
-
-    // Reduce stock
-    await SellerInventory.findByIdAndUpdate(
-      inventory._id,
-      {
-        $inc: {
-          quantity: -item.quantity,
-          soldCount: item.quantity,
-        },
+    for (const sellerGroup of cart.sellerGroups) {
+      for (const item of sellerGroup.items) {
+        const inventory = await SellerInventory.findById(
+          item.sellerInventoryId,
+        );
+ 
+        if (!inventory || !inventory.isActive) continue;
+ 
+        /* ================= SIZE VALIDATION ================= */
+ 
+        /* ================= STOCK CHECK ================= */
+ 
+        if (item.quantity > inventory.quantity) {
+          return res.status(400).json({
+            success: false,
+            message: `${inventory.name} is out of stock`,
+          });
+        }
+ 
+        const offerPrice =
+          inventory.discountPrice > 0
+            ? inventory.discountPrice
+            : inventory.price;
+ 
+        const itemTotal = offerPrice * item.quantity;
+ 
+        orderItems.push({
+          sellerId: inventory.seller,
+          sellerInventoryId: inventory._id,
+          name: inventory.name,
+          image: inventory.media?.find((m) => m.type === "image")?.url || "",
+          price: inventory.price,
+          discountPrice: inventory.discountPrice || 0,
+          quantity: item.quantity,
+          size: item.size || "",
+          itemTotal,
+          itemStatus: "ordered",
+        });
+ 
+        // Reduce stock
+        await SellerInventory.findByIdAndUpdate(inventory._id, {
+          $inc: {
+            quantity: -item.quantity,
+            soldCount: item.quantity,
+          },
+        });
       }
-    );
-  }
-}
+    }
  
     if (!orderItems.length) {
       return res.status(400).json({
@@ -145,185 +133,160 @@ for (const sellerGroup of cart.sellerGroups) {
     const orderPlacedDate = new Date();
     const estimatedDeliveryDate = new Date();
     estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 5);
-
-  
  
     /* ================= PAYMENT DETAILS (IMPORTANT FIX) ================= */
     let paymentDetails = {};
-   /* ================= PAYMENT MODE VALIDATION ================= */
-
-const validModes = ["COD", "UPI", "CARD", "BANK"];
-
-if (!validModes.includes(paymentMode)) {
-  return res.status(400).json({
-    success: false,
-    message: "Invalid payment mode",
-  });
-}
-
-if (
-  ["UPI", "CARD", "BANK"].includes(paymentMode) &&
-  !paymentMethodId
-) {
-  return res.status(400).json({
-    success: false,
-    message: "paymentMethodId is required",
-  });
-}
-
-if (
-  ["UPI", "CARD", "BANK"].includes(paymentMode) &&
-  !paymentId
-) {
-  return res.status(400).json({
-    success: false,
-    message: "paymentId is required",
-  });
-}
-
-/* ================= VERIFY PAYMENT ================= */
-
-let payment = null;
-
-if (paymentMode !== "COD") {
-  payment = await Payment.findOne({
-    _id: paymentId,
-    customerId: user._id,
-  });
-
-  if (!payment) {
-    return res.status(404).json({
-      success: false,
-      message: "Payment not found",
-    });
-  }
-
-  if (payment.method !== paymentMode) {
-    return res.status(400).json({
-      success: false,
-      message: "Payment method mismatch",
-    });
-  }
-
-  if (payment.status !== "success") {
-    return res.status(400).json({
-      success: false,
-      message: "Payment not completed",
-    });
-  }
-
-  const existingOrder = await UserOrder.findOne({
-    paymentId: payment._id,
-  });
-
-  if (existingOrder) {
-    return res.status(400).json({
-      success: false,
-      message: "Order already created for this payment",
-    });
-  }
-}
-
-if (paymentMode === "COD") {
-  paymentDetails = {
-    paymentType: "Cash on Delivery",
-    message: `Pay in cash  ₹${totalAmount} when your order is delivered`,
-    payableAmount: totalAmount,
-    currency: "INR",
-    paymentStatus: "pending",
-  };
-}
-
-else if (paymentMode === "UPI") {
-  const bankAccount = await BankAccount.findOne({
-    _id: paymentMethodId,
-    user: user._id,
-  });
-
-  if (!bankAccount || !bankAccount.upiId) {
-    return res.status(404).json({
-      success: false,
-      message: "UPI account not found",
-    });
-  }
-
-  paymentDetails = {
-    paymentType: "UPI",
-    upiId: bankAccount.upiId,
-    payableAmount: totalAmount,
-    transactionId: payment.transactionId,
-    currency: "INR",
-    paymentStatus:
-  payment?.status === "success"
-    ? "paid"
-    : "pending",
-    message: `Pay using ${bankAccount.upiId}`,
-  };
-}
-
-else if (paymentMode === "CARD") {
-  const card = await Card.findOne({
-    _id: paymentMethodId,
-    user: user._id,
-  });
-
-  if (!card) {
-    return res.status(404).json({
-      success: false,
-      message: "Card not found",
-    });
-  }
-
-  paymentDetails = {
-    paymentType: "Card",
-    cardHolderName: card.cardHolderName,
-    cardNumber: `XXXX-XXXX-${card.cardNumber.slice(-4)}`,
-    transactionId: payment.transactionId,
-    payableAmount: totalAmount,
-    currency: "INR",
-    paymentStatus:
-  payment?.status === "success"
-    ? "paid"
-    : "pending",
-    message: "Payment Completed",
-  };
-}
-
-else if (paymentMode === "BANK") {
-  const bankAccount = await BankAccount.findOne({
-    _id: paymentMethodId,
-    user: user._id,
-  });
-
-  if (!bankAccount) {
-    return res.status(404).json({
-      success: false,
-      message: "Bank account not found",
-    });
-  }
-
-  paymentDetails = {
-    paymentType: "Bank Transfer",
-    bankName: bankAccount.bankName,
-    accountNumber: `XXXX${bankAccount.accountNumber.slice(-4)}`,
-    ifscCode: bankAccount.ifscCode,
-    transactionId: payment.transactionId,
-    payableAmount: totalAmount,
-    currency: "INR",
-    paymentStatus:
-  payment?.status === "success"
-    ? "paid"
-    : "pending",
-    message: "Payment Completed",
-  };
-}
-
-else {
-  return res.status(400).json({
-    success: false,
-    message: "Invalid payment mode",
-  });
-}
+    /* ================= PAYMENT MODE VALIDATION ================= */
+ 
+    const validModes = ["COD", "UPI", "CARD", "BANK"];
+ 
+    if (!validModes.includes(paymentMode)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment mode",
+      });
+    }
+ 
+    if (["UPI", "CARD", "BANK"].includes(paymentMode) && !paymentMethodId) {
+      return res.status(400).json({
+        success: false,
+        message: "paymentMethodId is required",
+      });
+    }
+ 
+    if (["UPI", "CARD", "BANK"].includes(paymentMode) && !paymentId) {
+      return res.status(400).json({
+        success: false,
+        message: "paymentId is required",
+      });
+    }
+ 
+    /* ================= VERIFY PAYMENT ================= */
+ 
+    let payment = null;
+ 
+    if (paymentMode !== "COD") {
+      payment = await Payment.findOne({
+        _id: paymentId,
+        customerId: user._id,
+      });
+ 
+      if (!payment) {
+        return res.status(404).json({
+          success: false,
+          message: "Payment not found",
+        });
+      }
+ 
+      if (payment.method !== paymentMode) {
+        return res.status(400).json({
+          success: false,
+          message: "Payment method mismatch",
+        });
+      }
+ 
+      if (payment.status !== "success") {
+        return res.status(400).json({
+          success: false,
+          message: "Payment not completed",
+        });
+      }
+ 
+      const existingOrder = await UserOrder.findOne({
+        paymentId: payment._id,
+      });
+ 
+      if (existingOrder) {
+        return res.status(400).json({
+          success: false,
+          message: "Order already created for this payment",
+        });
+      }
+    }
+ 
+    if (paymentMode === "COD") {
+      paymentDetails = {
+        paymentType: "Cash on Delivery",
+        message: `Pay in cash  ₹${totalAmount} when your order is delivered`,
+        payableAmount: totalAmount,
+        currency: "INR",
+        paymentStatus: "pending",
+      };
+    } else if (paymentMode === "UPI") {
+      const bankAccount = await BankAccount.findOne({
+        _id: paymentMethodId,
+        user: user._id,
+      });
+ 
+      if (!bankAccount || !bankAccount.upiId) {
+        return res.status(404).json({
+          success: false,
+          message: "UPI account not found",
+        });
+      }
+ 
+      paymentDetails = {
+        paymentType: "UPI",
+        upiId: bankAccount.upiId,
+        payableAmount: totalAmount,
+        transactionId: payment.transactionId,
+        currency: "INR",
+        paymentStatus: payment?.status === "success" ? "paid" : "pending",
+        message: `Pay using ${bankAccount.upiId}`,
+      };
+    } else if (paymentMode === "CARD") {
+      const card = await Card.findOne({
+        _id: paymentMethodId,
+        user: user._id,
+      });
+ 
+      if (!card) {
+        return res.status(404).json({
+          success: false,
+          message: "Card not found",
+        });
+      }
+ 
+      paymentDetails = {
+        paymentType: "Card",
+        cardHolderName: card.cardHolderName,
+        cardNumber: `XXXX-XXXX-${card.cardNumber.slice(-4)}`,
+        transactionId: payment.transactionId,
+        payableAmount: totalAmount,
+        currency: "INR",
+        paymentStatus: payment?.status === "success" ? "paid" : "pending",
+        message: "Payment Completed",
+      };
+    } else if (paymentMode === "BANK") {
+      const bankAccount = await BankAccount.findOne({
+        _id: paymentMethodId,
+        user: user._id,
+      });
+ 
+      if (!bankAccount) {
+        return res.status(404).json({
+          success: false,
+          message: "Bank account not found",
+        });
+      }
+ 
+      paymentDetails = {
+        paymentType: "Bank Transfer",
+        bankName: bankAccount.bankName,
+        accountNumber: `XXXX${bankAccount.accountNumber.slice(-4)}`,
+        ifscCode: bankAccount.ifscCode,
+        transactionId: payment.transactionId,
+        payableAmount: totalAmount,
+        currency: "INR",
+        paymentStatus: payment?.status === "success" ? "paid" : "pending",
+        message: "Payment Completed",
+      };
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment mode",
+      });
+    }
     /* ================= CREATE ORDER ================= */
     const order = await UserOrder.create({
       orderId: generateOrderId(),
@@ -362,9 +325,9 @@ else {
       totalAmount,
  
       orderPlacedDate: {
-  type: Date,
-  default: Date.now,
-},
+        type: Date,
+        default: Date.now,
+      },
       estimatedDeliveryDate,
       orderStatus: "ordered",
  
@@ -399,13 +362,12 @@ else {
     });
   }
 };
-
-
+ 
 exports.getOrders = async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-
+ 
     const orders = await UserOrder.find({
       customerId: req.user.id,
     })
@@ -413,42 +375,38 @@ exports.getOrders = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(limit)
       .select(
-        "_id orderId orderStatus createdAt items shippingAddress billingAddress estimatedDeliveryDate paymentMode"
+        "_id orderId orderStatus createdAt items shippingAddress billingAddress estimatedDeliveryDate paymentMode",
       );
-
+ 
     const formattedOrders = await Promise.all(
       orders.map(async (order) => {
         const itemsWithReviews = await Promise.all(
           order.items.map(async (item) => {
-           
-
             let product = null;
-
+ 
             if (item.sellerInventoryId) {
               product = await SellerInventory.findById(
-  item.sellerInventoryId
-).select("reviews rating reviewCount");
+                item.sellerInventoryId,
+              ).select("reviews rating reviewCount");
             }
-
-           
-
+ 
             return {
               itemId: item._id,
-              productId: item.sellerInventoryId|| null,
+              productId: item.sellerInventoryId || null,
               name: item.name,
               image: item.image,
               quantity: item.quantity,
               size: item.size,
               price: item.price,
               itemStatus: item.itemStatus,
-
+ 
               rating: product?.rating || 0,
               reviewCount: product?.reviewCount || 0,
               reviews: product?.reviews || [],
             };
-          })
+          }),
         );
-
+ 
         return {
           _id: order._id,
           orderId: order.orderId,
@@ -460,16 +418,16 @@ exports.getOrders = async (req, res) => {
           billingAddress: order.billingAddress,
           items: itemsWithReviews,
         };
-      })
+      }),
     );
-
+ 
     res.status(200).json({
       success: true,
       data: formattedOrders,
     });
   } catch (error) {
     console.error("Get Orders Error:", error);
-
+ 
     res.status(500).json({
       success: false,
       message: error.message,
@@ -493,44 +451,44 @@ exports.getSingleOrder = async (req, res) => {
 exports.getSingleOrderItem = async (req, res) => {
   try {
     const { orderId, itemId } = req.params;
-
+ 
     const order = await UserOrder.findById(orderId);
-
+ 
     if (!order) {
       return res.status(404).json({
         success: false,
         message: "Order not found",
       });
     }
-
+ 
     const item = order.items.id(itemId);
-
+ 
     if (!item) {
       return res.status(404).json({
         success: false,
         message: "Item not found",
       });
     }
-
+ 
     let rating = 0;
-
+ 
     if (item.sellerInventoryId) {
       const product = await SellerInventory.findById(
-        item.sellerInventoryId
+        item.sellerInventoryId,
       ).select("rating");
-
+ 
       rating = product?.rating || 0;
     }
-
+ 
     return res.json({
       success: true,
       data: {
         orderId: order.orderId,
         orderStatus: order.orderStatus,
         estimatedDeliveryDate: order.estimatedDeliveryDate,
-
+ 
         item,
-
+ 
         rating, // rating from SellerInventory
       },
     });
@@ -547,29 +505,23 @@ exports.getSingleOrderItem = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { orderStatus } = req.body;
-
-    if (
-      req.user.role !== "admin" &&
-      req.user.role !== "seller"
-    ) {
+ 
+    if (req.user.role !== "admin" && req.user.role !== "seller") {
       return res.status(403).json({
         success: false,
-        message:
-          "You are not authorized to update order status",
+        message: "You are not authorized to update order status",
       });
     }
-
-    const order = await UserOrder.findById(
-      req.params.id
-    );
-
+ 
+    const order = await UserOrder.findById(req.params.id);
+ 
     if (!order) {
       return res.status(404).json({
         success: false,
         message: "Order not found",
       });
     }
-
+ 
     const validStatuses = [
       "ordered",
       "shipped",
@@ -578,35 +530,33 @@ exports.updateOrderStatus = async (req, res) => {
       "exchange",
       "return",
     ];
-
+ 
     if (!validStatuses.includes(orderStatus)) {
       return res.status(400).json({
         success: false,
         message: "Invalid order status",
       });
     }
-
+ 
     order.orderStatus = orderStatus;
-
+ 
     order.items.forEach((item) => {
       item.itemStatus = orderStatus;
     });
-
+ 
     if (orderStatus === "delivered") {
-      order.paymentDetails.deliveredAt =
-        new Date();
+      order.paymentDetails.deliveredAt = new Date();
     }
-
+ 
     if (orderStatus === "cancelled") {
       order.cancelledAt = new Date();
     }
-
+ 
     await order.save();
-
+ 
     return res.json({
       success: true,
-      message:
-        "Order status updated successfully",
+      message: "Order status updated successfully",
       data: order,
     });
   } catch (error) {
@@ -740,7 +690,7 @@ exports.getProductReviews = async (req, res) => {
     });
   }
 };
-
+ 
 exports.getOrderInvoice = async (req, res) => {
   try {
     const { id } = req.params;
@@ -846,9 +796,17 @@ exports.getOrderInvoice = async (req, res) => {
     });
   }
 };
- 
 exports.cancelOrder = async (req, res) => {
   try {
+    const { reason } = req.body;
+ 
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Cancellation reason is required",
+      });
+    }
+ 
     const order = await UserOrder.findById(req.params.id);
  
     if (!order) {
@@ -872,40 +830,30 @@ exports.cancelOrder = async (req, res) => {
       });
     }
  
-   // Cancel Order
-order.orderStatus = "cancelled";
-order.cancelledAt = new Date();
-
-// Restore stock
-for (const item of order.items) {
-  const inventory = await SellerInventory.findById(
-    item.sellerInventoryId
-  );
-
-  if (inventory) {
-    inventory.quantity += item.quantity;
-
-    inventory.soldCount = Math.max(
-      0,
-      (inventory.soldCount || 0) - item.quantity
-    );
-
-    await inventory.save();
-  }
-
-  item.itemStatus = "cancelled";
-}
-  
+    // Cancel Order
+    order.orderStatus = "cancelled";
+    order.cancelledAt = new Date();
+    order.cancellationReason = reason;
  
-    // Cancel all items
-    order.items.forEach((item) => {
+    // Restore stock
+    for (const item of order.items) {
+      const inventory = await SellerInventory.findById(item.sellerInventoryId);
+ 
+      if (inventory) {
+        inventory.quantity += item.quantity;
+ 
+        inventory.soldCount = Math.max(
+          0,
+          (inventory.soldCount || 0) - item.quantity,
+        );
+ 
+        await inventory.save();
+      }
+ 
       item.itemStatus = "cancelled";
-    });
+    }
  
-    /* =========================
-       PREPAID REFUND CREATION
-    ========================= */
- 
+    // Prepaid Refund
     if (order.paymentMode !== "COD") {
       const existingRefund = await Refund.findOne({
         orderId: order._id,
@@ -971,6 +919,8 @@ exports.getCancelledCODOrder = async (req, res) => {
  
       cancelledDate: order.cancelledAt,
  
+      cancellationReason: order.cancellationReason,
+ 
       paymentMode: order.paymentMode,
  
       paymentDetails: {
@@ -1028,6 +978,8 @@ exports.getCancelledPrepaidOrder = async (req, res) => {
  
       cancelledDate: order.cancelledAt,
  
+      cancellationReason: order.cancellationReason,
+ 
       paymentDetails: {
         title: `${order.paymentMode} Payment`,
         message: "Your payment was refunded to your bank account.",
@@ -1051,19 +1003,19 @@ exports.getCancelledPrepaidOrder = async (req, res) => {
 exports.getOrdersByStatusWithItems = async (req, res) => {
   try {
     const { status } = req.params;
-
+ 
     // Step 1: Check all orders in DB
     const totalOrders = await UserOrder.countDocuments();
     console.log("Total Orders In DB:", totalOrders);
-
+ 
     // Step 2: Check orders for current user
     const userOrders = await UserOrder.find({
       customerId: req.user._id,
     }).select("orderId customerId orderStatus");
-
+ 
     console.log("=================================");
     console.log("Orders For Current User:", userOrders.length);
-
+ 
     userOrders.forEach((order) => {
       console.log({
         orderId: order.orderId,
@@ -1071,31 +1023,28 @@ exports.getOrdersByStatusWithItems = async (req, res) => {
         orderStatus: order.orderStatus,
       });
     });
-
-  
-
+ 
     // Step 3: Apply filter
     const filter = {
-  customerId: req.user._id,
-};
-
-if (status) {
-  const statusMap = {
-    ordered: "placed",
-  };
-
-  filter.orderStatus = statusMap[status] || status;
-}
-
-
+      customerId: req.user._id,
+    };
+ 
+    if (status) {
+      const statusMap = {
+        ordered: "placed",
+      };
+ 
+      filter.orderStatus = statusMap[status] || status;
+    }
+ 
     const orders = await UserOrder.find(filter)
       .sort({ createdAt: -1 })
       .select(
-        "_id orderId orderStatus createdAt items estimatedDeliveryDate deliveredAt shippingAddress paymentMode"
+        "_id orderId orderStatus createdAt items estimatedDeliveryDate deliveredAt shippingAddress paymentMode",
       );
-
+ 
     console.log("Filtered Orders Found:", orders.length);
-
+ 
     const formatted = orders.map((order) => ({
       _id: order._id,
       orderId: order.orderId,
@@ -1105,7 +1054,7 @@ if (status) {
       deliveredAt: order.deliveredAt,
       paymentMode: order.paymentMode,
       shippingAddress: order.shippingAddress,
-
+ 
       products: order.items.map((item) => ({
         itemId: item._id,
         productId: item.sellerInventoryId,
@@ -1117,7 +1066,7 @@ if (status) {
         itemStatus: item.itemStatus,
       })),
     }));
-
+ 
     return res.status(200).json({
       success: true,
       count: formatted.length,
@@ -1125,10 +1074,12 @@ if (status) {
     });
   } catch (error) {
     console.error("Get Orders Error:", error);
-
+ 
     return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
+ 
+ 
