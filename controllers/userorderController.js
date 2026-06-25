@@ -798,7 +798,7 @@ exports.getOrderInvoice = async (req, res) => {
 };
 exports.cancelOrder = async (req, res) => {
   try {
-    const { reason } = req.body;
+    const { reason, refundMode, upiId, bankDetails } = req.body;
  
     if (!reason || !reason.trim()) {
       return res.status(400).json({
@@ -830,12 +830,53 @@ exports.cancelOrder = async (req, res) => {
       });
     }
  
-    // Cancel Order
+    // Validate refund details for prepaid orders
+    if (order.paymentMode !== "COD") {
+      if (!refundMode) {
+        return res.status(400).json({
+          success: false,
+          message: "Refund mode is required",
+        });
+      }
+ 
+      if (refundMode === "upi") {
+        if (!upiId) {
+          return res.status(400).json({
+            success: false,
+            message: "UPI ID is required",
+          });
+        }
+      }
+ 
+      if (refundMode === "bank") {
+        if (
+          !bankDetails ||
+          !bankDetails.accountHolderName ||
+          !bankDetails.bankName ||
+          !bankDetails.accountNumber ||
+          !bankDetails.ifscCode
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: "Complete bank details are required",
+          });
+        }
+      }
+ 
+      if (!["upi", "bank"].includes(refundMode)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid refund mode",
+        });
+      }
+    }
+ 
+    // Cancel order
     order.orderStatus = "cancelled";
     order.cancelledAt = new Date();
     order.cancellationReason = reason;
  
-    // Restore stock
+    // Restore inventory
     for (const item of order.items) {
       const inventory = await SellerInventory.findById(item.sellerInventoryId);
  
@@ -853,7 +894,7 @@ exports.cancelOrder = async (req, res) => {
       item.itemStatus = "cancelled";
     }
  
-    // Prepaid Refund
+    // Create refund for prepaid orders
     if (order.paymentMode !== "COD") {
       const existingRefund = await Refund.findOne({
         orderId: order._id,
@@ -862,9 +903,21 @@ exports.cancelOrder = async (req, res) => {
       if (!existingRefund) {
         await Refund.create({
           sellerId: order.items[0].sellerId,
+          userId: order.customerId,
           orderId: order._id,
           amount: order.totalAmount,
-          reason: "Order Cancelled",
+          reason: reason,
+          refundMode,
+          upiId: refundMode === "upi" ? upiId : undefined,
+          bankDetails:
+            refundMode === "bank"
+              ? {
+                  accountHolderName: bankDetails.accountHolderName,
+                  bankName: bankDetails.bankName,
+                  accountNumber: bankDetails.accountNumber,
+                  ifscCode: bankDetails.ifscCode,
+                }
+              : undefined,
           status: "approved",
         });
       }
@@ -874,7 +927,10 @@ exports.cancelOrder = async (req, res) => {
  
     return res.status(200).json({
       success: true,
-      message: "Order cancelled successfully",
+      message:
+        order.paymentMode === "COD"
+          ? "Order cancelled successfully"
+          : "Order cancelled and refund initiated successfully",
       data: order,
     });
   } catch (error) {
@@ -954,9 +1010,31 @@ exports.getCancelledPrepaidOrder = async (req, res) => {
       });
     }
  
-    const refund = await Refund.findOne({
-      orderId: order._id,
-    });
+    const refund = await Refund.findOne({ orderId: order._id });
+ 
+    let refundDetails = null;
+ 
+    if (refund) {
+      if (refund.refundMode === "upi") {
+        refundDetails = {
+          refundMode: "upi",
+          upiId: refund.upiId,
+        };
+      }
+ 
+      if (refund.refundMode === "bank") {
+        refundDetails = {
+          refundMode: "bank",
+          bankDetails: {
+            accountHolderName: refund.bankDetails?.accountHolderName,
+            bankName: refund.bankDetails?.bankName,
+            accountNumber:
+              "******" + refund.bankDetails?.accountNumber?.slice(-4),
+            ifscCode: refund.bankDetails?.ifscCode,
+          },
+        };
+      }
+    }
  
     res.status(200).json({
       success: true,
@@ -966,6 +1044,7 @@ exports.getCancelledPrepaidOrder = async (req, res) => {
       refundStatus: refund?.status || "pending",
  
       product: {
+        productId: order.items[0]?.productId,
         name: order.items[0]?.name,
         image: order.items[0]?.image,
         size: order.items[0]?.size,
@@ -982,15 +1061,17 @@ exports.getCancelledPrepaidOrder = async (req, res) => {
  
       paymentDetails: {
         title: `${order.paymentMode} Payment`,
-        message: "Your payment was refunded to your bank account.",
+        message: "Your payment was refunded successfully.",
       },
  
       refund: {
-        amount: refund?.amount || 0,
+        amount: refund?.amount || order.totalAmount,
         status: refund?.status || "pending",
-        reason: refund?.reason || "",
+        transactionId: refund?.transactionId || "",
         refundDate: refund?.updatedAt || null,
       },
+ 
+      refundDetails,
     });
   } catch (error) {
     res.status(500).json({
@@ -999,6 +1080,7 @@ exports.getCancelledPrepaidOrder = async (req, res) => {
     });
   }
 };
+
  
 exports.getOrdersByStatusWithItems = async (req, res) => {
   try {
