@@ -133,6 +133,52 @@ exports.verifyPayments = async (req, res) => {
     });
   }
 };
+exports.receiveCODPayment = async (req, res) => {
+    try {
+
+        const { paymentId } = req.body;
+
+        const payment = await Payment.findById(paymentId);
+
+        if (!payment) {
+            return res.status(404).json({
+                success:false,
+                message:"Payment not found"
+            });
+        }
+
+        if (payment.method !== "COD") {
+            return res.status(400).json({
+                success:false,
+                message:"Not a COD payment"
+            });
+        }
+
+        payment.status = "success";
+        payment.transactionId = "COD-" + Date.now();
+
+        await payment.save();
+
+        await UserOrder.updateOne(
+            { paymentId: payment._id },
+            {
+                paymentStatus: "paid"
+            }
+        );
+
+        res.json({
+            success:true,
+            message:"COD payment received successfully",
+            payment
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            success:false,
+            message:err.message
+        });
+    }
+};
 // /* ======================================================
 //    CARD PAYMENT API
 // ====================================================== */
