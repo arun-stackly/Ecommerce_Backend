@@ -58,6 +58,14 @@ exports.getInventory = async (req, res) => {
         },
       },
  
+      {
+  $lookup: {
+    from: "specifications",
+    localField: "_id",
+    foreignField: "sellerInventoryId",
+    as: "specification",
+  },
+},
       // SALES CALCULATION
       {
         $lookup: {
@@ -91,42 +99,61 @@ exports.getInventory = async (req, res) => {
  
       // UI RESPONSE FORMAT
       {
-        $addFields: {
-          unitsSold: {
-            $ifNull: [
-              {
-                $arrayElemAt: ["$sales.totalSold", 0],
-              },
-              "$soldCount",
-            ],
-          },
- 
-          listingStatus: {
-            $cond: ["$isActive", "Active", "Inactive"],
-          },
- 
-          stockStatus: {
-            $switch: {
-              branches: [
-                {
-                  case: {
-                    $eq: ["$quantity", 0],
-                  },
-                  then: "No Stock",
-                },
-                {
-                  case: {
-                    $lte: ["$quantity", 5],
-                  },
-                  then: "Low Stock",
-                },
-              ],
-              default: "In Stock",
-            },
-          },
+  $addFields: {
+    unitsSold: {
+      $ifNull: [
+        {
+          $arrayElemAt: ["$sales.totalSold", 0],
         },
+        "$soldCount",
+      ],
+    },
+
+    listingStatus: {
+      $cond: ["$isActive", "Active", "Inactive"],
+    },
+
+    stockStatus: {
+      $switch: {
+        branches: [
+          {
+            case: { $eq: ["$quantity", 0] },
+            then: "No Stock",
+          },
+          {
+            case: { $lte: ["$quantity", 5] },
+            then: "Low Stock",
+          },
+        ],
+        default: "In Stock",
       },
- 
+    },
+
+    hasSpecification: {
+      $gt: [
+        {
+          $size: "$specification",
+        },
+        0,
+      ],
+    },
+
+    specificationStatus: {
+      $cond: [
+        {
+          $gt: [
+            {
+              $size: "$specification",
+            },
+            0,
+          ],
+        },
+        "Added",
+        "Not Added",
+      ],
+    },
+  },
+},
       // FINAL RESPONSE
       {
         $project: {
@@ -139,6 +166,24 @@ exports.getInventory = async (req, res) => {
           category: "$category.name",
  
           price: 1,
+           productImage: {
+      $arrayElemAt: [
+        {
+          $map: {
+            input: {
+              $filter: {
+                input: "$media",
+                as: "m",
+                cond: { $eq: ["$$m.type", "image"] }
+              }
+            },
+            as: "img",
+            in: "$$img.url"
+          }
+        },
+        0
+      ]
+    },
  
           itemStock: "$quantity",
  
@@ -147,6 +192,8 @@ exports.getInventory = async (req, res) => {
           listingStatus: 1,
  
           stockStatus: 1,
+           hasSpecification: 1,
+    specificationStatus: 1,
         },
       },
  

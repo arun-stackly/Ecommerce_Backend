@@ -414,6 +414,7 @@ exports.getOrders = async (req, res) => {
           createdAt: order.createdAt,
           estimatedDeliveryDate: order.estimatedDeliveryDate,
           paymentMode: order.paymentMode,
+          paymentStatus: order.paymentDetails?.paymentStatus,
           shippingAddress: order.shippingAddress,
           billingAddress: order.billingAddress,
           items: itemsWithReviews,
@@ -486,7 +487,7 @@ exports.getSingleOrderItem = async (req, res) => {
         orderId: order.orderId,
         orderStatus: order.orderStatus,
         estimatedDeliveryDate: order.estimatedDeliveryDate,
- 
+        paymentStatus: order.paymentDetails?.paymentStatus,
         item,
  
         rating, // rating from SellerInventory
