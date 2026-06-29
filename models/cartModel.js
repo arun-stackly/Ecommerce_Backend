@@ -31,6 +31,10 @@ const cartItemSchema = new mongoose.Schema(
   type: String,
   required: false,
 },
+colour: {
+  type: String,
+  default: "",
+},
 
   },
 
