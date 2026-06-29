@@ -74,7 +74,7 @@ exports.createOrder = async (req, res) => {
  
         if (!inventory || !inventory.isActive) continue;
  
-        /* ================= SIZE VALIDATION ================= */
+        
  
         /* ================= STOCK CHECK ================= */
  
@@ -101,6 +101,7 @@ exports.createOrder = async (req, res) => {
           discountPrice: inventory.discountPrice || 0,
           quantity: item.quantity,
           size: item.size || "",
+          colour: item.colour || "",
           itemTotal,
           itemStatus: "ordered",
         });

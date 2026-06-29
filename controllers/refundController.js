@@ -114,49 +114,35 @@ exports.createRefund = async (req, res) => {
 exports.getRefunds = async (req, res) => {
   try {
     const refunds = await Refund.find()
-      .populate({
-        path: "returnRequestId",
-      })
+      .populate("returnRequestId")
+      .populate("orderId")
       .sort({ createdAt: -1 });
 
-    const formattedRefunds = await Promise.all(
-      refunds.map(async (refund) => {
-        const order = await UserOrder.findById(
-          refund.returnRequestId.orderId
-        );
+    const formattedRefunds = refunds.map((refund) => ({
+      refundId: refund._id,
 
-        return {
-          refundId: refund._id,
+      returnId: refund.returnRequestId?.returnId || null,
 
-          returnId:
-            refund.returnRequestId.returnId,
+      refundMode: refund.refundMode,
 
-          refundMode: refund.refundMode,
+      refundAmount: refund.refundAmount,
 
-          refundAmount:
-            refund.refundAmount,
+      refundStatus: refund.refundStatus,
 
-          refundStatus:
-            refund.refundStatus,
+      refundedAt: refund.refundedAt,
 
-          refundedAt:
-            refund.refundedAt,
+      orderId: refund.orderId?.orderId || null,
 
-          orderId: order?.orderId,
+      product: refund.orderId?.items?.[0] || {},
+    }));
 
-          product:
-            order?.items?.[0] || {},
-        };
-      })
-    );
-
-    res.json({
+    return res.json({
       success: true,
       count: formattedRefunds.length,
       refunds: formattedRefunds,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });

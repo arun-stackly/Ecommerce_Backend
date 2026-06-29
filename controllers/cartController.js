@@ -226,7 +226,7 @@ const formatted = {
 /* ================= ADD TO CART ================= */
 exports.addToCart = async (req, res) => {
   try {
-    const { sellerInventoryId, quantity, size } = req.body;
+    const { sellerInventoryId, quantity, size,  colour, } = req.body;
 
     const qty = Number(quantity);
 
@@ -285,11 +285,11 @@ exports.addToCart = async (req, res) => {
     }
 
     const existingItem = sellerGroup.items.find(
-      (item) =>
-        item.sellerInventoryId.toString() ===
-          sellerInventoryId &&
-        (item.size || "") === (size || "")
-    );
+  (item) =>
+    item.sellerInventoryId.toString() === sellerInventoryId &&
+    (item.size || "") === (size || "") &&
+    (item.colour || "") === (colour || "")
+);
 
     if (existingItem) {
       const newQty = existingItem.quantity + qty;
@@ -308,6 +308,7 @@ exports.addToCart = async (req, res) => {
         sellerInventoryId,
         quantity: qty,
         size: size || "",
+        colour: colour || "",
         totalPrice: offerPrice * qty,
       });
     }
