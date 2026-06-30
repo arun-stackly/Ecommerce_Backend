@@ -135,12 +135,31 @@ exports.getMyReturns = async (req, res) => {
       userId: req.user._id,
     }).sort({ createdAt: -1 });
 
-    const returnCount = returns.length;
+    const formattedReturns = returns.map((item) => ({
+      returnRequestId: item._id,   // ✅ MongoDB ObjectId
+      returnId: item.returnId,     // ✅ Custom Return ID
+
+      pickupAddress: item.pickupAddress,
+      orderId: item.orderId,
+      itemId: item.itemId,
+      userId: item.userId,
+      sellerId: item.sellerId,
+      type: item.type,
+      reasonCode: item.reasonCode,
+      reasonText: item.reasonText,
+      comment: item.comment,
+      images: item.images,
+      status: item.status,
+      refundAmount: item.refundAmount,
+      isRefunded: item.isRefunded,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }));
 
     res.status(200).json({
       success: true,
-      returnCount,
-      data: returns,
+      returnCount: formattedReturns.length,
+      data: formattedReturns,
     });
   } catch (err) {
     res.status(500).json({
@@ -198,6 +217,7 @@ const totalAmount = returnedItem
     return res.json({
       success: true,
       data: {
+        returnRequestId: returnReq._id, // ✅ Add this
         returnId: returnReq.returnId,
         status: returnReq.status,
         reasonCode: returnReq.reasonCode,

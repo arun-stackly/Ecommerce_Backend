@@ -8,6 +8,8 @@ const Seller = require("../models/SellerProfile"); // adjust if different
 const BankAccount = require("../models/UserBank");
 const Card = require("../models/UserCard");
 const Payment = require("../models/Payment");
+const ReturnRequest = require("../models/Return");
+
  
 /* =========================
    CREATE ORDER
@@ -105,7 +107,7 @@ exports.createOrder = async (req, res) => {
           itemTotal,
           itemStatus: "ordered",
         });
- 
+      console.log("Cart Item:", item);
         // Reduce stock
         await SellerInventory.findByIdAndUpdate(inventory._id, {
           $inc: {
@@ -368,7 +370,7 @@ exports.getOrders = async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
- 
+
     const orders = await UserOrder.find({
       customerId: req.user.id,
     })
@@ -376,38 +378,86 @@ exports.getOrders = async (req, res) => {
       .skip((page - 1) * limit)
       .limit(limit)
       .select(
-        "_id orderId orderStatus createdAt items shippingAddress billingAddress estimatedDeliveryDate paymentMode",
+        "_id orderId orderStatus createdAt items shippingAddress billingAddress estimatedDeliveryDate paymentMode paymentDetails"
       );
- 
+
     const formattedOrders = await Promise.all(
       orders.map(async (order) => {
-        const itemsWithReviews = await Promise.all(
+        const itemsWithDetails = await Promise.all(
           order.items.map(async (item) => {
+            // Product Details
             let product = null;
- 
+
             if (item.sellerInventoryId) {
               product = await SellerInventory.findById(
-                item.sellerInventoryId,
+                item.sellerInventoryId
               ).select("reviews rating reviewCount");
             }
- 
+
+            // Return Request
+            const returnRequest = await ReturnRequest.findOne({
+              orderId: order._id,
+              itemId: item._id,
+            }).select(
+              "_id returnId status reasonCode reasonText refundAmount isRefunded createdAt"
+            );
+
+            // Refund Details
+            let refund = null;
+
+            if (returnRequest) {
+              refund = await Refund.findOne({
+                returnRequestId: returnRequest._id,
+              }).select(
+                "_id refundMode refundStatus refundAmount refundedAt transactionId"
+              );
+            }
+
             return {
               itemId: item._id,
               productId: item.sellerInventoryId || null,
+
               name: item.name,
               image: item.image,
               quantity: item.quantity,
               size: item.size,
+              colour: item.colour,
               price: item.price,
               itemStatus: item.itemStatus,
- 
+
               rating: product?.rating || 0,
               reviewCount: product?.reviewCount || 0,
               reviews: product?.reviews || [],
+
+              // Return Details
+              return: returnRequest
+                ? {
+                    returnRequestId: returnRequest._id,
+                    returnId: returnRequest.returnId,
+                    status: returnRequest.status,
+                    reasonCode: returnRequest.reasonCode,
+                    reasonText: returnRequest.reasonText,
+                    refundAmount: returnRequest.refundAmount,
+                    isRefunded: returnRequest.isRefunded,
+                    createdAt: returnRequest.createdAt,
+                  }
+                : null,
+
+              // Refund Details
+              refund: refund
+                ? {
+                    refundId: refund._id,
+                    refundMode: refund.refundMode,
+                    refundStatus: refund.refundStatus,
+                    refundAmount: refund.refundAmount,
+                    refundedAt: refund.refundedAt,
+                    transactionId: refund.transactionId,
+                  }
+                : null,
             };
-          }),
+          })
         );
- 
+
         return {
           _id: order._id,
           orderId: order.orderId,
@@ -415,21 +465,21 @@ exports.getOrders = async (req, res) => {
           createdAt: order.createdAt,
           estimatedDeliveryDate: order.estimatedDeliveryDate,
           paymentMode: order.paymentMode,
-          paymentStatus: order.paymentDetails?.paymentStatus,
+          paymentStatus: order.paymentDetails?.paymentStatus || null,
           shippingAddress: order.shippingAddress,
           billingAddress: order.billingAddress,
-          items: itemsWithReviews,
+          items: itemsWithDetails,
         };
-      }),
+      })
     );
- 
+
     res.status(200).json({
       success: true,
       data: formattedOrders,
     });
   } catch (error) {
     console.error("Get Orders Error:", error);
- 
+
     res.status(500).json({
       success: false,
       message: error.message,
