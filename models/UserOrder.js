@@ -19,6 +19,11 @@ const orderItemSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  colour: {                // ✅ Add this
+    type: String,
+    required: false,
+    default: "",
+  },
   itemTotal: { type: Number, required: true },
   itemStatus: {
     type: String,

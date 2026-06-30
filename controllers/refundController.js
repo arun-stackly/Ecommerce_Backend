@@ -114,12 +114,21 @@ exports.createRefund = async (req, res) => {
 exports.getRefunds = async (req, res) => {
   try {
     const refunds = await Refund.find()
-      .populate("returnRequestId")
-      .populate("orderId")
-      .sort({ createdAt: -1 });
-
+  .populate({
+    path: "returnRequestId",
+    populate: {
+      path: "orderId",
+    },
+  })
+  .sort({ createdAt: -1 });
+   console.log(refunds);
+   console.log(
+  JSON.stringify(refunds[0].returnRequestId.orderId, null, 2)
+);
     const formattedRefunds = refunds.map((refund) => ({
       refundId: refund._id,
+
+       returnRequestId: refund.returnRequestId?._id || null, // ✅ MongoDB ObjectId
 
       returnId: refund.returnRequestId?.returnId || null,
 
@@ -131,9 +140,18 @@ exports.getRefunds = async (req, res) => {
 
       refundedAt: refund.refundedAt,
 
-      orderId: refund.orderId?.orderId || null,
+      // ✅ Read from the populated return request
+  orderId: refund.returnRequestId?.orderId?.orderId || refund.orderId?.orderId || null,
 
-      product: refund.orderId?.items?.[0] || {},
+  // ✅ Read from the populated return request
+  product:
+    refund.returnRequestId?.orderId?.items?.find(
+      (item) =>
+        item._id.toString() ===
+        refund.returnRequestId.itemId.toString()
+    ) ||
+    refund.returnRequestId?.orderId?.items?.[0] ||
+    {},
     }));
 
     return res.json({
