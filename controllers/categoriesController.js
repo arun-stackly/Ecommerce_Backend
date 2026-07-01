@@ -568,3 +568,222 @@ exports.getProductsByBrandAndSubcategory = async (req, res) => {
       });
     }
   };
+  exports.getProductsByPriceRangeAndSubcategory = async (req, res) => {
+  try {
+    const { subcategoryId } = req.params;
+    const { min, max } = req.query;
+
+    let filter = {
+      subcategory: new mongoose.Types.ObjectId(subcategoryId),
+      isActive: true,
+      price: {},
+    };
+
+    if (min) filter.price.$gte = Number(min);
+    if (max) filter.price.$lte = Number(max);
+
+    const products = await SellerInventory.find(filter)
+      .select("name price discountPrice brand media")
+      .sort({ price: 1 });
+
+    const formattedProducts = products.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      price: p.price,
+      discountPrice: p.discountPrice || p.price,
+      brand: p.brand?.name || null,
+      logo: p.brand?.logo || null,
+      image: p.media?.[0]?.url || null,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formattedProducts.length,
+      products: formattedProducts,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.getProductsByPriceRangeAndSubSubcategory = async (req, res) => {
+  try {
+    const { subSubcategoryId } = req.params;
+    const { min, max } = req.query;
+
+    let filter = {
+      subSubcategory: new mongoose.Types.ObjectId(subSubcategoryId),
+      isActive: true,
+      price: {},
+    };
+
+    if (min) filter.price.$gte = Number(min);
+    if (max) filter.price.$lte = Number(max);
+
+    const products = await SellerInventory.find(filter)
+      .select("name price discountPrice brand media")
+      .sort({ price: 1 });
+
+    const formattedProducts = products.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      price: p.price,
+      discountPrice: p.discountPrice || p.price,
+      brand: p.brand?.name || null,
+      logo: p.brand?.logo || null,
+      image: p.media?.[0]?.url || null,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formattedProducts.length,
+      products: formattedProducts,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.getProductsByPriceRangeAndProductType = async (req, res) => {
+  try {
+    const { productTypeId } = req.params;
+    const { min, max } = req.query;
+
+    let filter = {
+      productType: new mongoose.Types.ObjectId(productTypeId),
+      isActive: true,
+      price: {},
+    };
+
+    if (min) filter.price.$gte = Number(min);
+    if (max) filter.price.$lte = Number(max);
+
+    const products = await SellerInventory.find(filter)
+      .select("name price discountPrice brand media")
+      .sort({ price: 1 });
+
+    const formattedProducts = products.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      price: p.price,
+      discountPrice: p.discountPrice || p.price,
+      brand: p.brand?.name || null,
+      logo: p.brand?.logo || null,
+      image: p.media?.[0]?.url || null,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formattedProducts.length,
+      products: formattedProducts,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.getInStockProductsBySubcategory = async (req, res) => {
+  try {
+    const { subcategoryId } = req.params;
+
+    const products = await SellerInventory.find({
+      subcategory: new mongoose.Types.ObjectId(subcategoryId),
+      isActive: true,
+      quantity: { $gt: 0 },
+    }).select("name price discountPrice brand media");
+
+    const formattedProducts = products.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      price: p.price,
+      discountPrice: p.discountPrice || p.price,
+      brand: p.brand?.name || null,
+      logo: p.brand?.logo || null,
+      image: p.media?.[0]?.url || null,
+      inStock: true,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formattedProducts.length,
+      products: formattedProducts,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.getInStockProductsBySubSubcategory = async (req, res) => {
+  try {
+    const { subSubcategoryId } = req.params;
+
+    const products = await SellerInventory.find({
+      subSubcategory: new mongoose.Types.ObjectId(subSubcategoryId),
+      isActive: true,
+      quantity: { $gt: 0 },
+    }).select("name price discountPrice brand media");
+
+    const formattedProducts = products.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      price: p.price,
+      discountPrice: p.discountPrice || p.price,
+      brand: p.brand?.name || null,
+      logo: p.brand?.logo || null,
+      image: p.media?.[0]?.url || null,
+      inStock: true,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formattedProducts.length,
+      products: formattedProducts,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.getInStockProductsByProductType = async (req, res) => {
+  try {
+    const { productTypeId } = req.params;
+
+    const products = await SellerInventory.find({
+      productType: new mongoose.Types.ObjectId(productTypeId),
+      isActive: true,
+      quantity: { $gt: 0 },
+    }).select("name price discountPrice brand media");
+
+    const formattedProducts = products.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      price: p.price,
+      discountPrice: p.discountPrice || p.price,
+      brand: p.brand?.name || null,
+      logo: p.brand?.logo || null,
+      image: p.media?.[0]?.url || null,
+      inStock: true,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formattedProducts.length,
+      products: formattedProducts,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

@@ -1,104 +1,104 @@
 const Banner = require("../models/Banner");
 const SellerInventory = require("../models/SellerInventory");
-const Category = require("../models/Category");
-const mongoose = require("mongoose");
+const Ad = require("../models/Ad");
 
-exports.getHomepageData = async (req, res) => {
+exports.getHomePage = async (req, res) => {
   try {
-    const APPLIANCE_CATEGORY_ID =
-  "69367686e9c011d0457e1816";
-    // =========================
-    // HERO BANNERS
-    // =========================
 
-    const heroBanners = await Banner.find({
+    const { categoryId } = req.params;
+
+    // Home Banner
+    const homeBanner = await Banner.find({
       type: "homepage",
       isActive: true,
-      category: APPLIANCE_CATEGORY_ID,
-    });
-
-    // =========================
-    // LATEST LAUNCHES
-    // =========================
-
-    const latestLaunches = await Banner.find({
-      type: "launches",
-      isActive: true,
-      category: APPLIANCE_CATEGORY_ID,
-    });
-
-    // =========================
-    // BIG SALE BANNERS
-    // =========================
-
-    const offerBanners = await Banner.find({
-      type: "offers",
-      isActive: true,
-      category: APPLIANCE_CATEGORY_ID,
-    });
-
+      category: categoryId
+    }).select(
+      "title image redirectUrl category"
+    );
 
     
-    // =========================
-    // FEATURED PRODUCTS
-    // =========================
 
-    const featuredProducts =
+    // Trending Deals
+    const trendingDeals = await Banner.find({
+      type: "trending-deals",
+      isActive: true,
+      category: categoryId
+    }).select(
+      "title image redirectUrl category"
+    );
+
+
+    // Top Deals Of Week
+    const topDealsOfWeek = await Ad.find({
+  adType: "Monthly sale ads",
+  isActive: true,
+  category: categoryId
+})
+.populate("product", "name")
+.select(
+  "product  mediaUrl category"
+);
+    // Latest Launches
+    const latestLaunches =
       await SellerInventory.find({
-        isFeatured: true,
         isActive: true,
-       category: APPLIANCE_CATEGORY_ID,
+        category: categoryId
       })
-        .sort({ createdAt: -1 })
-        .limit(10);
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select(`
+        name
+        media
+      `);
 
-    // =========================
-    // TOP BRANDS
-    // =========================
+    // Top Brands
+    const products =
+      await SellerInventory.find({
+        isActive: true,
+        category: categoryId
+      }).select("brand");
 
-    const brandProducts =
-      await SellerInventory.aggregate([
-        {
-          $match: {
-           category:
-          new mongoose.Types.ObjectId(
-            APPLIANCE_CATEGORY_ID
-          ),
-          },
-        },
-        {
-          $unwind: "$brands",
-        },
+    const brandsMap = new Map();
 
-        {
-          $group: {
-            _id: "$brands.name",
-            logo: {
-              $first: "$brands.logo",
-            },
-          },
-        },
+    products.forEach(product => {
 
-        {
-          $limit: 10,
-        },
-      ]);
+      if (
+        product.brand?.name &&
+        !brandsMap.has(product.brand.name)
+      ) {
+        brandsMap.set(
+          product.brand.name,
+          {
+            name: product.brand.name,
+            logo: product.brand.logo
+          }
+        );
+      }
 
-    res.status(200).json({
+    });
+
+    const topBrandsForYou =
+      Array.from(
+        brandsMap.values()
+      ).slice(0, 10);
+
+    return res.status(200).json({
       success: true,
+      categoryId,
+      homeBanner,
+      latestLaunches,
+       trendingDeals,
+      topDealsOfWeek,
+      topBrandsForYou
+    });
 
-      data: {
-        heroBanners,
-        latestLaunches,
-        offerBanners,
-        featuredProducts,
-        brandProducts,
-      },
-    });
   } catch (error) {
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message
     });
+
   }
 };
+

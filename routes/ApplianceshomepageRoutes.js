@@ -3,13 +3,13 @@ const express = require("express");
 const router = express.Router();
 
 const {
-  getHomepageData,
+  getHomePage,
 } = require("../controllers/ApplianceHomepageController");
 
 // ==========================
 // HOMEPAGE DATA
 // ==========================
 
-router.get("/", getHomepageData);
+router.get("/:categoryId", getHomePage);
 
 module.exports = router;
