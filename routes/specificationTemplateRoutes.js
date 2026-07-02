@@ -1,32 +1,35 @@
-const router =
-  require("express").Router();
+const express = require("express");
+const router = express.Router();
 
-const controller =
-  require("../controllers/SpecificationTemplateController");
+const {
+  addTemplate,
+  getTemplate,
+  updateTemplate,
+  deleteTemplate,
+  getAllTemplates,
+} = require("../controllers/SpecificationTemplateController");
 
-router.post(
-  "/:productTypeId",
-  controller.addTemplate
-);
+/* ==============================
+   SPECIFICATION TEMPLATE ROUTES
+============================== */
 
-router.get(
-  "/",
-  controller.getAllTemplates
-);
+// Create Template
+router.post("/", addTemplate);
 
-router.get(
-  "/:productTypeId",
-  controller.getTemplate
-);
+// Get Single Template
+// Example:
+// /api/specification-template?productTypeId=xxxx
+// OR
+// /api/specification-template?subSubCategoryId=xxxx
+router.get("/", getTemplate);
 
-router.put(
-  "/:productTypeId",
-  controller.updateTemplate
-);
+// Update Template
+router.put("/", updateTemplate);
 
-router.delete(
-  "/:productTypeId",
-  controller.deleteTemplate
-);
+// Delete Template
+router.delete("/", deleteTemplate);
+
+// Get All Templates
+router.get("/all", getAllTemplates);
 
 module.exports = router;

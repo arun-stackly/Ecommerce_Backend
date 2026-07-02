@@ -6,8 +6,13 @@ const specificationTemplateSchema =
       productTypeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "ProductType",
-        required: true,
-        unique: true,
+        default: null,
+      },
+
+      subSubCategoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "SubSubcategory",
+        default: null,
       },
 
       specifications: {
@@ -19,6 +24,27 @@ const specificationTemplateSchema =
       timestamps: true,
     }
   );
+
+// Prevent duplicate templates
+specificationTemplateSchema.index(
+  { productTypeId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      productTypeId: { $exists: true, $ne: null },
+    },
+  }
+);
+
+specificationTemplateSchema.index(
+  { subSubCategoryId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      subSubCategoryId: { $exists: true, $ne: null },
+    },
+  }
+);
 
 module.exports = mongoose.model(
   "SpecificationTemplate",

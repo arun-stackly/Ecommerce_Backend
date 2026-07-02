@@ -99,67 +99,58 @@ exports.getProductReviews =
    GET SIMILAR PRODUCTS
 ===================================================== */
 
-exports.getSimilarProducts =
-  async (req, res) => {
+exports.getSimilarProducts = async (req, res) => {
+  try {
+    const { SellerInventoryId } = req.params;
 
-    try {
+    // Current product
+    const currentProduct = await SellerInventory.findById(
+      SellerInventoryId
+    );
 
-      const { SellerInventoryId } =
-        req.params;
-
-      // current product
-      const currentProduct =
-        await SellerInventory.findById(
-          SellerInventoryId
-        );
-
-      if (!currentProduct) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Product not found",
-        });
-      }
-
-      // similar products
-      const similarProducts =
-        await SellerInventory.find({
-
-          _id: {
-            $ne: SellerInventoryId,
-          },
-
-          category:
-            currentProduct.category,
-
-          subcategory:
-            currentProduct.subcategory,
-
-          isActive: true,
-        })
-
-          .select(
-            "_id name media price averageRating"
-          )
-
-          .limit(10);
-
-      res.status(200).json({
-        success: true,
-
-        count:
-          similarProducts.length,
-
-        products:
-          similarProducts,
-      });
-
-    } catch (error) {
-
-      res.status(500).json({
+    if (!currentProduct) {
+      return res.status(404).json({
         success: false,
-        message: error.message,
+        message: "Product not found",
       });
-
     }
+
+    // Similar products
+    const similarProducts = await SellerInventory.find({
+      _id: { $ne: SellerInventoryId },
+      category: currentProduct.category,
+      subcategory: currentProduct.subcategory,
+      subSubcategory: currentProduct.subSubcategory, // optional but recommended
+      isActive: true,
+    })
+      .select(
+        "_id name media price discountPrice rating"
+      )
+      .limit(10);
+
+    // Add discount percentage
+    const products = similarProducts.map((product) => {
+      const obj = product.toObject();
+
+      obj.discountPercentage =
+        obj.price > 0 && obj.discountPrice
+          ? Math.round(
+              ((obj.price - obj.discountPrice) / obj.price) * 100
+            )
+          : 0;
+
+      return obj;
+    });
+
+    res.status(200).json({
+      success: true,
+      count: products.length,
+      products,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
