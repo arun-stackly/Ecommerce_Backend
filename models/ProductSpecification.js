@@ -9,10 +9,16 @@ const specificationSchema = new mongoose.Schema(
       unique: true,
     },
 
-    productTypeId: {
+     productTypeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "ProductType",
-      required: true,
+      default: null,
+    },
+
+    subSubCategoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "SubSubcategory",
+      default: null,
     },
 
     specifications: {

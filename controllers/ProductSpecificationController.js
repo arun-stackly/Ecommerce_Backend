@@ -12,13 +12,13 @@ exports.addSpecifications = async (req, res) => {
 
     const {
       productTypeId,
+      subSubCategoryId,
       specifications,
     } = req.body;
 
-    const inventory =
-      await SellerInventory.findById(
-        sellerInventoryId
-      );
+    const inventory = await SellerInventory.findById(
+      sellerInventoryId
+    );
 
     if (!inventory) {
       return res.status(404).json({
@@ -27,25 +27,23 @@ exports.addSpecifications = async (req, res) => {
       });
     }
 
-    const existing =
-      await Specification.findOne({
-        sellerInventoryId,
-      });
+    const existing = await Specification.findOne({
+      sellerInventoryId,
+    });
 
     if (existing) {
       return res.status(400).json({
         success: false,
-        message:
-          "Specifications already exist",
+        message: "Specifications already exist",
       });
     }
 
-    const specification =
-      await Specification.create({
-        sellerInventoryId,
-        productTypeId,
-        specifications,
-      });
+    const specification = await Specification.create({
+      sellerInventoryId,
+      productTypeId,
+      subSubCategoryId,
+      specifications,
+    });
 
     res.status(201).json({
       success: true,
@@ -68,11 +66,11 @@ exports.getSpecifications =
       const { sellerInventoryId } =
         req.params;
 
-      const specification =
-        await Specification.findOne({
-          sellerInventoryId,
-        });
-
+      const specification = await Specification.findOne({
+  sellerInventoryId,
+})
+.populate("productTypeId", "name slug")
+.populate("subSubCategoryId", "name slug");
       if (!specification) {
         return res.status(404).json({
           success: false,
@@ -103,20 +101,23 @@ exports.updateSpecifications =
       const { sellerInventoryId } =
         req.params;
 
-     const { specifications } = req.body;
+     const { specifications, productTypeId, subSubCategoryId } =
+  req.body;
 
       const specification =
-        await Specification.findOneAndUpdate(
-          {
-            sellerInventoryId,
-          },
-          {
-        specifications,
-         },
-          {
-            new: true,
-          },
-        );
+  await Specification.findOneAndUpdate(
+    {
+      sellerInventoryId,
+    },
+    {
+      specifications,
+      productTypeId,
+      subSubCategoryId,
+    },
+    {
+      new: true,
+    }
+  );
 
       if (!specification) {
         return res.status(404).json({

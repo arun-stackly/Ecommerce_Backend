@@ -1,61 +1,65 @@
+const ProductType = require("../models/ProductType");
+const SubSubCategory = require("../models/SubSubcategory");
 const SpecificationTemplate = require(
   "../models/SpecificationTemplate"
 );
 
-const ProductType = require(
-  "../models/ProductType"
-);
-
-/* ==============================
-   ADD TEMPLATE
-============================== */
-
-exports.addTemplate = async (
-  req,
-  res
-) => {
+exports.addTemplate = async (req, res) => {
   try {
-    const { productTypeId } =
-      req.params;
+    const {
+      productTypeId,
+      subSubCategoryId,
+      specifications,
+    } = req.body;
 
-    const { specifications } =
-      req.body;
-
-    const productType =
-      await ProductType.findById(
-        productTypeId
-      );
-
-    if (!productType) {
-      return res.status(404).json({
+    if (!productTypeId && !subSubCategoryId) {
+      return res.status(400).json({
         success: false,
         message:
-          "Product type not found",
+          "Either productTypeId or subSubCategoryId is required",
       });
     }
 
-    const existing =
-      await SpecificationTemplate.findOne(
-        {
-          productTypeId,
-        }
-      );
+    if (productTypeId) {
+      const productType = await ProductType.findById(productTypeId);
+
+      if (!productType) {
+        return res.status(404).json({
+          success: false,
+          message: "Product Type not found",
+        });
+      }
+    }
+
+    if (subSubCategoryId) {
+      const subSubCategory =
+        await SubSubCategory.findById(subSubCategoryId);
+
+      if (!subSubCategory) {
+        return res.status(404).json({
+          success: false,
+          message: "SubSubCategory not found",
+        });
+      }
+    }
+
+    const existing = await SpecificationTemplate.findOne({
+      ...(productTypeId && { productTypeId }),
+      ...(subSubCategoryId && { subSubCategoryId }),
+    });
 
     if (existing) {
       return res.status(400).json({
         success: false,
-        message:
-          "Template already exists",
+        message: "Template already exists",
       });
     }
 
-    const template =
-      await SpecificationTemplate.create(
-        {
-          productTypeId,
-          specifications,
-        }
-      );
+    const template = await SpecificationTemplate.create({
+      productTypeId,
+      subSubCategoryId,
+      specifications,
+    });
 
     res.status(201).json({
       success: true,
@@ -68,166 +72,131 @@ exports.addTemplate = async (
     });
   }
 };
+exports.getTemplate = async (req, res) => {
+  try {
+    const { productTypeId, subSubCategoryId } = req.query;
 
-/* ==============================
-   GET TEMPLATE
-============================== */
+    const filter = {};
 
-exports.getTemplate =
-  async (req, res) => {
-    try {
-      const { productTypeId } =
-        req.params;
+    if (productTypeId)
+      filter.productTypeId = productTypeId;
 
-      const template =
-        await SpecificationTemplate.findOne(
-          {
-            productTypeId,
-          }
-        ).populate(
-          "productTypeId",
-          "name slug"
-        );
+    if (subSubCategoryId)
+      filter.subSubCategoryId = subSubCategoryId;
 
-      if (!template) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Template not found",
-        });
-      }
+    const template = await SpecificationTemplate.findOne(filter)
+      .populate("productTypeId", "name slug")
+      .populate("subSubCategoryId", "name slug");
 
-      res.status(200).json({
-        success: true,
-
-        productType:
-          template.productTypeId,
-
-        specifications:
-          template.specifications,
-      });
-    } catch (error) {
-      res.status(500).json({
+    if (!template) {
+      return res.status(404).json({
         success: false,
-        message:
-          error.message,
+        message: "Template not found",
       });
     }
-  };
 
-/* ==============================
-   UPDATE TEMPLATE
-============================== */
+    res.status(200).json({
+      success: true,
+      template,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.updateTemplate = async (req, res) => {
+  try {
+    const {
+      productTypeId,
+      subSubCategoryId,
+      specifications,
+    } = req.body;
 
-exports.updateTemplate =
-  async (req, res) => {
-    try {
-      const { productTypeId } =
-        req.params;
+    const filter = {};
 
-      const { specifications } =
-        req.body;
+    if (productTypeId)
+      filter.productTypeId = productTypeId;
 
-      const template =
-        await SpecificationTemplate.findOneAndUpdate(
-          {
-            productTypeId,
-          },
-          {
-            specifications,
-          },
-          {
-            new: true,
-          }
-        );
+    if (subSubCategoryId)
+      filter.subSubCategoryId = subSubCategoryId;
 
-      if (!template) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Template not found",
-        });
-      }
+    const template =
+      await SpecificationTemplate.findOneAndUpdate(
+        filter,
+        { specifications },
+        { new: true }
+      );
 
-      res.status(200).json({
-        success: true,
-        template,
-      });
-    } catch (error) {
-      res.status(500).json({
+    if (!template) {
+      return res.status(404).json({
         success: false,
-        message:
-          error.message,
+        message: "Template not found",
       });
     }
-  };
 
-/* ==============================
-   DELETE TEMPLATE
-============================== */
+    res.status(200).json({
+      success: true,
+      template,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.deleteTemplate = async (req, res) => {
+  try {
+    const { productTypeId, subSubCategoryId } = req.query;
 
-exports.deleteTemplate =
-  async (req, res) => {
-    try {
-      const { productTypeId } =
-        req.params;
+    const filter = {};
 
-      const template =
-        await SpecificationTemplate.findOneAndDelete(
-          {
-            productTypeId,
-          }
-        );
+    if (productTypeId)
+      filter.productTypeId = productTypeId;
 
-      if (!template) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Template not found",
-        });
-      }
+    if (subSubCategoryId)
+      filter.subSubCategoryId = subSubCategoryId;
 
-      res.status(200).json({
-        success: true,
-        message:
-          "Template deleted successfully",
-      });
-    } catch (error) {
-      res.status(500).json({
+    const template =
+      await SpecificationTemplate.findOneAndDelete(filter);
+
+    if (!template) {
+      return res.status(404).json({
         success: false,
-        message:
-          error.message,
+        message: "Template not found",
       });
     }
-  };
 
-/* ==============================
-   GET ALL TEMPLATES
-============================== */
+    res.status(200).json({
+      success: true,
+      message: "Template deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.getAllTemplates = async (req, res) => {
+  try {
+    const templates =
+      await SpecificationTemplate.find()
+        .populate("productTypeId", "name slug")
+        .populate("subSubCategoryId", "name slug")
+        .sort({ createdAt: -1 });
 
-exports.getAllTemplates =
-  async (req, res) => {
-    try {
-      const templates =
-        await SpecificationTemplate.find()
-          .populate(
-            "productTypeId",
-            "name slug"
-          )
-          .sort({
-            createdAt: -1,
-          });
-
-      res.status(200).json({
-        success: true,
-        count: templates.length,
-        templates,
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message:
-          error.message,
-      });
-    }
-  };
+    res.status(200).json({
+      success: true,
+      count: templates.length,
+      templates,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
