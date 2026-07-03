@@ -108,15 +108,18 @@ exports.searchProducts = async (req, res) => {
    GET SINGLE PRODUCT
    GET /api/products/:id
 ========================================= */
-exports.getProductById = async (
-  req,
-  res,
-) => {
+/* =========================================
+   GET SINGLE PRODUCT
+   GET /api/products/:id
+========================================= */
+
+exports.getProductById = async (req, res) => {
   try {
-    const product =
-      await SellerInventory.findById(
-        req.params.id,
-      );
+    const product = await SellerInventory.findById(req.params.id)
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .populate("productType", "name");
 
     if (!product) {
       return res.status(404).json({
