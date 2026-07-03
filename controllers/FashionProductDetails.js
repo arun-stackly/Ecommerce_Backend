@@ -115,10 +115,6 @@ exports.searchProducts = async (req, res) => {
    GET SINGLE PRODUCT
    GET /api/products/:id
 ========================================= */
-/* =========================================
-   GET SINGLE PRODUCT
-   GET /api/products/:id
-========================================= */
 
 exports.getProductById = async (req, res) => {
   try {
@@ -135,19 +131,63 @@ exports.getProductById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    // ==========================
+    // RATING DISTRIBUTION
+    // ==========================
+
+    const distribution = {
+      5: 0,
+      4: 0,
+      3: 0,
+      2: 0,
+      1: 0,
+    };
+
+    let totalRating = 0;
+
+    product.reviews.forEach((review) => {
+      const rating = Math.round(review.rating);
+
+      if (distribution[rating] !== undefined) {
+        distribution[rating]++;
+      }
+
+      totalRating += review.rating;
+    });
+
+    const reviewCount = product.reviews.length;
+
+    const ratingDistribution = {};
+
+    [5, 4, 3, 2, 1].forEach((star) => {
+      ratingDistribution[star] = {
+        count: distribution[star],
+        percentage:
+          reviewCount > 0
+            ? Number(
+                ((distribution[star] / reviewCount) * 100).toFixed(1)
+              )
+            : 0,
+      };
+    });
+
+    // Hide reviews only in response
+    const productResponse = product.toObject();
+    delete productResponse.reviews;
+
+    return res.status(200).json({
       success: true,
-      product,
+      product: productResponse,
+      ratingDistribution,
     });
 
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
-
 
 /* =========================================
    GET PRODUCT STOCK
