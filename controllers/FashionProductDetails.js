@@ -16,36 +16,43 @@ exports.getSimilarProducts = async (req, res) => {
       });
     }
 
-    const productTypeId = currentProduct.productType;
-
     const similarProducts = await SellerInventory.find({
-      productType: new mongoose.Types.ObjectId(productTypeId),
+      productType: currentProduct.productType,
       isActive: true,
       _id: { $ne: currentProduct._id },
     })
-      .select("name price discountPrice brand media")
-      .limit(8)
-      .sort({ createdAt: -1 });
+      .select(
+        "name price discountPrice brand media rating "
+      )
+      .sort({ createdAt: -1 })
+      .limit(8);
 
     const formatted = similarProducts.map((p) => {
       const price = p.price || 0;
-      const discountPrice = p.discountPrice || price;
+      const discountPrice =
+        p.discountPrice > 0 ? p.discountPrice : price;
 
       const discountPercentage =
-        price > 0
-          ? Math.round(((price - discountPrice) / price) * 100)
+        price > discountPrice
+          ? Math.round(
+              ((price - discountPrice) / price) * 100
+            )
           : 0;
 
       return {
         _id: p._id,
         name: p.name,
 
-        // ✅ PRICE DETAILS
+        // Price Details
         price,
         discountPrice,
         discountPercentage,
 
-        // ✅ BRAND + IMAGE
+        // Rating Details
+        Rating: p.rating || 0,
+       
+
+        // Brand & Image
         brand: p.brand || null,
         image: p.media?.[0]?.url || null,
       };
