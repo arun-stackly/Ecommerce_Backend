@@ -5,13 +5,15 @@ const User = require("../models/User");
 
 /* ================= GET WISHLIST ================= */
 
+/* ================= GET WISHLIST ================= */
 exports.getWishlist = async (req, res) => {
   try {
     const wishlist = await Wishlist.findOne({
       userId: req.user._id,
     }).populate({
       path: "items.sellerInventoryId",
-      select: "name price sizes colours  discountPrice media quantity isActive",
+      select:
+        "name price discountPrice sizes colours media quantity isActive rating reviewCount",
     });
 
     /* ===== EMPTY WISHLIST ===== */
@@ -30,21 +32,22 @@ exports.getWishlist = async (req, res) => {
       userId: wishlist.userId,
 
       items: wishlist.items
-        /* ===== REMOVE DELETED / INACTIVE ===== */
         .filter(
           (item) =>
             item.sellerInventoryId &&
             item.sellerInventoryId.isActive
         )
-
         .map((item) => {
           const inventory = item.sellerInventoryId;
 
           const price = inventory.price;
-          const discountPrice = inventory.discountPrice;
+          const discountPrice =
+            inventory.discountPrice > 0
+              ? inventory.discountPrice
+              : inventory.price;
 
           const discountPercentage =
-            price && discountPrice
+            price > discountPrice
               ? `${Math.round(
                   ((price - discountPrice) / price) * 100
                 )}%`
@@ -53,6 +56,7 @@ exports.getWishlist = async (req, res) => {
           return {
             sellerInventoryId: inventory._id,
             name: inventory.name,
+
             image:
               inventory.media?.find(
                 (m) => m.type === "image"
@@ -60,9 +64,17 @@ exports.getWishlist = async (req, res) => {
 
             price,
             discountPrice,
-            discountPercentage, // ✅ added %
+            discountPercentage,
+
+            // ⭐ Average Rating
+            avgRating: inventory.rating || 0,
+
+            // ⭐ Review Count
+            reviewCount: inventory.reviewCount || 0,
+
             sizes: inventory.sizes || [],
-  colours: inventory.colours || [],
+            colours: inventory.colours || [],
+
             isActive: inventory.isActive,
           };
         }),
@@ -72,7 +84,6 @@ exports.getWishlist = async (req, res) => {
       success: true,
       data: formattedWishlist,
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
