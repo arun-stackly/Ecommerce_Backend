@@ -788,6 +788,8 @@ exports.getInStockProductsByProductType = async (req, res) => {
   }
 };
 
+
+
 exports.getFilteredProducts = async (req, res) => {
   try {
     const {
@@ -803,6 +805,9 @@ exports.getFilteredProducts = async (req, res) => {
       page = 1,
       limit = 12,
     } = req.query;
+
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
 
     const filter = {
       isActive: true,
@@ -821,15 +826,19 @@ exports.getFilteredProducts = async (req, res) => {
     }
 
     if (subSubcategoryId) {
-      filter.subSubcategory = new mongoose.Types.ObjectId(subSubcategoryId);
+      filter.subSubcategory = new mongoose.Types.ObjectId(
+        subSubcategoryId
+      );
     }
 
     if (productTypeId) {
-      filter.productType = new mongoose.Types.ObjectId(productTypeId);
+      filter.productType = new mongoose.Types.ObjectId(
+        productTypeId
+      );
     }
 
     // ==========================
-    // BRAND FILTER
+    // BRAND
     // ==========================
 
     if (brand) {
@@ -839,112 +848,253 @@ exports.getFilteredProducts = async (req, res) => {
     }
 
     // ==========================
-    // PRICE FILTER
-    // ==========================
-
-    if (minPrice || maxPrice) {
-      filter.price = {};
-
-      if (minPrice)
-        filter.price.$gte = Number(minPrice);
-
-      if (maxPrice)
-        filter.price.$lte = Number(maxPrice);
-    }
-
-    // ==========================
-    // STOCK FILTER
+    // STOCK
     // ==========================
 
     if (inStock === "true") {
       filter.quantity = { $gt: 0 };
     }
 
+    const pipeline = [];
+
+    // ==========================
+    // MATCH
+    // ==========================
+
+    pipeline.push({
+      $match: filter,
+    });
+
+    // ==========================
+    // EFFECTIVE PRICE
+    // ==========================
+
+    pipeline.push({
+      $addFields: {
+        effectivePrice: {
+          $cond: [
+            {
+              $gt: ["$discountPrice", 0],
+            },
+            "$discountPrice",
+            "$price",
+          ],
+        },
+      },
+    });
+
+    // ==========================
+    // PRICE FILTER
+    // ==========================
+
+    if (minPrice || maxPrice) {
+      const priceFilter = {};
+
+      if (minPrice) {
+        priceFilter.$gte = Number(minPrice);
+      }
+
+      if (maxPrice) {
+        priceFilter.$lte = Number(maxPrice);
+      }
+
+      pipeline.push({
+        $match: {
+          effectivePrice: priceFilter,
+        },
+      });
+    }
+
+    // ==========================
+    // CATEGORY LOOKUP
+    // ==========================
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      {
+        $unwind: {
+          path: "$category",
+          preserveNullAndEmptyArrays: true,
+        },
+      }
+    );
+
+    // ==========================
+    // SUBCATEGORY LOOKUP
+    // ==========================
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "subcategory",
+          foreignField: "_id",
+          as: "subcategory",
+        },
+      },
+      {
+        $unwind: {
+          path: "$subcategory",
+          preserveNullAndEmptyArrays: true,
+        },
+      }
+    );
+
+    // ==========================
+    // SUB SUBCATEGORY LOOKUP
+    // ==========================
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "subsubcategories",
+          localField: "subSubcategory",
+          foreignField: "_id",
+          as: "subSubcategory",
+        },
+      },
+      {
+        $unwind: {
+          path: "$subSubcategory",
+          preserveNullAndEmptyArrays: true,
+        },
+      }
+    );
+
+    // ==========================
+    // PRODUCT TYPE LOOKUP
+    // ==========================
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "producttypes",
+          localField: "productType",
+          foreignField: "_id",
+          as: "productType",
+        },
+      },
+      {
+        $unwind: {
+          path: "$productType",
+          preserveNullAndEmptyArrays: true,
+        },
+      }
+    );
+
     // ==========================
     // SORT
     // ==========================
 
-    let sortOption = {};
+    let sortOption = { createdAt: -1 };
 
     switch (sort) {
       case "price-low-high":
-        sortOption = { price: 1 };
+        sortOption = { effectivePrice: 1 };
         break;
 
       case "price-high-low":
-        sortOption = { price: -1 };
-        break;
-
-      case "latest":
-        sortOption = { createdAt: -1 };
+        sortOption = { effectivePrice: -1 };
         break;
 
       case "oldest":
         sortOption = { createdAt: 1 };
         break;
 
+      case "latest":
       default:
         sortOption = { createdAt: -1 };
     }
 
-    const pageNum = Number(page);
-    const limitNum = Number(limit);
+    pipeline.push({
+      $sort: sortOption,
+    });
 
     // ==========================
-    // PRODUCTS
+    // PAGINATION + COUNT
     // ==========================
 
-    const products = await SellerInventory.find(filter)
-      .select(
-        "name price discountPrice brand media quantity category subcategory subSubcategory productType"
-      )
-      .populate("category", "name")
-      .populate("subcategory", "name")
-      .populate("subSubcategory", "name")
-      .populate("productType", "name")
-      .sort(sortOption)
-      .skip((pageNum - 1) * limitNum)
-      .limit(limitNum);
+    pipeline.push({
+      $facet: {
+        products: [
+          {
+            $skip: (pageNum - 1) * limitNum,
+          },
+          {
+            $limit: limitNum,
+          },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              price: 1,
+              discountPrice: "$effectivePrice",
+              image: {
+                $arrayElemAt: [
+                  "$media.url",
+                  0,
+                ],
+              },
+              brand: "$brand.name",
+              logo: "$brand.logo",
+              inStock: {
+                $gt: [
+                  "$quantity",
+                  0,
+                ],
+              },
+              category: "$category.name",
+              subcategory:
+                "$subcategory.name",
+              subSubcategory:
+                "$subSubcategory.name",
+              productType:
+                "$productType.name",
+            },
+          },
+        ],
 
-    // ==========================
-    // TOTAL COUNT
-    // ==========================
+        totalCount: [
+          {
+            $count: "count",
+          },
+        ],
+      },
+    });
 
-    const totalProducts = await SellerInventory.countDocuments(filter);
+    const result =
+      await SellerInventory.aggregate(
+        pipeline
+      );
 
-    // ==========================
-    // RESPONSE
-    // ==========================
+    const products =
+      result[0].products;
 
-    const formattedProducts = products.map((p) => ({
-      _id: p._id,
-      name: p.name,
-      price: p.price,
-      discountPrice: p.discountPrice || p.price,
-      brand: p.brand?.name || null,
-      logo: p.brand?.logo || null,
-      image: p.media?.[0]?.url || null,
-      inStock: p.quantity > 0,
-      category: p.category?.name,
-      subcategory: p.subcategory?.name,
-      subSubcategory: p.subSubcategory?.name,
-      productType: p.productType?.name,
-    }));
+    const totalProducts =
+      result[0].totalCount.length
+        ? result[0].totalCount[0].count
+        : 0;
 
     return res.status(200).json({
       success: true,
       totalProducts,
       currentPage: pageNum,
-      totalPages: Math.ceil(totalProducts / limitNum),
-      products: formattedProducts,
+      totalPages: Math.ceil(
+        totalProducts / limitNum
+      ),
+      products,
     });
-
   } catch (error) {
-
     return res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
