@@ -33,32 +33,44 @@ function calculateCartTotals(cart) {
   cart.sellerGroups.forEach((seller) => {
     let sellerTotal = 0;
 
+    // Remove invalid items whose product no longer exists
+    seller.items = seller.items.filter(
+      (item) => item.sellerInventoryId
+    );
+
     seller.items.forEach((item) => {
       const inventory = item.sellerInventoryId;
 
-      const mrp =
-        Number(inventory.price || 0) *
-        Number(item.quantity || 0);
+      const quantity = Number(item.quantity || 0);
+
+      const mrp = Number(inventory.price || 0);
+
+      const discountPrice =
+        Number(inventory.discountPrice || 0);
 
       const offerPrice =
-        inventory.discountPrice > 0
-          ? inventory.discountPrice
-          : inventory.price;
+        discountPrice > 0 ? discountPrice : mrp;
 
-      const discountedTotal =
-        offerPrice * item.quantity;
+      const mrpTotal = mrp * quantity;
 
-      originalPrice += mrp;
+      const sellingTotal = offerPrice * quantity;
 
-      sellingPrice += discountedTotal;
+      originalPrice += mrpTotal;
+      sellingPrice += sellingTotal;
+      totalDiscount += mrpTotal - sellingTotal;
 
-      totalDiscount += mrp - discountedTotal;
+      sellerTotal += sellingTotal;
 
-      sellerTotal += discountedTotal;
+      item.totalPrice = sellingTotal;
     });
 
     seller.sellerTotal = sellerTotal;
   });
+
+  // Remove empty seller groups
+  cart.sellerGroups = cart.sellerGroups.filter(
+    (seller) => seller.items.length > 0
+  );
 
   cart.priceDetails.price = originalPrice;
 
@@ -68,8 +80,7 @@ function calculateCartTotals(cart) {
     sellingPrice > 0 ? 40 : 0;
 
   cart.priceDetails.totalAmount =
-    originalPrice -
-    totalDiscount -
+    sellingPrice -
     (cart.priceDetails.couponDiscount || 0) +
     cart.priceDetails.platformFee;
 }
@@ -313,9 +324,10 @@ exports.addToCart = async (req, res) => {
       });
     }
 
-    await cart.populate({
+await cart.populate({
   path: "sellerGroups.items.sellerInventoryId",
-  select: "price discountPrice",
+  model: "SellerInventory",
+  select: "price discountPrice quantity",
 });
     calculateCartTotals(cart);
 
