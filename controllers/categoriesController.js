@@ -787,3 +787,164 @@ exports.getInStockProductsByProductType = async (req, res) => {
     });
   }
 };
+
+exports.getFilteredProducts = async (req, res) => {
+  try {
+    const {
+      categoryId,
+      subcategoryId,
+      subSubcategoryId,
+      productTypeId,
+      brand,
+      minPrice,
+      maxPrice,
+      inStock,
+      sort = "latest",
+      page = 1,
+      limit = 12,
+    } = req.query;
+
+    const filter = {
+      isActive: true,
+    };
+
+    // ==========================
+    // CATEGORY FILTERS
+    // ==========================
+
+    if (categoryId) {
+      filter.category = new mongoose.Types.ObjectId(categoryId);
+    }
+
+    if (subcategoryId) {
+      filter.subcategory = new mongoose.Types.ObjectId(subcategoryId);
+    }
+
+    if (subSubcategoryId) {
+      filter.subSubcategory = new mongoose.Types.ObjectId(subSubcategoryId);
+    }
+
+    if (productTypeId) {
+      filter.productType = new mongoose.Types.ObjectId(productTypeId);
+    }
+
+    // ==========================
+    // BRAND FILTER
+    // ==========================
+
+    if (brand) {
+      filter["brand.name"] = {
+        $regex: new RegExp(`^${brand}$`, "i"),
+      };
+    }
+
+    // ==========================
+    // PRICE FILTER
+    // ==========================
+
+    if (minPrice || maxPrice) {
+      filter.price = {};
+
+      if (minPrice)
+        filter.price.$gte = Number(minPrice);
+
+      if (maxPrice)
+        filter.price.$lte = Number(maxPrice);
+    }
+
+    // ==========================
+    // STOCK FILTER
+    // ==========================
+
+    if (inStock === "true") {
+      filter.quantity = { $gt: 0 };
+    }
+
+    // ==========================
+    // SORT
+    // ==========================
+
+    let sortOption = {};
+
+    switch (sort) {
+      case "price-low-high":
+        sortOption = { price: 1 };
+        break;
+
+      case "price-high-low":
+        sortOption = { price: -1 };
+        break;
+
+      case "latest":
+        sortOption = { createdAt: -1 };
+        break;
+
+      case "oldest":
+        sortOption = { createdAt: 1 };
+        break;
+
+      default:
+        sortOption = { createdAt: -1 };
+    }
+
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+
+    // ==========================
+    // PRODUCTS
+    // ==========================
+
+    const products = await SellerInventory.find(filter)
+      .select(
+        "name price discountPrice brand media quantity category subcategory subSubcategory productType"
+      )
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .populate("productType", "name")
+      .sort(sortOption)
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
+
+    // ==========================
+    // TOTAL COUNT
+    // ==========================
+
+    const totalProducts = await SellerInventory.countDocuments(filter);
+
+    // ==========================
+    // RESPONSE
+    // ==========================
+
+    const formattedProducts = products.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      price: p.price,
+      discountPrice: p.discountPrice || p.price,
+      brand: p.brand?.name || null,
+      logo: p.brand?.logo || null,
+      image: p.media?.[0]?.url || null,
+      inStock: p.quantity > 0,
+      category: p.category?.name,
+      subcategory: p.subcategory?.name,
+      subSubcategory: p.subSubcategory?.name,
+      productType: p.productType?.name,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      totalProducts,
+      currentPage: pageNum,
+      totalPages: Math.ceil(totalProducts / limitNum),
+      products: formattedProducts,
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+
+  }
+};

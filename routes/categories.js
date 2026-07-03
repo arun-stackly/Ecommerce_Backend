@@ -94,4 +94,6 @@ router.get(
   ctrl.getProductsByBrandAndProductType
 );
 
+router.get("/filter", ctrl.getFilteredProducts);
+
 module.exports = router;
