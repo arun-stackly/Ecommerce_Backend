@@ -76,13 +76,24 @@ exports.getTemplate = async (req, res) => {
   try {
     const { productTypeId, subSubCategoryId } = req.query;
 
+    // At least one parameter is required
+    if (!productTypeId && !subSubCategoryId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Please provide either productTypeId or subSubCategoryId.",
+      });
+    }
+
     const filter = {};
 
-    if (productTypeId)
+    if (productTypeId) {
       filter.productTypeId = productTypeId;
+    }
 
-    if (subSubCategoryId)
+    if (subSubCategoryId) {
       filter.subSubCategoryId = subSubCategoryId;
+    }
 
     const template = await SpecificationTemplate.findOne(filter)
       .populate("productTypeId", "name slug")
@@ -95,12 +106,12 @@ exports.getTemplate = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       template,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
