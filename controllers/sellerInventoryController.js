@@ -51,6 +51,21 @@ exports.getInventory = async (req, res) => {
           as: "category",
         },
       },
+      // SUB SUB CATEGORY
+{
+  $lookup: {
+    from: "subsubcategories",
+    localField: "subSubcategory",
+    foreignField: "_id",
+    as: "subSubcategory",
+  },
+},
+{
+  $unwind: {
+    path: "$subSubcategory",
+    preserveNullAndEmptyArrays: true,
+  },
+},
       {
         $unwind: {
           path: "$category",
@@ -162,7 +177,7 @@ exports.getInventory = async (req, res) => {
           productName: "$name",
           productTypeId: "$productType", // <-- add this
 
- 
+           subSubcategoryId: "$subSubcategory._id",
           category: "$category.name",
  
           price: 1,
