@@ -841,13 +841,7 @@ exports.getRelatedProducts = async (req, res) => {
     }).limit(4);
 
     const response = relatedProducts.map((product) => {
-      const discountPercentage = product.discountPercentage || 0;
-
-      const offerPrice =
-        discountPercentage > 0
-          ? product.price - (product.price * discountPercentage) / 100
-          : "";
-
+    
       return {
         _id: product._id,
         name: product.name,
@@ -858,8 +852,12 @@ exports.getRelatedProducts = async (req, res) => {
 
         price: product.price,
 
-        discountPercentage: `${product.discountPercentage || 0}%`, // ✅ FIXED
-        offerPrice,
+       discountPrice: product.discountPrice,
+
+
+    rating: product.rating || 0,
+
+    reviewCount: product.reviewCount || 0,
 
         sizes: product.sizes || [],
       };
