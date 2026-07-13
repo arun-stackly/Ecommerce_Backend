@@ -21,4 +21,10 @@ router.get(
   "/product-type/:productTypeId",
   bannerController.getBannersByProductType
 );
+
+// Subcategory Banner
+router.get("/subcategory/:subcategoryId", bannerController.getBannersBySubcategory);
+
+// Sub-Subcategory Banner
+router.get("/subsubcategory/:subSubcategoryId", bannerController.getBannersBySubSubcategory);
 module.exports = router;
