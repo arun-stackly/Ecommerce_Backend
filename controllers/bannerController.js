@@ -169,3 +169,63 @@ exports.getBannersByProductType = async (req, res) => {
 
   }
 };
+// ✅ GET BANNERS BY SUBCATEGORY ID
+exports.getBannersBySubcategory = async (req, res) => {
+  try {
+    const { subcategoryId } = req.params;
+
+    const banners = await Banner.find({
+      subcategory: subcategoryId,
+      isActive: true,
+    });
+
+    if (!banners.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No banners found for this subcategory",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: banners.length,
+      banners,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+// ✅ GET BANNERS BY SUB-SUBCATEGORY ID
+exports.getBannersBySubSubcategory = async (req, res) => {
+  try {
+    const { subSubcategoryId } = req.params;
+
+    const banners = await Banner.find({
+      subSubcategory: subSubcategoryId,
+      isActive: true,
+    });
+
+    if (!banners.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No banners found for this sub-subcategory",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: banners.length,
+      banners,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
