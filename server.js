@@ -60,7 +60,8 @@ const faqRoutes = require("./routes/faqRoutes");
 const contactRoutes = require("./routes/contactRoutes")
  const TravelPackage = require("./routes/travelpackageRouter");
 const userBankRoutes = require("./routes/userBankRoutes");
-const travelRoutes = require("./routes/travelhomeRoutes");
+const travelHomeRoutes = require("./routes/travelhomeRoutes");
+const travelRoutes = require("./routes/travelRoutes");
 const dns = require("dns");
  
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
@@ -126,7 +127,7 @@ app.use("/api/seller/kyc", kycRoutes);
 app.use("/api/seller/bank", bankRoutes);
 app.use("/api/seller/dashboard", dashboardRoutes);
 app.use("/api/seller/profile", sellerProfileRoutes);
-app.use("/api/business-profile", require("./routes/businessProfileRoutes"));
+app.use("/api/seller/business-profile", require("./routes/businessProfileRoutes"));
 app.use("/api/seller/bank-details", sellerBankRoutes);
 app.use("/api/seller/invoices", invoiceRoutes);
 app.use("/api/seller/reports", sellerReportRoutes);
@@ -144,12 +145,11 @@ app.use("/api/user/payment", paymentRoutes);
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/subcategories", subcategoriesRoutes);
 app.use("/api/subsubcategories", subsubRoutes);
- 
+app.use("/api/user/bank", userBankRoutes);
 app.use("/api/user", userlandingRoutes);
 app.use("/api/travelpackage", TravelPackage);
-app.use("/api/travel", travelRoutes);
-app.use("/api/user/bank", userBankRoutes);
- 
+app.use("/api/travel/home", travelHomeRoutes);
+ app .use("/api/travel", travelRoutes);
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
