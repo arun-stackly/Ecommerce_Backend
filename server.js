@@ -107,15 +107,15 @@ app.use("/api/appliance", ApplianceRoutes);
 app.use("/api/appliance/productdetails", ApplianceProductdetailsRoutes);
  
 app.use("/api/ads", adsRoutes);
-app.use("/api/wishlist", wishlistRoutes);
+app.use("/api/user/wishlist", wishlistRoutes);
 app.use("/api/auth/seller", authRoutes);
 app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
 app.use("/api/fashion", fashionHomeRoutes);
 app.use("/api/fashions", fashionRoutes);
-app.use("/api/productdetails", fashionProductDeatailRoutes);
+app.use("/api/user/productdetails", fashionProductDeatailRoutes);
 app.use("/api/returns", returnRoutes);
-app.use("/api/orders", userorderRoutes);
+app.use("/api/user/orders", userorderRoutes);
 app.use("/api/faq", faqRoutes);
 app.use("/api/contact", contactRoutes);
  
@@ -135,11 +135,11 @@ app.use("/api/refunds", refundRoutes);
 app.use("/api/seller/inventory", sellerInventoryRoutes);
 app.use("/api/seller-settings", require("./routes/sellerSettingsRoutes"));
  
-app.use("/api/pincode", pincodeRoutes);
+app.use("/api/user/pincode", pincodeRoutes);
  
-app.use("/api/cart", cartRoutes);
-app.use("/api/address", addressRoutes);
-app.use("/api/payment", paymentRoutes);
+app.use("/api/user/cart", cartRoutes);
+app.use("/api/user/address", addressRoutes);
+app.use("/api/user/payment", paymentRoutes);
  
 app.use("/api/categories", categoriesRoutes);
 app.use("/api/subcategories", subcategoriesRoutes);
