@@ -12,13 +12,13 @@ const { sellerOnly } = require("../middleware/roleMiddleware");
 ===================================== */
 
 router.get(
-  "/options/:returnId",
+  "/user/options/:returnId",
   protectUser,
   c.getRefundOptions
 );
 
 router.post(
-  "/select-mode",
+  "/user/select-mode",
   protectUser,
   c.selectRefundMode
 );
@@ -26,7 +26,7 @@ router.post(
 
 
 router.get(
-  "/details/:returnId",
+  "/user/details/:returnId",
   protectUser,
   c.getRefundDetails
 );
@@ -35,35 +35,35 @@ router.get(
    SELLER ROUTES
 ===================================== */
 router.post(
-  "/create",
+  "/seller/create",
   protect, 
   sellerOnly,
   c.createRefund
 );
 
 router.get(
-  "/summary",
+  "/seller/summary",
   protect,
   sellerOnly,
   c.refundSummary
 );
 
 router.get(
-  "/",
+  "/seller/",
   protect,
   sellerOnly,
   c.getRefunds
 );
 
 router.get(
-  "/:id/process",
+  "/seller/:id/process",
   protect,
   sellerOnly,
   c.getRefundProcessingData
 );
 
 router.put(
-  "/:id/process",
+  "/seller/:id/process",
   protect,
   sellerOnly,
   c.processRefund
