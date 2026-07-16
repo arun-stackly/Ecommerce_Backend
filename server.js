@@ -114,7 +114,7 @@ app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
 app.use("/api/fashion", fashionHomeRoutes);
 app.use("/api/fashions", fashionRoutes);
-app.use("/api/user/productdetails", fashionProductDeatailRoutes);
+app.use("/api/productdetails", fashionProductDeatailRoutes);
 app.use("/api/returns", returnRoutes);
 app.use("/api/user/orders", userorderRoutes);
 app.use("/api/faq", faqRoutes);
