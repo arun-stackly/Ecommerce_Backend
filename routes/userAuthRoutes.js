@@ -2,7 +2,8 @@ const express = require("express");
  
 const {
   requestOTP,
-  verifyOTP,
+  verifySignupOTP,
+  verifyLoginOTP,
   completeProfile,
   resendOTP,
  
@@ -36,12 +37,12 @@ const router = express.Router();
  
 /* ================= SIGNUP ================= */
 router.post("/signup/request-otp", requestOTP);
-router.post("/signup/verify-otp", verifyOTP);
+router.post("/signup/verify-otp", verifySignupOTP);
 router.post("/signup/complete", completeProfile);
  
 /* ================= LOGIN ================= */
 router.post("/login/request-otp", requestOTP);
-router.post("/login/verify-otp", verifyOTP);
+router.post("/login/verify-otp", verifyLoginOTP);
  
 /* ================= OTP ================= */
 router.post("/resend-otp", resendOTP);

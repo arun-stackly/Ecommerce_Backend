@@ -2,16 +2,15 @@ const asyncHandler = require("express-async-handler");
 const User = require("../models/UserAuth");
 const UserBank = require("../models/UserBank");
 const UserCard = require("../models/UserCard");
-const Address = require("../models/addressModel")
+const Address = require("../models/addressModel");
 const generateToken = require("../utils/generateToken");
  
 /* ================= GENERATE OTP ================= */
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
  
-/* ================= REQUEST OTP ================= */
 exports.requestOTP = asyncHandler(async (req, res) => {
-  const { phone, email, identifier } = req.body;
+  const { phone, email, identifier, type } = req.body;
  
   const value = phone || email || identifier;
  
@@ -29,13 +28,23 @@ exports.requestOTP = asyncHandler(async (req, res) => {
     ].filter(Boolean),
   });
  
-  if (!user) {
-    const data = {};
+  if (type === "signup") {
+    if (user) {
+      res.status(400);
+      throw new Error("User already exists");
+    }
  
-    if (phone) data.phone = phone;
-    if (email) data.email = email;
+    user = await User.create({
+      phone,
+      email,
+    });
+  }
  
-    user = await User.create(data);
+  if (type === "login") {
+    if (!user) {
+      res.status(404);
+      throw new Error("User not found. Please signup.");
+    }
   }
  
   const otp = generateOTP();
@@ -53,10 +62,10 @@ exports.requestOTP = asyncHandler(async (req, res) => {
   });
 });
  
-/* ================= VERIFY OTP (LOGIN / SIGNUP) ================= */
-exports.verifyOTP = asyncHandler(async (req, res) => {
+/* ================= VERIFY OTP ( SIGNUP) ================= */
+exports.verifySignupOTP = asyncHandler(async (req, res) => {
   const { phone, email, identifier, otp } = req.body;
- 
+
   const user = await User.findOne({
     $or: [
       phone ? { phone } : null,
@@ -65,31 +74,77 @@ exports.verifyOTP = asyncHandler(async (req, res) => {
       identifier ? { email: identifier } : null,
     ].filter(Boolean),
   });
- 
+
   if (!user) {
-    res.status(404);
-    throw new Error("User not found");
+    return res.status(404).json({
+      success: false,
+      message: "User not found",
+    });
   }
- 
+
   if (user.otp !== otp || user.otpExpiry < Date.now()) {
-    res.status(400);
-    throw new Error("Wrong OTP or expired OTP");
+    return res.status(400).json({
+      success: false,
+      message: "Invalid or expired OTP",
+    });
   }
- 
+
   user.isVerified = true;
   user.otp = undefined;
   user.otpExpiry = undefined;
- 
+
   await user.save();
- 
-  res.json({
+
+  res.status(200).json({
+    success: true,
+    message: "OTP verified successfully. Please complete your profile.",
+    userId: user._id,
+    token: generateToken({ id: user._id }),
+  });
+});
+/* ================= VERIFY OTP (LOGIN ) ================= */
+exports.verifyLoginOTP = asyncHandler(async (req, res) => {
+  const { phone, email, identifier, otp } = req.body;
+
+  const user = await User.findOne({
+    $or: [
+      phone ? { phone } : null,
+      email ? { email } : null,
+      identifier ? { phone: identifier } : null,
+      identifier ? { email: identifier } : null,
+    ].filter(Boolean),
+  });
+
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: "User not found",
+    });
+  }
+
+  if (user.otp !== otp || user.otpExpiry < Date.now()) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid or expired OTP",
+    });
+  }
+
+  user.otp = undefined;
+  user.otpExpiry = undefined;
+
+  await user.save();
+
+  res.status(200).json({
     success: true,
     message: "Login successful",
-    userId: user._id, // ✅ USER ID
     token: generateToken({ id: user._id }),
-    name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-    email: user.email,
-    phone: user.phone,
+    data: {
+      userId: user._id,
+      name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+      email: user.email,
+      phone: user.phone,
+      isProfileCompleted: !!user.firstName,
+    },
   });
 });
  
@@ -164,35 +219,30 @@ exports.resendOTP = asyncHandler(async (req, res) => {
   });
 });
  
-
-
 exports.getProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).select(
-    "firstName lastName email phone"
+    "firstName lastName email phone",
   );
-
+ 
   if (!user) {
     res.status(404);
     throw new Error("User not found");
   }
-
-  const [address, bankAccounts, cards] =
-    await Promise.all([
-      Address.find({ userId: req.user._id }),
-      UserBank.find({ user: req.user._id }),
-      UserCard.find({ user: req.user._id }),
-    ]);
-
+ 
+  const [address, bankAccounts, cards] = await Promise.all([
+    Address.find({ userId: req.user._id }),
+    UserBank.find({ user: req.user._id }),
+    UserCard.find({ user: req.user._id }),
+  ]);
+ 
   res.json({
     success: true,
     data: {
       userId: user._id,
-      name: `${user.firstName || ""} ${
-        user.lastName || ""
-      }`.trim(),
+      name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
       email: user.email,
       phone: user.phone,
-
+ 
       address,
       bankAccounts,
       cards,
@@ -241,14 +291,14 @@ exports.logoutUser = asyncHandler(async (req, res) => {
 /* ================= DELETE PROFILE ================= */
 exports.deleteProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
-
+ 
   if (!user) {
     res.status(404);
     throw new Error("User not found");
   }
-
+ 
   await User.findByIdAndDelete(req.user._id);
-
+ 
   res.json({
     success: true,
     message: "Profile deleted successfully",
@@ -299,23 +349,17 @@ exports.updateBankDetails = asyncHandler(async (req, res) => {
       state,
     });
   } else {
-    if (accountHolderName)
-      bank.accountHolderName = accountHolderName;
+    if (accountHolderName) bank.accountHolderName = accountHolderName;
  
-    if (bankName)
-      bank.bankName = bankName;
+    if (bankName) bank.bankName = bankName;
  
-    if (country)
-      bank.country = country;
+    if (country) bank.country = country;
  
-    if (accountNumber)
-      bank.accountNumber = accountNumber;
+    if (accountNumber) bank.accountNumber = accountNumber;
  
-    if (ifscCode)
-      bank.ifscCode = ifscCode;
+    if (ifscCode) bank.ifscCode = ifscCode;
  
-    if (state)
-      bank.state = state;
+    if (state) bank.state = state;
  
     await bank.save();
   }
@@ -330,7 +374,6 @@ exports.updateBankDetails = asyncHandler(async (req, res) => {
     data: responseData,
   });
 });
- 
  
 /* ================= ADD UPI DETAILS ================= */
 exports.addUpiDetails = asyncHandler(async (req, res) => {
