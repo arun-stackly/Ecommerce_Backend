@@ -18,7 +18,7 @@ const {
 
 // FASHION LANDING PAGE
 router.get(
-  "/home/:categoryId",
+  "/:categoryId",
   getHomePage
 );
 
