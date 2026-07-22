@@ -1,171 +1,104 @@
-const SellerInventory = require("../models/SellerInventory");
 const Banner = require("../models/Banner");
+const SellerInventory = require("../models/SellerInventory");
+const Ad = require("../models/Ad");
 
-
-// ======================================================
-// CATEGORY HOME PAGE CONTROLLER
-// API: GET /api/home/:categoryId
-// ======================================================
-
-exports.getHomePageData = async (req, res) => {
+exports.getHomePage = async (req, res) => {
   try {
 
-   // =========================================
-      // HARDCODE CATEGORY ID
-      // =========================================
-      const categoryId =
-        "6a0422c0936b09c6f7cd3519";
+    const { categoryId } = req.params;
 
-    // =========================================
-    // Homepage Banner
-    // =========================================
-    const banner = await Banner.findOne({
+    // Home Banner
+    const homeBanner = await Banner.find({
       type: "homepage",
       isActive: true,
-    });
+      category: categoryId
+    }).select(
+      "title image redirectUrl category"
+    );
 
-    // =========================================
+    
+
+    // Trending Deals
+    const trendingDeals = await Banner.find({
+      type: "trending-deals",
+      isActive: true,
+      category: categoryId
+    }).select(
+      "title image redirectUrl category"
+    );
+
+
+    // Top Deals Of Week
+    const topDealsOfWeek = await Ad.find({
+  adType: "Monthly sale ads",
+  isActive: true,
+  category: categoryId
+})
+.populate("product", "name")
+.select(
+  "product  mediaUrl category"
+);
     // Latest Launches
-    // =========================================
     const latestLaunches =
       await SellerInventory.find({
-        category: categoryId,
         isActive: true,
+        category: categoryId
       })
-        .sort({ createdAt: -1 })
-        .limit(10);
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select(`
+        name
+        media
+      `);
 
-    // =========================================
-    // Top Deal
-    // =========================================
-    const topDeal =
-      await SellerInventory.findOne({
-        category: categoryId,
-        isFeatured: true,
-        isActive: true,
-      })
-        .sort({ views: -1 });
-
-    // =========================================
-    // Sale Of The Day
-    // =========================================
-    const currentDate = new Date();
-
-    const saleOfDay =
+    // Top Brands
+    const products =
       await SellerInventory.find({
-        category: categoryId,
-
         isActive: true,
+        category: categoryId
+      }).select("brand");
 
-        isSaleOfDay: true,
+    const brandsMap = new Map();
 
-        saleStartDate: {
-          $lte: currentDate,
-        },
+    products.forEach(product => {
 
-        saleEndDate: {
-          $gte: currentDate,
-        },
-      })
-        .sort({ createdAt: -1 })
-        .limit(10);
+      if (
+        product.brand?.name &&
+        !brandsMap.has(product.brand.name)
+      ) {
+        brandsMap.set(
+          product.brand.name,
+          {
+            name: product.brand.name,
+            logo: product.brand.logo
+          }
+        );
+      }
 
-    // =========================================
-    // Best Sellers
-    // =========================================
-    const bestSellers =
-      await SellerInventory.find({
-        category: categoryId,
-        isActive: true,
-      })
-        .sort({
-          reviewCount: -1,
-          views: -1,
-        })
-        .limit(10);
+    });
 
-    // =========================================
-    // Upcoming Deals
-    // =========================================
-    const upcomingDeals =
-      await SellerInventory.find({
-        category: categoryId,
-        isFeatured: true,
-        isActive: true,
-      })
-        .sort({ createdAt: -1 })
-        .limit(10);
+    const topBrandsForYou =
+      Array.from(
+        brandsMap.values()
+      ).slice(0, 10);
 
-    // =========================================
-    // Samsung Deals
-    // =========================================
-    const samsungDeals =
-      await SellerInventory.find({
-        category: categoryId,
-        "brands.name": "Samsung",
-        isActive: true,
-      }).limit(10);
-
-    // =========================================
-    // Oppo Deals
-    // =========================================
-    const oppoDeals =
-      await SellerInventory.find({
-        category: categoryId,
-        "brands.name": "Oppo",
-        isActive: true,
-      }).limit(10);
-
-    // =========================================
-    // Vivo Deals
-    // =========================================
-    const vivoDeals =
-      await SellerInventory.find({
-        category: categoryId,
-        "brands.name": "Vivo",
-        isActive: true,
-      }).limit(10);
-
-    // =========================================
-    // Apple Deals
-    // =========================================
-    const appleDeals =
-      await SellerInventory.find({
-        category: categoryId,
-        "brands.name": "Apple",
-        isActive: true,
-      }).limit(10);
-
-    // =========================================
-    // Response
-    // =========================================
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-
-      banner,
-
+      categoryId,
+      homeBanner,
       latestLaunches,
-
-      topDeal,
-
-      saleOfDay,
-
-      bestSellers,
-
-      upcomingDeals,
-
-      brandDeals: {
-        apple: appleDeals,
-        samsung: samsungDeals,
-        oppo: oppoDeals,
-        vivo: vivoDeals,
-      },
+       trendingDeals,
+      topDealsOfWeek,
+      topBrandsForYou
     });
 
   } catch (error) {
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message
     });
+
   }
 };
+

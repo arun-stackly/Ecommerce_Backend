@@ -1,92 +1,23 @@
-// routes/productDetails.routes.js
-
 const express = require("express");
-
 const router = express.Router();
 
-const ProductDetailsController =
-  require("../controllers/Electronics_ProductDetails");
+const {
+  getSimilarProducts,
+  searchProducts,
+  getAllDeals,
+  getProductById,
+  getProductStock,
+  checkDelivery,
+} = require("../controllers/FashionProductDetails");
 
-/* =========================================
-   PRODUCT DETAILS
-   GET /api/products/:id
-========================================= */
+const { protectUser } = require("../middleware/userAuthMiddleware"); // for review
 
-router.get(
-  "/:id",
-  ProductDetailsController.getProductById
-);
-
-/* =========================================
-   PRODUCT STOCK
-   GET /api/products/:id/stock
-========================================= */
-
-router.get(
-  "/:id/stock",
-  ProductDetailsController.getProductStock
-);
-
-/* =========================================
-   SIMILAR PRODUCTS
-   GET /api/products/:id/similar
-========================================= */
-
-router.get(
-  "/:id/similar",
-  ProductDetailsController.getSimilarProducts
-);
-
-/* =========================================
-   PRODUCT REVIEWS
-   GET /api/products/:id/reviews
-========================================= */
-
-router.get(
-  "/:id/reviews",
-  ProductDetailsController.getProductReviews
-);
-
-
-/* =========================================
-   RECENTLY VIEWED PRODUCTS
-   GET /api/products/recently-viewed
-========================================= */
-
-router.get(
-  "/recently-viewed",
-  ProductDetailsController.getRecentlyViewed
-);
-
-/* =========================================
-   ACCESSORIES PRODUCTS
-   GET /api/products/:id/accessories
-========================================= */
-
-router.get(
-  "/:id/accessories",
-  ProductDetailsController.getAccessoriesProducts
-);
-
-/* =========================================
-   BEST SELLERS
-   GET /api/products/categories/:categoryId/best-sellers
-========================================= */
-
-router.get(
-  "/categories/:categoryId/best-sellers",
-  ProductDetailsController.getBestSellers
-);
-
-/* =========================================
-   RECOMMENDED PRODUCTS
-   GET /api/products/:id/recommended
-========================================= */
-
-router.get(
-  "/:id/recommended",
-  ProductDetailsController.getRecommendedProducts
-);
+// 🔹 Product APIs
+router.get("/search", searchProducts);
+router.get("/check", checkDelivery);
+router.get("/:id", getProductById);
+router.get("/:id/similar", getSimilarProducts);
+router.get("/:id/stock", getProductStock);
 
 
 

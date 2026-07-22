@@ -11,6 +11,8 @@ router.get("/", subSubController.getSubSubcategories);
 
 // Get SubSubcategories by Subcategory
 router.get("/subcategory/:subcategoryId", subSubController.getBySubcategory);
+// Get SubSubcategories by category
+router.get("/category/:categoryId", subSubController.getByCategory);
 
 // Update SubSubcategory
 router.put("/:id", subSubController.updateSubSubcategory);

@@ -46,12 +46,8 @@ const fashionProductDeatailRoutes = require("./routes/FashionProductDetails");
 const specificationRoutes = require("./routes/ProductSpecification");
 const producttypesRoutes = require("./routes/ProductTypeRoutes");
 const ElectronicshomeRoutes = require("./routes/ElectronicshomeRoutes");
-const ElectronicsmobilehomeRoutes = require("./routes/Electronics_MobilePhone_Home");
-const ElectronicsbestsellerRoutes = require("./routes/Electronics_bestseller_MobileRoutes");
-const ElectronicstopratedRoutes = require("./routes/Electronics_TopRatedRoutes");
+const ElectronicsmobileRoutes = require("./routes/ElectronicsRoutes");
 const Electronics_ProductDetailsRoutes = require("./routes/ElectronicProductDetails");
-const Elecronics_specificationRoutes = require("./routes/Elecronics_SpecificationRoutes");
-const Electronics_Cases_HomepageRoutes = require("./routes/Electronics_Cases_Home");
 const AppliancehomepageRoutes = require("./routes/ApplianceshomepageRoutes");
 const ApplianceRoutes = require("./routes/ApplianceRoutes");
 const ApplianceProductdetailsRoutes = require("./routes/ApplianceProductdetailRoutes");
@@ -82,26 +78,18 @@ app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ limit: "100mb", extended: true }));
 app.use("/api/deals", require("./routes/dealRoutes"));
 app.use("/api/banners", require("./routes/bannerRoutes"));
-app.use("/api/electronics", require("./routes/ElectronicshomeRoutes"));
+app.use("/api/home", require("./routes/ElectronicshomeRoutes"));
 app.use(
-  "/api/electronics/mobilehome",
-  require("./routes/Electronics_MobilePhone_Home"),
+  "/api",
+  require("./routes/ElectronicsRoutes"),
 );
-app.use(
-  "/api/electronics/bestseller/mobile",
-  require("./routes/Electronics_bestseller_MobileRoutes"),
-);
-app.use(
-  "/api/electronics/toprated",
-  require("./routes/Electronics_TopRatedRoutes"),
-);
+
+
 app.use(
   "/api/specification-templates",
   require("./routes/specificationTemplateRoutes")
 );
 app.use("/api/electronics/productdetails", Electronics_ProductDetailsRoutes);
-app.use("/api/elctronics/specifications", Elecronics_specificationRoutes);
-app.use("/api/cases/home", Electronics_Cases_HomepageRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/home", AppliancehomepageRoutes);
 app.use("/api", ApplianceRoutes);
