@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 
 const {
-  getHomePageData,
+  getHomePage,
 } = require("../controllers/ElectronicshomepageController");
 
 
@@ -13,8 +13,8 @@ const {
 // ======================================================
 
 router.get(
-  "/home/:categoryId",
-  getHomePageData
+  "/:categoryId",
+  getHomePage
 );
 
 module.exports = router;
