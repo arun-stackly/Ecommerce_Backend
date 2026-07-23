@@ -23,7 +23,6 @@ exports.getHomePage = async (req, res) => {
 // =========================================
 const categories = await Subcategory.find({
   category: categoryId,
-  isActive: true,
 }).select("name slug")
 
     // =========================================
