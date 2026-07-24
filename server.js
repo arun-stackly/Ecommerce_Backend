@@ -89,7 +89,7 @@ app.use(
   "/api/specification-templates",
   require("./routes/specificationTemplateRoutes")
 );
-app.use("/api/electronics/productdetails", Electronics_ProductDetailsRoutes);
+app.use("/api/productdetails", Electronics_ProductDetailsRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/home", AppliancehomepageRoutes);
 app.use("/api", ApplianceRoutes);
