@@ -54,7 +54,6 @@ const ApplianceProductdetailsRoutes = require("./routes/ApplianceProductdetailRo
 const returnRoutes = require("./routes/returnRoutes");
 const faqRoutes = require("./routes/faqRoutes");
 const contactRoutes = require("./routes/contactRoutes")
- const TravelPackage = require("./routes/travelpackageRouter");
 const userBankRoutes = require("./routes/userBankRoutes");
 const travelHomeRoutes = require("./routes/travelhomeRoutes");
 const travelRoutes = require("./routes/travelRoutes");
@@ -135,7 +134,6 @@ app.use("/api/subcategories", subcategoriesRoutes);
 app.use("/api/subsubcategories", subsubRoutes);
 app.use("/api/user/bank", userBankRoutes);
 app.use("/api/user", userlandingRoutes);
-app.use("/api/travelpackage", TravelPackage);
 app.use("/api/travel/home", travelHomeRoutes);
  app .use("/api/travel", travelRoutes);
 app.get("/", (req, res) => {
