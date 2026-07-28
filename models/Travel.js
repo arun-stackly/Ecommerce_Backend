@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { toString } = require("validator");
 
 const offerSchema = new mongoose.Schema(
   {
@@ -14,7 +15,7 @@ const destinationSchema = new mongoose.Schema(
     title: String,
     subtitle: String,
     image: String,
-    price: Number,
+    price: String,
   },
   { _id: false }
 );
@@ -24,7 +25,7 @@ const planSchema = new mongoose.Schema(
 
     tag: String, // For Travel/Day, Most Popular, Best Protection
 
-    price: Number,
+    price: String,
 
     currency: {
       type: String,
@@ -50,7 +51,32 @@ const benefitSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+const searchFieldSchema = new mongoose.Schema(
+  {
+    label: String,
+    placeholder: String,
+    key: String,
+    type: {
+      type: String,
+      enum: ["text", "date", "number", "select"],
+      default: "text",
+    },
+    required: {
+      type: Boolean,
+      default: false,
+    },
+    options: [String],
+  },
+  { _id: false }
+);
 
+const searchBarSchema = new mongoose.Schema(
+  {
+    buttonText: String,
+    fields: [searchFieldSchema],
+  },
+  { _id: false }
+);
 const travelHomepageSchema = new mongoose.Schema(
   {
     category: {
@@ -71,7 +97,7 @@ const travelHomepageSchema = new mongoose.Schema(
       subtitle: String,
       image: String,
     },
-
+    searchBar: searchBarSchema,
     offers: [offerSchema],
 
     popularDestinations: [destinationSchema],
