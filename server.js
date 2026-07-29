@@ -134,7 +134,7 @@ app.use("/api/subcategories", subcategoriesRoutes);
 app.use("/api/subsubcategories", subsubRoutes);
 app.use("/api/user/bank", userBankRoutes);
 app.use("/api/user", userlandingRoutes);
-app.use("/api/travel/home", travelHomeRoutes);
+app.use("/api/home", travelHomeRoutes);
  app .use("/api/travel", travelRoutes);
 app.get("/", (req, res) => {
   res.json({
