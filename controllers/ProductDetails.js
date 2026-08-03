@@ -1,7 +1,11 @@
 const SellerInventory = require("../models/SellerInventory");
 const Deal = require("../models/Deal");
 const mongoose = require("mongoose");
-const ProductItem = require("../models/productitem");
+
+
+/* =========================================
+   GET SIMILAR PRODUCTS
+========================================= */
 
 exports.getSimilarProducts = async (req, res) => {
   try {
@@ -16,43 +20,51 @@ exports.getSimilarProducts = async (req, res) => {
       });
     }
 
-    const similarProducts = await SellerInventory.find({
-      productType: currentProduct.productType,
-      isActive: true,
+    // Base filter
+    const filter = {
       _id: { $ne: currentProduct._id },
-    })
+      isActive: true,
+    };
+
+    // Fashion
+    if (currentProduct.productType) {
+      filter.productType = currentProduct.productType;
+    }
+    // Electronics / Appliances
+    else if (currentProduct.subSubcategory) {
+      filter.subSubcategory = currentProduct.subSubcategory;
+    }
+    // Fallback
+    else if (currentProduct.subcategory) {
+      filter.subcategory = currentProduct.subcategory;
+    } else {
+      filter.category = currentProduct.category;
+    }
+
+    const similarProducts = await SellerInventory.find(filter)
       .select(
-        "name price discountPrice brand media rating "
+        "name media price discountPrice rating brand productType subSubcategory"
       )
       .sort({ createdAt: -1 })
       .limit(8);
 
-    const formatted = similarProducts.map((p) => {
+    const products = similarProducts.map((p) => {
       const price = p.price || 0;
       const discountPrice =
         p.discountPrice > 0 ? p.discountPrice : price;
 
-      const discountPercentage =
-        price > discountPrice
-          ? Math.round(
-              ((price - discountPrice) / price) * 100
-            )
-          : 0;
-
       return {
         _id: p._id,
         name: p.name,
-
-        // Price Details
         price,
         discountPrice,
-        discountPercentage,
-
-        // Rating Details
-        Rating: p.rating || 0,
-       
-
-        // Brand & Image
+        discountPercentage:
+          price > discountPrice
+            ? Math.round(
+                ((price - discountPrice) / price) * 100
+              )
+            : 0,
+        rating: p.rating || 0,
         brand: p.brand || null,
         image: p.media?.[0]?.url || null,
       };
@@ -60,8 +72,8 @@ exports.getSimilarProducts = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      count: formatted.length,
-      products: formatted,
+      count: products.length,
+      products,
     });
 
   } catch (error) {
