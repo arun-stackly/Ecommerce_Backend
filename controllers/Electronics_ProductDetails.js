@@ -16,14 +16,22 @@ exports.getSimilarProducts = async (req, res) => {
       });
     }
 
-    const similarProducts = await SellerInventory.find({
-      productType: currentProduct.productType,
+    let filter = {
       isActive: true,
       _id: { $ne: currentProduct._id },
-    })
-      .select(
-        "name price discountPrice brand media rating "
-      )
+    };
+
+    // If Product Type exists, use it
+    if (currentProduct.productType) {
+      filter.productType = currentProduct.productType;
+    }
+    // Otherwise use SubSubCategory
+    else if (currentProduct.subSubcategory) {
+      filter.subSubcategory = currentProduct.subSubcategory;
+    }
+
+    const similarProducts = await SellerInventory.find(filter)
+      .select("name price discountPrice brand media rating")
       .sort({ createdAt: -1 })
       .limit(8);
 
@@ -34,25 +42,16 @@ exports.getSimilarProducts = async (req, res) => {
 
       const discountPercentage =
         price > discountPrice
-          ? Math.round(
-              ((price - discountPrice) / price) * 100
-            )
+          ? Math.round(((price - discountPrice) / price) * 100)
           : 0;
 
       return {
         _id: p._id,
         name: p.name,
-
-        // Price Details
         price,
         discountPrice,
         discountPercentage,
-
-        // Rating Details
-        Rating: p.rating || 0,
-       
-
-        // Brand & Image
+        rating: p.rating || 0,
         brand: p.brand || null,
         image: p.media?.[0]?.url || null,
       };
@@ -63,7 +62,6 @@ exports.getSimilarProducts = async (req, res) => {
       count: formatted.length,
       products: formatted,
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
