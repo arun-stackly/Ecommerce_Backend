@@ -31,7 +31,7 @@ const sellerInventoryRoutes = require("./routes/sellerInventoryRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const addressRoutes = require("./routes/addressRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
- 
+const productdetailRoutes = require("./routes/ProductdetailsRoutes");
 const categoriesRoutes = require("./routes/categories");
 const subcategoriesRoutes = require("./routes/subcategories");
 const subsubRoutes = require("./routes/subsubcategories");
@@ -42,15 +42,12 @@ const userlandingRoutes = require("./routes/userlandingRoutes");
 const fashionHomeRoutes = require("./routes/fashionHomeRoutes");
 const productitemRoutes = require("./routes/productitemRoutes");
 const fashionRoutes = require("./routes/Fashion");
-const fashionProductDeatailRoutes = require("./routes/FashionProductDetails");
 const specificationRoutes = require("./routes/ProductSpecification");
 const producttypesRoutes = require("./routes/ProductTypeRoutes");
 const ElectronicshomeRoutes = require("./routes/ElectronicshomeRoutes");
 const ElectronicsmobileRoutes = require("./routes/ElectronicsRoutes");
-const Electronics_ProductDetailsRoutes = require("./routes/ElectronicProductDetails");
 const AppliancehomepageRoutes = require("./routes/ApplianceshomepageRoutes");
 const ApplianceRoutes = require("./routes/ApplianceRoutes");
-const ApplianceProductdetailsRoutes = require("./routes/ApplianceProductdetailRoutes");
 const returnRoutes = require("./routes/returnRoutes");
 const faqRoutes = require("./routes/faqRoutes");
 const contactRoutes = require("./routes/contactRoutes")
@@ -82,18 +79,15 @@ app.use(
   "/api",
   require("./routes/ElectronicsRoutes"),
 );
-
+app.use("/api/productdetails", productdetailRoutes);
 
 app.use(
   "/api/specification-templates",
   require("./routes/specificationTemplateRoutes")
 );
-app.use("/api/productdetails", Electronics_ProductDetailsRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/home", AppliancehomepageRoutes);
-app.use("/api", ApplianceRoutes);
-app.use("/api/productdetails", ApplianceProductdetailsRoutes);
- 
+app.use("/api", ApplianceRoutes); 
 app.use("/api/ads", adsRoutes);
 app.use("/api/user/wishlist", wishlistRoutes);
 app.use("/api/auth/seller", authRoutes);
@@ -101,7 +95,6 @@ app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
 app.use("/api/home", fashionHomeRoutes);
 app.use("/api", fashionRoutes);
-app.use("/api/productdetails", fashionProductDeatailRoutes);
 app.use("/api/returns", returnRoutes);
 app.use("/api/user/orders", userorderRoutes);
 app.use("/api/faq", faqRoutes);
