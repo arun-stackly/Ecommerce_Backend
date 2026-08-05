@@ -12,44 +12,25 @@ exports.getProductsForAd = async (req, res) => {
     } = req.query;
 
     const filter = {
-      seller: req.user._id, // change to seller if your schema uses seller
       isActive: true,
     };
 
-    // Convert ObjectId fields
-    if (
-      category &&
-      mongoose.Types.ObjectId.isValid(category)
-    ) {
-      filter.category =
-        new mongoose.Types.ObjectId(category);
+    if (category && mongoose.Types.ObjectId.isValid(category)) {
+      filter.category = new mongoose.Types.ObjectId(category);
     }
 
-    if (
-      subcategory &&
-      mongoose.Types.ObjectId.isValid(subcategory)
-    ) {
-      filter.subcategory =
-        new mongoose.Types.ObjectId(subcategory);
+    if (subcategory && mongoose.Types.ObjectId.isValid(subcategory)) {
+      filter.subcategory = new mongoose.Types.ObjectId(subcategory);
     }
 
-    if (
-      subSubcategory &&
-      mongoose.Types.ObjectId.isValid(subSubcategory)
-    ) {
-      filter.subSubcategory =
-        new mongoose.Types.ObjectId(subSubcategory);
+    if (subSubcategory && mongoose.Types.ObjectId.isValid(subSubcategory)) {
+      filter.subSubcategory = new mongoose.Types.ObjectId(subSubcategory);
     }
 
-    if (
-      productType &&
-      mongoose.Types.ObjectId.isValid(productType)
-    ) {
-      filter.productType =
-        new mongoose.Types.ObjectId(productType);
+    if (productType && mongoose.Types.ObjectId.isValid(productType)) {
+      filter.productType = new mongoose.Types.ObjectId(productType);
     }
 
-    console.log("User ID:", req.user._id);
     console.log("Filter:", filter);
 
     const products = await SellerInventory.find(filter)
@@ -57,14 +38,9 @@ exports.getProductsForAd = async (req, res) => {
       .populate("category", "name")
       .populate("subcategory", "name")
       .populate("subSubcategory", "name")
-      .select(
-        "_id name productType category subcategory subSubcategory media"
-      );
+      .select("_id name productType category subcategory subSubcategory media");
 
-    console.log(
-      "Products Found:",
-      products.length
-    );
+    console.log("Products Found:", products.length);
 
     return res.status(200).json({
       success: true,

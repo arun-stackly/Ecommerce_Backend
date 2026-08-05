@@ -10,6 +10,8 @@ const Subcategory =
 const SubSubcategory =
   require("../models/SubSubcategory");
 
+  const SellerInventory = require("../models/SellerInventory");
+
 /* ================= CREATE PRODUCT TYPE ================= */
 
 exports.createProductType =
@@ -214,3 +216,43 @@ exports.deleteProductType =
 
     }
   };
+
+  exports.getProductsByProductType = async (req, res) => {
+  try {
+    const { productTypeId } = req.params;
+
+    // Optional: Check if product type exists
+    const productType = await ProductType.findById(productTypeId);
+
+    if (!productType) {
+      return res.status(404).json({
+        success: false,
+        message: "Product Type not found",
+      });
+    }
+
+    const products = await SellerInventory.find({
+      productType: productTypeId,
+      isActive: true,
+    })
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .populate("productType", "name");
+
+    res.status(200).json({
+      success: true,
+      productType: {
+        _id: productType._id,
+        name: productType.name,
+      },
+      count: products.length,
+      products,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

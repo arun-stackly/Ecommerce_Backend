@@ -5,7 +5,6 @@ const adController = require("../controllers/adsController");
 const { protect } = require("../middleware/authMiddleware");
 router.get(
   "/products",
-  protect,
  adController.getProductsForAd
 );
 
