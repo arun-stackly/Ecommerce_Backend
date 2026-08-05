@@ -187,6 +187,12 @@ exports.getProductById = async (req, res) => {
     const productResponse = product.toObject();
     delete productResponse.reviews;
 
+    // Add stock details
+// productResponse.stock = {
+//   quantity: product.quantity,
+//   available: product.quantity > 0 && product.isActive,
+// };
+
     return res.status(200).json({
       success: true,
       product: productResponse,

@@ -1,6 +1,7 @@
 const SubSubcategory = require("../models/SubSubcategory");
 const Category = require("../models/Category");
 const Subcategory = require("../models/Subcategory");
+const SellerInventory = require("../models/SellerInventory");
 
 // CREATE SUBSUBCATEGORY
 exports.createSubSubcategory = async (req, res) => {
@@ -136,4 +137,29 @@ exports.deleteSubSubcategory = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 
+};
+exports.getProductsBySubSubcategory = async (req, res) => {
+  try {
+    const { subSubcategoryId } = req.params;
+
+    const products = await SellerInventory.find({
+       subSubcategory: req.params.subSubcategoryId,
+      isActive: true,
+    })
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .populate("brand", "name logo");
+
+    res.status(200).json({
+      success: true,
+      count: products.length,
+      data: products,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };

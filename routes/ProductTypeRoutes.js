@@ -9,6 +9,8 @@ const controller =
     "../controllers/ProductTypeController",
   );
 
+
+
 router.post(
   "/",
   controller.createProductType,
@@ -37,5 +39,8 @@ router.delete(
   "/:id",
   controller.deleteProductType,
 );
-
+router.get(
+  "/:productTypeId/products",
+  controller.getProductsByProductType
+);
 module.exports = router;

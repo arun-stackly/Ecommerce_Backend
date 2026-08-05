@@ -4,6 +4,6 @@ const router = express.Router();
 const travelController = require("../controllers/TravelHomepageController");
 
 // Home Page API
-router.get("/:categoryId", travelController.getHomePage);
+router.get("/travel/:categoryId", travelController.getHomePage);
 
 module.exports = router;
