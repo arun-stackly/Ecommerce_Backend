@@ -138,28 +138,3 @@ exports.deleteSubSubcategory = async (req, res) => {
   }
 
 };
-exports.getProductsBySubSubcategory = async (req, res) => {
-  try {
-    const { subSubcategoryId } = req.params;
-
-    const products = await SellerInventory.find({
-       subSubcategory: req.params.subSubcategoryId,
-      isActive: true,
-    })
-      .populate("category", "name")
-      .populate("subcategory", "name")
-      .populate("subSubcategory", "name")
-      .populate("brand", "name logo");
-
-    res.status(200).json({
-      success: true,
-      count: products.length,
-      data: products,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};

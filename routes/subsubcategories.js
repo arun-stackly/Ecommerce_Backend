@@ -12,10 +12,7 @@ router.get("/", subSubController.getSubSubcategories);
 // Get SubSubcategories by Subcategory
 router.get("/subcategory/:subcategoryId", subSubController.getBySubcategory);
 
-router.get(
-  "/:subSubcategoryId/products",
-  subSubController.getProductsBySubSubcategory
-);
+
 // Get SubSubcategories by category
 router.get("/category/:categoryId", subSubController.getByCategory);
 
