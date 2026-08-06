@@ -88,7 +88,7 @@ app.use(
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/home", AppliancehomepageRoutes);
 app.use("/api", ApplianceRoutes); 
-app.use("/api/ads", adsRoutes);
+app.use("/api/seller/ads", adsRoutes);
 app.use("/api/user/wishlist", wishlistRoutes);
 app.use("/api/auth/seller", authRoutes);
 app.use("/api/auth/seller/password", passwordRoutes);

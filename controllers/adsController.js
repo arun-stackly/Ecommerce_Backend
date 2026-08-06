@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Ad = require("../models/Ad");
 const SellerInventory = require("../models/SellerInventory");
+const Subcategory = require("../models/Subcategory");
 
 exports.getProductsForAd = async (req, res) => {
   try {
@@ -10,8 +11,9 @@ exports.getProductsForAd = async (req, res) => {
       subSubcategory,
       productType,
     } = req.query;
-
+console.log(req.query);
     const filter = {
+      seller: req.user.id,
       isActive: true,
     };
 
@@ -19,9 +21,9 @@ exports.getProductsForAd = async (req, res) => {
       filter.category = new mongoose.Types.ObjectId(category);
     }
 
-    if (subcategory && mongoose.Types.ObjectId.isValid(subcategory)) {
-      filter.subcategory = new mongoose.Types.ObjectId(subcategory);
-    }
+   if (subcategory && mongoose.Types.ObjectId.isValid(subcategory)) {
+  filter.subcategory = new mongoose.Types.ObjectId(subcategory);
+}
 
     if (subSubcategory && mongoose.Types.ObjectId.isValid(subSubcategory)) {
       filter.subSubcategory = new mongoose.Types.ObjectId(subSubcategory);
@@ -31,8 +33,6 @@ exports.getProductsForAd = async (req, res) => {
       filter.productType = new mongoose.Types.ObjectId(productType);
     }
 
-    console.log("Filter:", filter);
-
     const products = await SellerInventory.find(filter)
       .populate("productType", "name")
       .populate("category", "name")
@@ -40,7 +40,12 @@ exports.getProductsForAd = async (req, res) => {
       .populate("subSubcategory", "name")
       .select("_id name productType category subcategory subSubcategory media");
 
-    console.log("Products Found:", products.length);
+    if (products.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No products found for the logged-in seller with the selected filters.",
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -49,8 +54,6 @@ exports.getProductsForAd = async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
-
     return res.status(500).json({
       success: false,
       message: error.message,

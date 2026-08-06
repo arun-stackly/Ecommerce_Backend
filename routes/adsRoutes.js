@@ -4,7 +4,7 @@ const router = express.Router();
 const adController = require("../controllers/adsController");
 const { protect } = require("../middleware/authMiddleware");
 router.get(
-  "/products",
+  "/products",protect,
  adController.getProductsForAd
 );
 
