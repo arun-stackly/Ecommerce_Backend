@@ -1,91 +1,167 @@
-const Product = require("../models/Product");
-const Deal = require("../models/Deal");
-const Category = require("../models/Category");
+const SellerInventory = require("../models/SellerInventory");
 
-
-// Featured products (Hero section)
-exports.getFeaturedProducts = async (req, res) => {
+// =========================================
+// Recently Added Products
+// =========================================
+exports.getRecentlyAddedProducts = async (req, res) => {
   try {
-    const products = await Product.find({
-      isFeatured: true,
-      status: "active",
-    }).limit(5);
-
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-// Trending top deals
-exports.getTopDeals = async (req, res) => {
-  try {
-    const products = await Product.find({
-      isTopDeal: true,
-      status: "active",
-    }).limit(6);
-
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-// Weekly deals
-exports.getWeeklyDeals = async (req, res) => {
-  try {
-    const deals = await Deal.find({
-      type: "weekly",
+    const products = await SellerInventory.find({
       isActive: true,
-    }).populate("productId");
-
-    res.json(deals);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-// Upcoming deals
-exports.getUpcomingDeals = async (req, res) => {
-  try {
-    const deals = await Deal.find({
-      type: "upcoming",
-      isActive: true,
-    }).populate("productId");
-
-    res.json(deals);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-// Trending categories
-exports.getCategories = async (req, res) => {
-  try {
-    const categories = await Category.find().limit(8);
-
-    res.json(categories);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-// Recommended products
-exports.getRecommendedProducts = async (req, res) => {
-  try {
-    const products = await Product.find({
-      status: "active",
     })
       .sort({ createdAt: -1 })
-      .limit(12);
+      .limit(3);
 
-    res.json(products);
+    res.status(200).json({
+      success: true,
+      count: products.length,
+      products,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+// =========================================
+// Fashion Home Page
+// =========================================
+exports.getFashionHomePage = async (req, res) => {
+  try {
+    const data = {
+      heroBanner: {
+        smallTitle:
+          "Your go-to store for fashion and innovation.",
+
+        title:
+          "Experience Innovation & Style Every Day",
+
+        description:
+          "Explore top electronics and the latest fashion all in one place, curated for performance, comfort, and everyday living.",
+
+        button: {
+          text: "Shop Now",
+          route: "/fashion",
+        },
+
+        image:
+          "https://your-domain.com/uploads/fashion-hero.png",
+      },
+    };
+
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+// =========================================
+// Featured Deals
+// =========================================
+exports.getFeaturedDeals = async (req, res) => {
+  try {
+    const featuredDeals = {
+      title: "Featured Deals",
+
+      deals: [
+        {
+          id: 1,
+          badge: "Limited Time Offer",
+          title: "Upto 30% Off For The Earbuds",
+
+          button: {
+            text: "Shop Now",
+            route: "/electronics",
+          },
+
+          image: "/images/featured-deals/earbuds.png",
+          position: "left-top",
+        },
+
+        {
+          id: 2,
+          badge: "Special Deal",
+          title: "Upto 10% Off For The First Buying!",
+
+          button: {
+            text: "Shop Now",
+            route: "/fashion",
+          },
+
+          image: "/images/featured-deals/fashion.png",
+          position: "right",
+        },
+
+        {
+          id: 3,
+          badge: "Big Deal",
+          title: "Upto 60% Off For The Accessories!",
+
+          button: {
+            text: "Shop Now",
+            route: "/accessories",
+          },
+
+          image: "/images/featured-deals/smartwatch.png",
+          position: "left-bottom",
+        },
+      ],
+    };
+
+    res.status(200).json({
+      success: true,
+      data: featuredDeals,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+// =========================================
+// Product Image Gallery
+// =========================================
+exports.getProductImageGallery = async (req, res) => {
+  try {
+    const products = await SellerInventory.find({
+      isActive: true,
+    })
+      .select("name media")
+      .sort({ createdAt: -1 });
+
+    const productImages = [];
+
+    products.forEach((product) => {
+      if (product.media && product.media.length > 0) {
+        productImages.push({
+          productId: product._id,
+          productName: product.name,
+          image: product.media[0],
+        });
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      count: productImages.length,
+      data: productImages,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
