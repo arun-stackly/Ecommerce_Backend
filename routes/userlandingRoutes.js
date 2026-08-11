@@ -2,17 +2,18 @@ const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/userlandingController");
 
-router.get("/featured", userController.getFeaturedProducts);
+router.get("/recently-added", userController.getRecentlyAddedProducts);
 
-router.get("/top-deals", userController.getTopDeals);
+router.get("/fashion-home", userController.getFashionHomePage);
 
-router.get("/weekly-deals", userController.getWeeklyDeals);
+router.get(
+  "/featured-deals",
+  userController.getFeaturedDeals
+);
 
-router.get("/upcoming-deals", userController.getUpcomingDeals);
-
-router.get("/categories", userController.getCategories);
-// get latest products means 
-
-router.get("/recommended", userController.getRecommendedProducts);
+router.get(
+  "/product-images",
+  userController.getProductImageGallery
+);
 
 module.exports = router;
