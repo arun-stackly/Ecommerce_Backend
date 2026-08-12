@@ -1,6 +1,7 @@
 const SellerInventory = require("../models/SellerInventory");
 const Deal = require("../models/Deal");
 const mongoose = require("mongoose");
+const Subcategory = require("../models/Subcategory");
 
 
 /* =========================================
@@ -85,7 +86,7 @@ exports.getSimilarProducts = async (req, res) => {
 };
 exports.searchProducts = async (req, res) => {
   try {
-    const q = req.query.q;
+    const q = req.query.q?.trim();
 
     if (!q) {
       return res.status(400).json({
@@ -93,19 +94,55 @@ exports.searchProducts = async (req, res) => {
         message: "Search query is required",
       });
     }
+    const allSubcategories = await Subcategory.find({})
+  .select("_id name");
 
-    const products = await SellerInventory.find({
+console.log("ALL SUBCATEGORIES:");
+console.log(allSubcategories);
+
+    // Find subcategories matching the search text
+    const subcategories = await Subcategory.find({
       name: { $regex: q, $options: "i" },
       isActive: true,
+    }).select("_id name");
+    console.log("Search:", q);
+    console.log("Matching subcategories:", subcategories);
+
+    const subcategoryIds = subcategories.map((sub) => sub._id);
+
+    // Search product name, brand name OR subcategory
+    const products = await SellerInventory.find({
+      isActive: true,
+      $or: [
+        {
+          name: { $regex: q, $options: "i" },
+        },
+        {
+          "brand.name": { $regex: q, $options: "i" },
+        },
+        {
+          subcategory: { $in: subcategoryIds },
+        },
+      ],
     })
-      .select("name price discountPrice brand media") // ✅ minimize DB data
-      
+      .select("name price discountPrice brand subcategory media")
+      .populate("subcategory", "name");
+
     const formatted = products.map((p) => ({
       _id: p._id,
       name: p.name,
       price: p.price,
       discountPrice: p.discountPrice || p.price,
-       brand: p.brand || null,   // ✅ keep full object
+
+      brand: p.brand || null,
+
+      subcategory: p.subcategory
+        ? {
+            _id: p.subcategory._id,
+            name: p.subcategory.name,
+          }
+        : null,
+
       image: p.media?.[0]?.url || null,
     }));
 
@@ -115,13 +152,14 @@ exports.searchProducts = async (req, res) => {
       products: formatted,
     });
   } catch (error) {
+    console.error("Search products error:", error);
+
     return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
-
 
 /* =========================================
    GET SINGLE PRODUCT
