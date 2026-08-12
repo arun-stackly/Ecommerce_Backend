@@ -38,12 +38,10 @@ const categories = await Subcategory.find({
   category: categoryId,
 }).select("name slug")
 
-    // =========================================
-// Latest Launches (Hardcoded)
-// =========================================
-const latestLaunches = [
+  const latestLaunches = [
   {
     id: 1,
+    subcategory: "HolidayPackages",
     tag: "NEW",
     title: "Maldives Escape",
     destination: "Maldives",
@@ -53,15 +51,17 @@ const latestLaunches = [
   },
   {
     id: 2,
+    subcategory: "Flights",
     tag: "TRENDING",
-    title: "Tokyo Cherry Blossom",
+    title: "Tokyo Flight Deals",
     destination: "Tokyo, Japan",
-    duration: "7 nights experience",
+    duration: "Round trip",
     price: "From ₹1890",
     image: "https://example.com/images/tokyo.jpg"
   },
   {
     id: 3,
+    subcategory: "TrainBooking",
     tag: "LIMITED",
     title: "Swiss Alps Rail",
     destination: "Interlaken, Switzerland",
@@ -71,11 +71,12 @@ const latestLaunches = [
   },
   {
     id: 4,
+    subcategory: "Hotels",
     tag: "HOT",
     title: "Bali Wellness Retreat",
     destination: "Bali, Indonesia",
     duration: "4 nights stay",
-    price:"From ₹1050",
+    price: "From ₹1050",
     image: "https://example.com/images/bali.jpg"
   }
 ];
