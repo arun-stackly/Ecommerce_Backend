@@ -86,7 +86,7 @@ exports.getFeaturedDeals = async (req, res) => {
             route: "/electronics",
           },
 
-          image: "/images/featured-deals/earbuds.png",
+          image: "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcRshbS5ycS5lGnwmilIq_sZPqMUgxfVTN33vvfdOA3iGSpRdcqa",
           position: "left-top",
         },
 
@@ -100,7 +100,7 @@ exports.getFeaturedDeals = async (req, res) => {
             route: "/fashion",
           },
 
-          image: "/images/featured-deals/fashion.png",
+          image: "https://static.vecteezy.com/system/resources/thumbnails/002/086/009/small/headphones-on-white-background-free-photo.jpg",
           position: "right",
         },
 
@@ -114,7 +114,7 @@ exports.getFeaturedDeals = async (req, res) => {
             route: "/accessories",
           },
 
-          image: "/images/featured-deals/smartwatch.png",
+          image: "https://t4.ftcdn.net/jpg/06/60/68/37/360_F_660683718_qo0q1V2RuLO56S7cu4VMb078m10U6WW8.jpg",
           position: "left-bottom",
         },
       ],
