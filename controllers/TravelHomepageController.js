@@ -47,7 +47,7 @@ const categories = await Subcategory.find({
     destination: "Maldives",
     duration: "3 nights getaway",
     price: "From ₹1299",
-    image: "https://example.com/images/maldives.jpg"
+    image: "/images/Maldives.jpg"
   },
   {
     id: 2,
@@ -57,7 +57,7 @@ const categories = await Subcategory.find({
     destination: "Tokyo, Japan",
     duration: "Round trip",
     price: "From ₹1890",
-    image: "https://example.com/images/tokyo.jpg"
+    image: "/images/Tokyo.jpg"
   },
   {
     id: 3,
@@ -67,7 +67,7 @@ const categories = await Subcategory.find({
     destination: "Interlaken, Switzerland",
     duration: "6 days package",
     price: "From ₹2150",
-    image: "https://example.com/images/swiss.jpg"
+    image: "/images/swiss-alps-rail.jpg"
   },
   {
     id: 4,
@@ -77,7 +77,7 @@ const categories = await Subcategory.find({
     destination: "Bali, Indonesia",
     duration: "4 nights stay",
     price: "From ₹1050",
-    image: "https://example.com/images/bali.jpg"
+    image: "/images/bali.jpg"
   }
 ];
 
