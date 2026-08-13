@@ -4,7 +4,7 @@ const userController = require("../controllers/userlandingController");
 
 router.get("/recently-added", userController.getRecentlyAddedProducts);
 
-router.get("/fashion-home", userController.getFashionHomePage);
+router.get("/home", userController.getFashionHomePage);
 
 router.get(
   "/featured-deals",

@@ -46,8 +46,11 @@ exports.getFashionHomePage = async (req, res) => {
           route: "/fashion",
         },
 
-        image:
-          "https://your-domain.com/uploads/fashion-hero.png",
+        images: [
+          "https://i.pinimg.com/originals/98/6c/16/986c16defcb240fce7ffe9c8973b4738.jpg",
+          "https://mir-s3-cdn-cf.behance.net/projects/404/ca8228125688271.Y3JvcCw0MjYxLDMzMzMsMzY5LDA.png",
+          "https://www.idslogic.co.uk/wp-content/uploads/2024/09/e-commerce-platfoms-for-fasion-industry.jpg",
+        ],
       },
     };
 
