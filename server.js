@@ -4,11 +4,11 @@ const cors = require("cors");
 const morgan = require("morgan");
 const connectDB = require("./config/db");
 const path = require("path");
- 
+
 const { errorHandler } = require("./middleware/errorMiddleware");
 const { protect } = require("./middleware/authMiddleware");
 const { sellerOnly } = require("./middleware/roleMiddleware");
- 
+
 const authRoutes = require("./routes/auth");
 const passwordRoutes = require("./routes/password");
 const userAuthRoutes = require("./routes/userAuthRoutes");
@@ -65,7 +65,10 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 app.use(morgan("dev"));
- 
+app.use(
+  "/images",
+  express.static(path.join(__dirname, "utils/travelhomepageimages"))
+);
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/product-types", require("./routes/ProductTypeRoutes"));
 app.use("/api/productitems", productitemRoutes);
