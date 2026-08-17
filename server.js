@@ -54,6 +54,7 @@ const contactRoutes = require("./routes/contactRoutes")
 const userBankRoutes = require("./routes/userBankRoutes");
 const travelHomeRoutes = require("./routes/travelhomeRoutes");
 const travelRoutes = require("./routes/travelRoutes");
+const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
 const dns = require("dns");
  
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
@@ -69,6 +70,7 @@ app.use(
   "/images",
   express.static(path.join(__dirname, "utils/travelhomepageimages"))
 );
+app.use("/api/admin/dashboard", adminDashboardRoutes);
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/product-types", require("./routes/ProductTypeRoutes"));
 app.use("/api/productitems", productitemRoutes);
