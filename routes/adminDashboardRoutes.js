@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const adminDashboard = require("../controllers/adminDashboardController");
+const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
 
-router.get("/", adminDashboard.getDashboard);
-router.get("/recent-orders", adminDashboard.getRecentOrders);
-router.get("/top-products", adminDashboard.getTopProducts);
+router.get("/", adminAuthMiddleware, adminDashboard.getDashboard);
+router.get("/recent-orders",adminAuthMiddleware, adminDashboard.getRecentOrders);
+router.get("/top-products",adminAuthMiddleware, adminDashboard.getTopProducts);
 
 module.exports = router;

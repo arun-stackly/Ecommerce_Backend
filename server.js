@@ -54,8 +54,12 @@ const contactRoutes = require("./routes/contactRoutes")
 const userBankRoutes = require("./routes/userBankRoutes");
 const travelHomeRoutes = require("./routes/travelhomeRoutes");
 const travelRoutes = require("./routes/travelRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
 const salesAnalyticsRoutes = require("./routes/adminSalesreportRoutes");
+const adminCustomerRoutes = require("./routes/adminCustomerRoutes");
+const adminCategoryRoutes = require("./routes/adminCategoryRoutes");
+const adminSellerRoutes = require("./routes/adminSellerRoutes");
 const dns = require("dns");
  
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
@@ -71,8 +75,15 @@ app.use(
   "/images",
   express.static(path.join(__dirname, "utils/travelhomepageimages"))
 );
+app.use("/api/admin", adminRoutes);
 app.use("/api/admin/dashboard", adminDashboardRoutes);
 app.use("/api/admin/sales-analytics", salesAnalyticsRoutes);
+app.use("/api/admin/customers", adminCustomerRoutes);
+app.use("/api/admin/category", adminCategoryRoutes);
+app.use(
+  "/api/admin/sellers",
+  adminSellerRoutes
+);
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/product-types", require("./routes/ProductTypeRoutes"));
 app.use("/api/productitems", productitemRoutes);
