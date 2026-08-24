@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 
 const Ad = require("../models/Ad");
 const SellerInventory = require("../models/SellerInventory");
+const AdminSettings = require("../models/AdminSettings");
+
 
 /* =====================================================
    GET PRODUCTS FOR AD
@@ -168,6 +170,18 @@ exports.createAd = async (req, res) => {
           "Valid requestedBudget is required",
       });
     }
+    // Get admin settings
+    const settings = await AdminSettings.findOne();
+
+    // Check auto approve setting
+    const autoApproveSellerAds =
+      settings?.autoApproveSellerAds === true;
+
+    // Set status automatically
+    const status = autoApproveSellerAds
+      ? "approved"
+      : "pending";
+
 
     /* =========================================
        VALIDATE PRODUCT
