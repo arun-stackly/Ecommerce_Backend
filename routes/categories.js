@@ -1,12 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const ctrl = require("../controllers/categoriesController");
-
+const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
 // Category CRUD
-router.get("/", ctrl.getCategories);
-router.post("/", ctrl.createCategory);
-router.put("/:id", ctrl.updateCategory);
-router.delete("/:id", ctrl.deleteCategory);
+router.get("/", adminAuthMiddleware,
+  ctrl.getCategories);
+router.post("/",  adminAuthMiddleware, ctrl.createCategory);
+router.put("/:id",  adminAuthMiddleware, ctrl.updateCategory);
+router.delete("/:id",  adminAuthMiddleware, ctrl.deleteCategory);
 
 // Price ranges list
 router.get("/:categoryId/price-ranges", ctrl.getPriceRanges);

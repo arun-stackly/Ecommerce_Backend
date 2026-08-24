@@ -5,6 +5,7 @@ const {
   loginUser,
   getProfile,
   logoutUser,
+  getAllSellers,
   getTermsAndConditions, // ✅ Added
 } = require("../controllers/authController");
  
@@ -22,6 +23,7 @@ router.post("/logout", protect, sellerOnly, logoutUser);
  
 // 🔐 SELLER PROFILE
 router.get("/profile", protect, sellerOnly, getProfile);
+router.get("/", getAllSellers);
  
 module.exports = router;
  

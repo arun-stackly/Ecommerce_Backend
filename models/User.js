@@ -38,6 +38,11 @@ const userSchema = new mongoose.Schema({
     enum: ["seller", "admin"],
     default: "seller",
   },
+  sellerApprovalStatus: {
+  type: String,
+  enum: ["pending", "approved", "rejected"],
+  default: "pending"
+},
  
   // ✅ ADMIN VERIFICATION
   isVerified: {

@@ -148,7 +148,82 @@ const getProfile = asyncHandler(async (req, res) => {
     },
   });
 });
- 
+ /* =====================================================
+   GET ALL SELLERS
+   Admin Seller Management
+   ===================================================== */
+const getAllSellers = asyncHandler(async (req, res) => {
+  // Get all users whose role is seller
+  const sellers = await User.find({
+    role: "seller",
+  })
+    .select("-password -otp -otpExpiry")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  // Get seller profiles
+  const sellerIds = sellers.map((seller) => seller._id);
+
+  const profiles = await SellerProfile.find({
+    user: { $in: sellerIds },
+  }).lean();
+
+  // Create profile lookup
+  const profileMap = new Map();
+
+  profiles.forEach((profile) => {
+    profileMap.set(profile.user.toString(), profile);
+  });
+
+  // Combine User + SellerProfile
+  const sellerDetails = sellers.map((seller) => {
+    const profile = profileMap.get(seller._id.toString());
+
+    return {
+      _id: seller._id,
+
+      fullName: `${seller.firstName || ""} ${
+        seller.lastName || ""
+      }`.trim(),
+
+      firstName: seller.firstName || "",
+      lastName: seller.lastName || "",
+
+      username: seller.username || "",
+
+      email: seller.email || "",
+
+      phone: profile?.phone || seller.phone || null,
+
+      registeredContact:
+        profile?.registeredContact || null,
+
+      address: profile?.address || null,
+
+      profileImage:
+        profile?.profileImage || null,
+
+      role: seller.role,
+
+      verified: seller.isVerified,
+
+      termsAccepted: seller.termsAccepted,
+
+      joinedDate: seller.createdAt,
+
+      updatedDate: seller.updatedAt,
+    };
+  });
+
+  res.status(200).json({
+    success: true,
+
+    totalSellers: sellerDetails.length,
+
+    sellers: sellerDetails,
+  });
+});
+
 /* ================= SELLER TERMS & CONDITIONS ================= */
 const getTermsAndConditions = asyncHandler(async (req, res) => {
   res.status(200).json({
@@ -180,6 +255,7 @@ module.exports = {
   loginUser,
   getProfile,
   logoutUser,
+  getAllSellers,
   getTermsAndConditions,
 };
  

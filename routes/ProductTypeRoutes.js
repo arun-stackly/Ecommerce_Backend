@@ -8,17 +8,17 @@ const controller =
   require(
     "../controllers/ProductTypeController",
   );
-
+const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
 
 
 router.post(
   "/",
-  controller.createProductType,
+ adminAuthMiddleware,  controller.createProductType,
 );
 
 router.get(
   "/",
-  controller.getProductTypes,
+  adminAuthMiddleware, controller.getProductTypes,
 );
 
 router.get(
@@ -32,12 +32,12 @@ router.get(
 
 router.put(
   "/:id",
-  controller.updateProductType,
+  adminAuthMiddleware, controller.updateProductType,
 );
 
 router.delete(
   "/:id",
-  controller.deleteProductType,
+ adminAuthMiddleware,  controller.deleteProductType,
 );
 router.get(
   "/:productTypeId/products",
