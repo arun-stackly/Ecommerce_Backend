@@ -53,7 +53,38 @@ const adSchema = new mongoose.Schema(
   isActive: {
     type: Boolean,
     default: true
-  }
+  },
+status: {
+  type: String,
+  enum: ["pending", "approved", "rejected"],
+  default: "pending",
+},
+
+requestedBudget: {
+  type: Number,
+  default: 0,
+},
+
+requestedAt: {
+  type: Date,
+  default: Date.now,
+},
+
+approvedAt: {
+  type: Date,
+  default: null,
+},
+
+rejectedAt: {
+  type: Date,
+  default: null,
+},
+
+rejectionReason: {
+  type: String,
+  default: "",
+},
+
 
 },
 { timestamps: true }

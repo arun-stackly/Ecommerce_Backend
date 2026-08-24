@@ -1,46 +1,87 @@
 const Banner = require("../models/Banner");
 
-// ✅ ADD BANNER
+// ===============================
+// ADD BANNER
+// ===============================
 exports.addBanner = async (req, res) => {
   try {
-
     const {
       title,
       image,
       redirectUrl,
       type,
+      position,
       category,
       subcategory,
       subSubcategory,
       productType,
+      isActive,
+      priority,
+      startDate,
+      endDate,
     } = req.body;
 
+    // Required fields
+    if (!title) {
+      return res.status(400).json({
+        success: false,
+        message: "Banner title is required",
+      });
+    }
+
+    if (!image) {
+      return res.status(400).json({
+        success: false,
+        message: "Banner image is required",
+      });
+    }
+
+    // Create banner
     const banner = await Banner.create({
-      title,
+      title: title.trim(),
+
       image,
-      redirectUrl,
-      type,
-     category,
-     subcategory,
-     subSubcategory,
-     productType
-     
+
+      redirectUrl: redirectUrl || "",
+
+      type: type || "homepage",
+
+      position: position || "hero",
+
+      category: category || null,
+
+      subcategory: subcategory || null,
+
+      subSubcategory: subSubcategory || null,
+
+      productType: productType || null,
+
+      isActive:
+        isActive === undefined
+          ? true
+          : isActive === true ||
+            isActive === "true",
+
+      priority: priority || 1,
+
+      startDate: startDate || null,
+
+      endDate: endDate || null,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message:
-        "Banner added successfully",
+      message: "Banner added successfully",
       banner,
     });
 
   } catch (error) {
+    console.error("Add Banner Error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 
@@ -220,6 +261,63 @@ exports.getBannersBySubSubcategory = async (req, res) => {
       success: true,
       count: banners.length,
       banners,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+exports.updateBanner = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const banner = await Banner.findByIdAndUpdate(
+      id,
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!banner) {
+      return res.status(404).json({
+        success: false,
+        message: "Banner not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Banner updated successfully",
+      banner,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.deleteBanner = async (req, res) => {
+  try {
+    const banner = await Banner.findByIdAndDelete(req.params.id);
+
+    if (!banner) {
+      return res.status(404).json({
+        success: false,
+        message: "Banner not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Banner deleted successfully",
     });
 
   } catch (error) {
