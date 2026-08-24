@@ -60,6 +60,14 @@ const salesAnalyticsRoutes = require("./routes/adminSalesreportRoutes");
 const adminCustomerRoutes = require("./routes/adminCustomerRoutes");
 const adminCategoryRoutes = require("./routes/adminCategoryRoutes");
 const adminSellerRoutes = require("./routes/adminSellerRoutes");
+const adminOrderRoutes = require("./routes/adminOrderRoutes");
+const adminAdRoutes = require("./routes/adminAdRoutes");
+const adminBannerRoutes = require("./routes/adminBannerRoutes");
+// Admin Coupon Routes
+const adminCouponRoutes = require(
+  "./routes/adminCouponRoutes"
+);
+
 const dns = require("dns");
  
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
@@ -84,6 +92,16 @@ app.use(
   "/api/admin/sellers",
   adminSellerRoutes
 );
+app.use(
+  "/api/admin/coupons",
+  adminCouponRoutes
+);
+app.use("/api/admin/orders", adminOrderRoutes);
+app.use(
+  "/api/admin/ads",
+  adminAdRoutes
+);
+app.use("/api/admin/banners", adminBannerRoutes)
 app.use("/api/products", require("./routes/productRoutes"));
 app.use("/api/product-types", require("./routes/ProductTypeRoutes"));
 app.use("/api/productitems", productitemRoutes);

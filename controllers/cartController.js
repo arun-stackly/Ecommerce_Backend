@@ -666,6 +666,170 @@ exports.getAvailableCoupons = async (req, res) => {
     });
   }
 };
+
+/* ================= UPDATE COUPON ================= */
+
+exports.updateCoupon = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      code,
+      type,
+      discount,
+      minOrderValue,
+      maxDiscount,
+      description,
+      expiryDate,
+      usageLimit,
+      isActive,
+    } = req.body;
+
+    // 1. Find coupon
+    const coupon = await Coupon.findById(id);
+
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: "Coupon not found",
+      });
+    }
+
+    // 2. Validate type if provided
+    if (
+      type &&
+      !["FLAT", "PERCENT"].includes(type.toUpperCase())
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "type must be FLAT or PERCENT",
+      });
+    }
+
+    // 3. Validate discount
+    if (
+      discount !== undefined &&
+      (discount === null || Number(discount) <= 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Discount must be greater than 0",
+      });
+    }
+
+    // 4. Percentage discount validation
+    const finalType = type
+      ? type.toUpperCase()
+      : coupon.type;
+
+    const finalDiscount =
+      discount !== undefined
+        ? Number(discount)
+        : coupon.discount;
+
+    if (
+      finalType === "PERCENT" &&
+      finalDiscount > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Percentage discount cannot be greater than 100",
+      });
+    }
+
+    // 5. Check duplicate code
+    if (code) {
+      const normalizedCode =
+        code.trim().toUpperCase();
+
+      const existingCoupon =
+        await Coupon.findOne({
+          code: normalizedCode,
+          _id: { $ne: id },
+        });
+
+      if (existingCoupon) {
+        return res.status(400).json({
+          success: false,
+          message: "Coupon code already exists",
+        });
+      }
+
+      coupon.code = normalizedCode;
+    }
+
+    // 6. Update fields only if provided
+
+    if (type !== undefined) {
+      coupon.type = type.toUpperCase();
+    }
+
+    if (discount !== undefined) {
+      coupon.discount = Number(discount);
+    }
+
+    if (minOrderValue !== undefined) {
+      coupon.minOrderValue =
+        Number(minOrderValue) || 0;
+    }
+
+    if (maxDiscount !== undefined) {
+      coupon.maxDiscount =
+        maxDiscount === null ||
+        maxDiscount === ""
+          ? null
+          : Number(maxDiscount);
+    }
+
+    if (description !== undefined) {
+      coupon.description = description;
+    }
+
+    if (expiryDate !== undefined) {
+      coupon.expiryDate =
+        expiryDate === null || expiryDate === ""
+          ? null
+          : new Date(expiryDate);
+    }
+
+    if (usageLimit !== undefined) {
+      coupon.usageLimit =
+        usageLimit === null ||
+        usageLimit === ""
+          ? null
+          : Number(usageLimit);
+    }
+
+    if (isActive !== undefined) {
+      coupon.isActive = Boolean(isActive);
+    }
+
+    // 7. Save
+    await coupon.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Coupon updated successfully",
+      coupon,
+    });
+  } catch (error) {
+    console.error("Update Coupon Error:", error);
+
+    // Duplicate unique code
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon code already exists",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
  
 /* ================= SET DELIVERY ADDRESS ================= */
  
