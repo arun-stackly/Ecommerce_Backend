@@ -67,7 +67,7 @@ const adminBannerRoutes = require("./routes/adminBannerRoutes");
 const adminCouponRoutes = require(
   "./routes/adminCouponRoutes"
 );
-
+const adminSettingsRoutes = require("./routes/adminSettingsRoutes");
 const dns = require("dns");
  
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
@@ -100,6 +100,10 @@ app.use("/api/admin/orders", adminOrderRoutes);
 app.use(
   "/api/admin/ads",
   adminAdRoutes
+);
+app.use(
+  "/api/admin/settings",
+  adminSettingsRoutes
 );
 app.use("/api/admin/banners", adminBannerRoutes)
 app.use("/api/products", require("./routes/productRoutes"));
