@@ -7,7 +7,7 @@ const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
 router.post("/", adminAuthMiddleware, subSubController.createSubSubcategory);
 
 // Get all SubSubcategories
-router.get("/",  adminAuthMiddleware, subSubController.getSubSubcategories);
+router.get("/", subSubController.getSubSubcategories);
 
 // Get SubSubcategories by Subcategory
 router.get("/subcategory/:subcategoryId", subSubController.getBySubcategory);

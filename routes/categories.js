@@ -3,7 +3,7 @@ const router = express.Router();
 const ctrl = require("../controllers/categoriesController");
 const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
 // Category CRUD
-router.get("/", adminAuthMiddleware,
+router.get("/",
   ctrl.getCategories);
 router.post("/",  adminAuthMiddleware, ctrl.createCategory);
 router.put("/:id",  adminAuthMiddleware, ctrl.updateCategory);

@@ -18,7 +18,7 @@ router.post(
 
 router.get(
   "/",
-  adminAuthMiddleware, controller.getProductTypes,
+   controller.getProductTypes,
 );
 
 router.get(
