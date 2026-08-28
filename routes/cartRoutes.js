@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const  protectUser  = require("../middleware/userAuthMiddleware");
+const { protectUser }  = require("../middleware/userAuthMiddleware");
 const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
 const {
   getCart,
@@ -18,7 +18,7 @@ const {
   clearCart,
 } = require("../controllers/cartController");
 
-router.use(c);
+// router.use(c);
 
 router.get("/",protectUser, getCart);
 router.post("/add",protectUser, addToCart);
