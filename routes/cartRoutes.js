@@ -12,6 +12,7 @@ const {
   removeCoupon,
   getAvailableCoupons,
   updateCoupon,
+  deleteCoupon,
   setDeliveryAddress,
   updateCartQuantity,
   getRelatedProducts,
@@ -28,12 +29,12 @@ router.put(
   updateCartQuantity
 );
 router.delete("/remove",protectUser, removeCartItem);
-// Admin only route (you can add auth middleware later)
-router.post("/add-coupon", adminAuthMiddleware,addCoupon);
-router.post("/apply-coupon",adminAuthMiddleware, applyCoupon);
-router.delete("/remove-coupon",adminAuthMiddleware, removeCoupon);
-router.get("/coupons",adminAuthMiddleware, getAvailableCoupons);
-router.patch("/:id",adminAuthMiddleware, updateCoupon);
+
+
+// User
+router.post("/apply-coupon", protectUser, applyCoupon);
+router.delete("/remove-coupon", protectUser, removeCoupon);
+router.get("/coupons", protectUser, getAvailableCoupons);
 
 router.put("/set-delivery-address",protectUser, setDeliveryAddress);
 router.get("/similar/:sellerInventoryId",protectUser, getRelatedProducts)

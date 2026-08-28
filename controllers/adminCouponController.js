@@ -263,3 +263,306 @@ exports.getAdminCoupons = async (req, res) => {
     });
   }
 };
+/* ================= ADMIN ADD COUPON ================= */
+
+exports.addCoupon = async (req, res) => {
+  try {
+    const {
+      code,
+      type,
+      discount,
+      minOrderValue,
+      maxDiscount,
+      description,
+      expiryDate,
+      usageLimit,
+    } = req.body;
+
+    if (!code || !type || discount === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "code, type, and discount are required",
+      });
+    }
+
+    const normalizedCode = code.trim().toUpperCase();
+    const normalizedType = type.trim().toUpperCase();
+
+    if (!["FLAT", "PERCENT"].includes(normalizedType)) {
+      return res.status(400).json({
+        success: false,
+        message: "type must be FLAT or PERCENT",
+      });
+    }
+
+    if (Number(discount) <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Discount must be greater than 0",
+      });
+    }
+
+    if (
+      normalizedType === "PERCENT" &&
+      Number(discount) > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Percentage discount cannot be greater than 100",
+      });
+    }
+
+    const existing = await Coupon.findOne({
+      code: normalizedCode,
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon already exists",
+      });
+    }
+
+    const coupon = await Coupon.create({
+      code: normalizedCode,
+      type: normalizedType,
+      discount: Number(discount),
+      minOrderValue: Number(minOrderValue) || 0,
+      maxDiscount:
+        maxDiscount === undefined ||
+        maxDiscount === null ||
+        maxDiscount === ""
+          ? null
+          : Number(maxDiscount),
+      description: description || "",
+      expiryDate:
+        expiryDate === undefined ||
+        expiryDate === null ||
+        expiryDate === ""
+          ? null
+          : new Date(expiryDate),
+      usageLimit:
+        usageLimit === undefined ||
+        usageLimit === null ||
+        usageLimit === ""
+          ? null
+          : Number(usageLimit),
+      isActive: true,
+      usedCount: 0,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Coupon created successfully",
+      coupon,
+    });
+  } catch (error) {
+    console.error("Admin Add Coupon Error:", error);
+
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon code already exists",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+/* ================= ADMIN UPDATE COUPON ================= */
+
+exports.updateCoupon = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      code,
+      type,
+      discount,
+      minOrderValue,
+      maxDiscount,
+      description,
+      expiryDate,
+      usageLimit,
+      isActive,
+    } = req.body;
+
+    const coupon = await Coupon.findById(id);
+
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: "Coupon not found",
+      });
+    }
+
+    /* ---------- CODE ---------- */
+
+    if (code !== undefined) {
+      const normalizedCode = code.trim().toUpperCase();
+
+      const existingCoupon = await Coupon.findOne({
+        code: normalizedCode,
+        _id: { $ne: id },
+      });
+
+      if (existingCoupon) {
+        return res.status(400).json({
+          success: false,
+          message: "Coupon code already exists",
+        });
+      }
+
+      coupon.code = normalizedCode;
+    }
+
+    /* ---------- TYPE ---------- */
+
+    if (type !== undefined) {
+      const normalizedType = type.trim().toUpperCase();
+
+      if (!["FLAT", "PERCENT"].includes(normalizedType)) {
+        return res.status(400).json({
+          success: false,
+          message: "type must be FLAT or PERCENT",
+        });
+      }
+
+      coupon.type = normalizedType;
+    }
+
+    /* ---------- DISCOUNT ---------- */
+
+    if (discount !== undefined) {
+      const discountValue = Number(discount);
+
+      if (discountValue <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Discount must be greater than 0",
+        });
+      }
+
+      coupon.discount = discountValue;
+    }
+
+    if (
+      coupon.type === "PERCENT" &&
+      coupon.discount > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Percentage discount cannot be greater than 100",
+      });
+    }
+
+    /* ---------- OTHER FIELDS ---------- */
+
+    if (minOrderValue !== undefined) {
+      coupon.minOrderValue = Number(minOrderValue) || 0;
+    }
+
+    if (maxDiscount !== undefined) {
+      coupon.maxDiscount =
+        maxDiscount === null || maxDiscount === ""
+          ? null
+          : Number(maxDiscount);
+    }
+
+    if (description !== undefined) {
+      coupon.description = description;
+    }
+
+    if (expiryDate !== undefined) {
+      coupon.expiryDate =
+        expiryDate === null || expiryDate === ""
+          ? null
+          : new Date(expiryDate);
+    }
+
+    if (usageLimit !== undefined) {
+      coupon.usageLimit =
+        usageLimit === null || usageLimit === ""
+          ? null
+          : Number(usageLimit);
+    }
+
+    if (isActive !== undefined) {
+      coupon.isActive = Boolean(isActive);
+    }
+
+    await coupon.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Coupon updated successfully",
+      coupon,
+    });
+  } catch (error) {
+    console.error("Admin Update Coupon Error:", error);
+
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon code already exists",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+/* ================= ADMIN DELETE COUPON ================= */
+
+exports.deleteCoupon = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const coupon = await Coupon.findById(id);
+
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: "Coupon not found",
+      });
+    }
+
+    await Coupon.deleteOne({
+      _id: id,
+    });
+
+    // Verify deletion
+    const deletedCoupon = await Coupon.findById(id);
+
+    if (deletedCoupon) {
+      return res.status(500).json({
+        success: false,
+        message: "Coupon could not be deleted",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Coupon deleted successfully",
+      deletedCoupon: {
+        _id: coupon._id,
+        code: coupon.code,
+      },
+    });
+
+  } catch (error) {
+    console.error("Admin Delete Coupon Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
