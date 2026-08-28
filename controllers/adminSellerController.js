@@ -484,52 +484,36 @@ const approveSeller = asyncHandler(async (req, res) => {
    REJECT SELLER
 ===================================================== */
 
-const rejectSeller =
-  asyncHandler(
-    async (req, res) => {
+const rejectSeller = asyncHandler(async (req, res) => {
+  const { sellerId } = req.params;
 
-      const { sellerId } =
-        req.params;
+  const seller = await User.findOne({
+    _id: sellerId,
+    role: "seller",
+  });
 
-      const seller =
-        await User.findOne({
-          _id: sellerId,
-          role: "seller",
-        });
+  if (!seller) {
+    res.status(404);
+    throw new Error("Seller not found");
+  }
 
-      if (!seller) {
+  seller.sellerApprovalStatus = "rejected";
+  seller.isVerified = false;
 
-        res.status(404);
+  await seller.save();
 
-        throw new Error(
-          "Seller not found"
-        );
-      }
+  res.status(200).json({
+    success: true,
 
-      seller.sellerApprovalStatus =
-        "rejected";
+    message: "Seller rejected successfully",
 
-      await seller.save();
-
-      res.status(200).json({
-
-        success: true,
-
-        message:
-          "Seller rejected successfully",
-
-        seller: {
-
-          _id:
-            seller._id,
-
-          sellerApprovalStatus:
-            seller.sellerApprovalStatus,
-        },
-      });
-    }
-  );
-
+    seller: {
+      _id: seller._id,
+      sellerApprovalStatus: seller.sellerApprovalStatus,
+      isVerified: seller.isVerified,
+    },
+  });
+});
 const getSellerById = asyncHandler(async (req, res) => {
   const { sellerId } = req.params;
 
