@@ -447,53 +447,39 @@ const getSellerManagement = asyncHandler(async (req, res) => {
    APPROVE SELLER
 ===================================================== */
 
-const approveSeller =
-  asyncHandler(
-    async (req, res) => {
+const approveSeller = asyncHandler(async (req, res) => {
+  const { sellerId } = req.params;
 
-      const { sellerId } =
-        req.params;
+  const seller = await User.findOne({
+    _id: sellerId,
+    role: "seller",
+  });
 
-      const seller =
-        await User.findOne({
-          _id: sellerId,
-          role: "seller",
-        });
+  if (!seller) {
+    res.status(404);
+    throw new Error("Seller not found");
+  }
 
-      if (!seller) {
+  // Admin approval
+  seller.sellerApprovalStatus = "approved";
 
-        res.status(404);
+  // Mark seller as verified
+  seller.isVerified = true;
 
-        throw new Error(
-          "Seller not found"
-        );
-      }
+  await seller.save();
 
-      seller.sellerApprovalStatus =
-        "approved";
+  res.status(200).json({
+    success: true,
 
-      await seller.save();
+    message: "Seller approved successfully",
 
-      res.status(200).json({
-
-        success: true,
-
-        message:
-          "Seller approved successfully",
-
-        seller: {
-
-          _id:
-            seller._id,
-
-          sellerApprovalStatus:
-            seller.sellerApprovalStatus,
-        },
-      });
-    }
-  );
-
-
+    seller: {
+      _id: seller._id,
+      sellerApprovalStatus: seller.sellerApprovalStatus,
+      isVerified: seller.isVerified,
+    },
+  });
+});
 /* =====================================================
    REJECT SELLER
 ===================================================== */

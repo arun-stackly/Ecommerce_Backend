@@ -305,7 +305,7 @@ exports.createAd = async (req, res) => {
       // ADMIN WORKFLOW
       // =====================================
 
-      status: "pending",
+      status: status,
 
       requestedAt: new Date(),
 
@@ -315,8 +315,7 @@ exports.createAd = async (req, res) => {
 
       rejectionReason: "",
 
-      // New ad cannot be active before approval
-      isActive: false,
+      isActive: status === "approved",
     });
 
     return res.status(201).json({
@@ -857,38 +856,33 @@ exports.resumeAd = async (req, res) => {
 
 
 /* =====================================================
-   DELETE AD
+   ADMIN DELETE AD
 
    DELETE /api/ads/:id
 ===================================================== */
 
 exports.deleteAd = async (req, res) => {
   try {
-    const ad =
-      await Ad.findOneAndDelete({
-        _id: req.params.id,
-        seller: req.user._id,
-      });
+    const ad = await Ad.findByIdAndDelete(req.params.id);
 
     if (!ad) {
       return res.status(404).json({
         success: false,
-        message:
-          "Advertisement not found",
+        message: "Advertisement not found",
       });
     }
 
     return res.status(200).json({
       success: true,
-      message:
-        "Advertisement deleted successfully",
+      message: "Advertisement deleted successfully",
+      deletedAd: {
+        _id: ad._id,
+        status: ad.status,
+      },
     });
 
   } catch (error) {
-    console.error(
-      "Delete Ad Error:",
-      error
-    );
+    console.error("Delete Ad Error:", error);
 
     return res.status(500).json({
       success: false,

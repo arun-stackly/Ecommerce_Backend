@@ -3,6 +3,7 @@ const router = express.Router();
 
 const adController = require("../controllers/adsController");
 const { protect } = require("../middleware/authMiddleware");
+const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
 router.get(
   "/products",protect,
  adController.getProductsForAd
@@ -24,6 +25,6 @@ router.patch("/:id/pause", protect, adController.pauseAd);
 
 router.patch("/:id/resume", protect, adController.resumeAd);
 
-router.delete("/:id", protect, adController.deleteAd);
+router.delete("/:id",adminAuthMiddleware, adController.deleteAd);
 
 module.exports = router;

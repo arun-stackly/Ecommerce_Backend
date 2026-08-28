@@ -91,6 +91,25 @@ const loginUser = asyncHandler(async (req, res) => {
     res.status(401);
     throw new Error("Seller account not found");
   }
+   // Check admin approval
+  if (user.sellerApprovalStatus !== "approved") {
+
+    if (user.sellerApprovalStatus === "pending") {
+      res.status(403);
+      throw new Error(
+        "Your seller account is waiting for admin approval"
+      );
+    }
+  
+ 
+
+    if (user.sellerApprovalStatus === "rejected") {
+      res.status(403);
+      throw new Error(
+        "Your seller account has been rejected by admin"
+      );
+    }
+  }
  
   const isMatch = await user.matchPassword(password);
  
