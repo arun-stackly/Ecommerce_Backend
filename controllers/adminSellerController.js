@@ -544,7 +544,75 @@ const rejectSeller =
     }
   );
 
+const getSellerById = asyncHandler(async (req, res) => {
+  const { sellerId } = req.params;
 
+  // 1. Get seller
+  const seller = await User.findOne({
+    _id: sellerId,
+    role: "seller",
+  })
+    .select("-password -resetOTP -resetOTPExpiry")
+    .lean();
+
+  if (!seller) {
+    res.status(404);
+    throw new Error("Seller not found");
+  }
+
+  // 2. Get seller profile
+  const profile = await SellerProfile.findOne({
+    user: seller._id,
+  }).lean();
+
+  // 3. Get seller products
+  const products = await SellerInventory.find({
+    seller: seller._id,
+  }).lean();
+
+  // 4. Get seller orders
+  const orders = await UserOrder.find({
+    "items.sellerId": seller._id,
+  }).lean();
+
+  // 5. Response
+  res.status(200).json({
+    success: true,
+
+    seller: {
+      _id: seller._id,
+
+      name: `${seller.firstName || ""} ${
+        seller.lastName || ""
+      }`.trim(),
+
+      email: seller.email || "",
+
+      phone: profile?.phone || "",
+
+      location: profile?.address || "",
+
+      profileImage:
+        profile?.profileImage || null,
+
+      status:
+        seller.sellerApprovalStatus || "pending",
+
+      verified:
+        seller.isVerified || false,
+
+      joinedDate: seller.createdAt,
+
+      products,
+
+      orders,
+
+      productCount: products.length,
+
+      orderCount: orders.length,
+    },
+  });
+});
 /* =====================================================
    EXPORT
 ===================================================== */
@@ -553,4 +621,5 @@ module.exports = {
   getSellerManagement,
   approveSeller,
   rejectSeller,
+ getSellerById,
 };

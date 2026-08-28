@@ -210,3 +210,118 @@ exports.getTopProducts = async (req, res) => {
     });
   }
 };
+exports.getTopCategories = async (req, res) => {
+  try {
+    const categories = await Order.aggregate([
+
+      // 1. Only paid orders
+      {
+        $match: {
+          "paymentDetails.paymentStatus": "paid"
+        }
+      },
+
+      // 2. Separate each order item
+      {
+        $unwind: "$items"
+      },
+
+      // 3. Get product details
+      {
+        $lookup: {
+          from: "sellerinventories",
+          localField: "items.sellerInventoryId",
+          foreignField: "_id",
+          as: "product"
+        }
+      },
+
+      {
+        $unwind: "$product"
+      },
+
+      // 4. Get category details
+      {
+        $lookup: {
+          from: "categories",
+          localField: "product.category",
+          foreignField: "_id",
+          as: "category"
+        }
+      },
+
+      {
+        $unwind: "$category"
+      },
+
+      // 5. Group by category
+      {
+        $group: {
+          _id: "$category._id",
+
+          category: {
+            $first: "$category.name"
+          },
+
+          // Unique orders in this category
+          orderIds: {
+            $addToSet: "$_id"
+          },
+
+          // Total category revenue
+          revenue: {
+            $sum: {
+              $ifNull: [
+                "$items.itemTotal",
+                0
+              ]
+            }
+          }
+        }
+      },
+
+      // 6. Format response
+      {
+        $project: {
+          _id: 0,
+
+          category: 1,
+
+          orders: {
+            $size: "$orderIds"
+          },
+
+          revenue: 1
+        }
+      },
+
+      // 7. Highest revenue first
+      {
+        $sort: {
+          revenue: -1
+        }
+      },
+
+      // Top 10 categories
+      {
+        $limit: 10
+      }
+
+    ]);
+
+    res.status(200).json({
+      success: true,
+      categories
+    });
+
+  } catch (err) {
+
+    console.error("TOP CATEGORY ERROR:", err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
+  }
+};
