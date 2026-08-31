@@ -5,7 +5,7 @@ const adController = require("../controllers/adsController");
 const { protect } = require("../middleware/authMiddleware");
 const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
 router.get(
-  "/products",protect,
+  "/products",
  adController.getProductsForAd
 );
 
