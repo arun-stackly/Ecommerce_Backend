@@ -187,7 +187,6 @@ exports.getCouponStats = async (req, res) => {
    GET /api/admin/coupons
 
    Query:
-
    ?page=1
    ?limit=10
    ?search=WELCOME
@@ -210,21 +209,14 @@ exports.getAdminCoupons = async (req, res) => {
       status = "all",
     } = req.query;
 
-    page = Math.max(
-      Number(page) || 1,
-      1
-    );
+    page = Math.max(Number(page) || 1, 1);
 
     limit = Math.min(
-      Math.max(
-        Number(limit) || 10,
-        1
-      ),
+      Math.max(Number(limit) || 10, 1),
       100
     );
 
-    const skip =
-      (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
     const now = new Date();
 
@@ -248,56 +240,29 @@ exports.getAdminCoupons = async (req, res) => {
        STATUS FILTER
     ===================================================== */
 
-    // -----------------------------------------------
     // ACTIVE
-    // -----------------------------------------------
-
     if (status === "active") {
       filter.isActive = true;
 
       filter.$and = [
         {
           $or: [
-            {
-              startDate: {
-                $exists: false,
-              },
-            },
-            {
-              startDate: null,
-            },
-            {
-              startDate: {
-                $lte: now,
-              },
-            },
+            { startDate: { $exists: false } },
+            { startDate: null },
+            { startDate: { $lte: now } },
           ],
         },
-
         {
           $or: [
-            {
-              expiryDate: {
-                $exists: false,
-              },
-            },
-            {
-              expiryDate: null,
-            },
-            {
-              expiryDate: {
-                $gte: now,
-              },
-            },
+            { expiryDate: { $exists: false } },
+            { expiryDate: null },
+            { expiryDate: { $gte: now } },
           ],
         },
       ];
     }
 
-    // -----------------------------------------------
     // SCHEDULED
-    // -----------------------------------------------
-
     if (status === "scheduled") {
       filter.isActive = true;
 
@@ -306,20 +271,14 @@ exports.getAdminCoupons = async (req, res) => {
       };
     }
 
-    // -----------------------------------------------
     // EXPIRED
-    // -----------------------------------------------
-
     if (status === "expired") {
       filter.expiryDate = {
         $lt: now,
       };
     }
 
-    // -----------------------------------------------
     // INACTIVE
-    // -----------------------------------------------
-
     if (status === "inactive") {
       filter.isActive = false;
     }
@@ -328,32 +287,48 @@ exports.getAdminCoupons = async (req, res) => {
        DATABASE QUERY
     ===================================================== */
 
-    const [
-      coupons,
-      totalCoupons,
-    ] = await Promise.all([
-      Coupon.find(filter)
-        .sort({
-          createdAt: -1,
-        })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+    const [coupons, totalCoupons] =
+      await Promise.all([
+        Coupon.find(filter)
+          .sort({
+            createdAt: -1,
+          })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
 
-      Coupon.countDocuments(filter),
-    ]);
+        Coupon.countDocuments(filter),
+      ]);
 
     /* =====================================================
        FORMAT RESPONSE
     ===================================================== */
 
-    const formattedCoupons =
-      coupons.map((coupon) => {
+    const formattedCoupons = coupons.map(
+      (coupon) => {
         const couponStatus =
           getCouponStatus(
             coupon,
             now
           );
+
+        const usedCount =
+          coupon.usedCount || 0;
+
+        const usageLimit =
+          coupon.usageLimit ?? null;
+
+        const usageLimitPerCustomer =
+          coupon.usageLimitPerCustomer ?? 1;
+
+        let remainingUsage = null;
+
+        if (usageLimit !== null) {
+          remainingUsage = Math.max(
+            usageLimit - usedCount,
+            0
+          );
+        }
 
         return {
           _id: coupon._id,
@@ -374,19 +349,34 @@ exports.getAdminCoupons = async (req, res) => {
           maxDiscount:
             coupon.maxDiscount ?? null,
 
-          usage: {
-            used:
-              coupon.usedCount || 0,
+          /* =========================
+             USAGE
+          ========================= */
 
-            limit:
-              coupon.usageLimit ?? null,
+          usage: {
+            used: usedCount,
+
+            totalLimit: usageLimit,
+
+            remaining: remainingUsage,
+
+            perCustomer:
+              usageLimitPerCustomer,
           },
+
+          /* =========================
+             DATES
+          ========================= */
 
           startDate:
             coupon.startDate || null,
 
           expiryDate:
             coupon.expiryDate || null,
+
+          /* =========================
+             STATUS
+          ========================= */
 
           status:
             couponStatus,
@@ -400,7 +390,8 @@ exports.getAdminCoupons = async (req, res) => {
           updatedAt:
             coupon.updatedAt,
         };
-      });
+      }
+    );
 
     /* =====================================================
        PAGINATION
@@ -419,9 +410,7 @@ exports.getAdminCoupons = async (req, res) => {
       pagination: {
         page,
         limit,
-
         totalCoupons,
-
         totalPages,
 
         hasNextPage:
