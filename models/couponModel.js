@@ -108,7 +108,12 @@ const couponSchema = new mongoose.Schema(
       default: null,
       min: 0,
     },
-
+    // Maximum times ONE customer can use this coupon
+    usageLimitPerCustomer: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
     // =========================
     // HOW MANY TIMES USED
     // =========================
