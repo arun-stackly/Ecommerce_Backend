@@ -10,7 +10,6 @@ const AdminSettings = require("../models/AdminSettings");
 
    GET /api/ads/products
 ===================================================== */
-
 exports.getProductsForAd = async (req, res) => {
   try {
     const {
@@ -23,7 +22,6 @@ exports.getProductsForAd = async (req, res) => {
     console.log("Ad Product Query:", req.query);
 
     const filter = {
-      seller: req.user._id,
       isActive: true,
     };
 
@@ -35,8 +33,7 @@ exports.getProductsForAd = async (req, res) => {
       category &&
       mongoose.Types.ObjectId.isValid(category)
     ) {
-      filter.category =
-        new mongoose.Types.ObjectId(category);
+      filter.category = category;
     }
 
     /* =========================================
@@ -47,8 +44,7 @@ exports.getProductsForAd = async (req, res) => {
       subcategory &&
       mongoose.Types.ObjectId.isValid(subcategory)
     ) {
-      filter.subcategory =
-        new mongoose.Types.ObjectId(subcategory);
+      filter.subcategory = subcategory;
     }
 
     /* =========================================
@@ -59,10 +55,7 @@ exports.getProductsForAd = async (req, res) => {
       subSubcategory &&
       mongoose.Types.ObjectId.isValid(subSubcategory)
     ) {
-      filter.subSubcategory =
-        new mongoose.Types.ObjectId(
-          subSubcategory
-        );
+      filter.subSubcategory = subSubcategory;
     }
 
     /* =========================================
@@ -73,27 +66,22 @@ exports.getProductsForAd = async (req, res) => {
       productType &&
       mongoose.Types.ObjectId.isValid(productType)
     ) {
-      filter.productType =
-        new mongoose.Types.ObjectId(productType);
+      filter.productType = productType;
     }
 
-    const products =
-      await SellerInventory.find(filter)
-        .populate("productType", "name")
-        .populate("category", "name")
-        .populate("subcategory", "name")
-        .populate("subSubcategory", "name")
-        .select(
-          "_id name productType category subcategory subSubcategory media"
-        );
+    /* =========================================
+       GET PRODUCTS
+    ========================================= */
 
-    if (!products.length) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "No products found for the logged-in seller with the selected filters.",
-      });
-    }
+    const products = await SellerInventory.find(filter)
+      .populate("productType", "name")
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .select(
+        "_id name productType category subcategory subSubcategory media seller"
+      )
+      .lean();
 
     return res.status(200).json({
       success: true,
@@ -113,6 +101,8 @@ exports.getProductsForAd = async (req, res) => {
     });
   }
 };
+
+
 
 
 /* =====================================================
