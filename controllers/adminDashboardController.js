@@ -142,25 +142,21 @@ exports.getDashboard = async (req, res) => {
             },
           },
         },
- 
         {
           $group: {
             _id: {
               year: {
                 $year: "$createdAt",
               },
- 
               month: {
                 $month: "$createdAt",
               },
             },
- 
             revenue: {
               $sum: "$totalAmount",
             },
           },
         },
- 
         {
           $sort: {
             "_id.year": 1,
@@ -175,6 +171,9 @@ exports.getDashboard = async (req, res) => {
         {
           $match: {
             "paymentDetails.paymentStatus": "paid",
+            createdAt: {
+              $gte: revenueStartDate,
+            },
           },
         },
  
@@ -211,7 +210,6 @@ exports.getDashboard = async (req, res) => {
         {
           $group: {
             _id: "$category.name",
- 
             amount: {
               $sum: "$items.itemTotal",
             },
