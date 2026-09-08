@@ -25,6 +25,6 @@ router.patch("/:id/pause", protect, adController.pauseAd);
 
 router.patch("/:id/resume", protect, adController.resumeAd);
 
-router.delete("/:id",adminAuthMiddleware, adController.deleteAd);
+router.delete("/:id",adminAuthMiddleware,protect, adController.deleteAd);
 
 module.exports = router;

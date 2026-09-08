@@ -8,7 +8,7 @@ const path = require("path");
 const { errorHandler } = require("./middleware/errorMiddleware");
 const { protect } = require("./middleware/authMiddleware");
 const { sellerOnly } = require("./middleware/roleMiddleware");
-
+const cookieParser = require("cookie-parser");
 const authRoutes = require("./routes/auth");
 const passwordRoutes = require("./routes/password");
 const userAuthRoutes = require("./routes/userAuthRoutes");
@@ -76,9 +76,9 @@ dns.setServers(["8.8.8.8", "8.8.4.4"]);
 const app = express();
  
 connectDB();
- 
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 app.use(morgan("dev"));
 app.use(
   "/images",
