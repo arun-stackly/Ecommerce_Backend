@@ -396,7 +396,9 @@ exports.applyCoupon = async (req, res) => {
   try {
     const { couponCode } = req.body;
 
-    const cart = await Cart.findOne({ userId: req.user._id });
+    const cart = await Cart.findOne({
+      userId: req.user._id,
+    });
 
     if (!cart) {
       return res.status(404).json({
@@ -405,7 +407,9 @@ exports.applyCoupon = async (req, res) => {
       });
     }
 
-    const coupon = await Coupon.findOne({ code: couponCode });
+    const coupon = await Coupon.findOne({
+      code: couponCode,
+    });
 
     if (!coupon) {
       return res.status(404).json({
@@ -421,13 +425,16 @@ exports.applyCoupon = async (req, res) => {
     if (coupon.type === "FLAT") {
       discount = coupon.discount;
     } else if (coupon.type === "PERCENT") {
-      discount = Math.floor((cartPrice * coupon.discount) / 100);
+      discount = Math.floor(
+        (cartPrice * coupon.discount) / 100
+      );
     }
 
     const totalAmount =
-      cartPrice - discount + cart.priceDetails.platformFee;
+      cartPrice -
+      discount +
+      cart.priceDetails.platformFee;
 
-    // update ONLY coupon + price fields
     cart.coupon = {
       couponCode: coupon.code,
       couponType: coupon.type,
@@ -439,18 +446,20 @@ exports.applyCoupon = async (req, res) => {
     cart.priceDetails.totalAmount = totalAmount;
 
     await cart.save();
-   const updatedCart = await Cart.findById(cart._id)
-  .populate({
-    path: "sellerGroups.items.sellerInventoryId",
-    select: "name price media quantity isActive sizes"
-  });
 
-return res.json({
-  success: true,
-  message: "Coupon applied successfully",
-  cart: formatCartResponse(updatedCart),
-});
-    
+    const updatedCart = await Cart.findById(cart._id)
+      .populate({
+        path: "sellerGroups.items.sellerInventoryId",
+        select:
+          "name price discountPrice media quantity isActive sizes",
+      });
+
+    return res.json({
+      success: true,
+      message: "Coupon applied successfully",
+      cart: updatedCart,
+    });
+
   } catch (err) {
     return res.status(500).json({
       success: false,
