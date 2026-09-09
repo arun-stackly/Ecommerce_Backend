@@ -607,27 +607,57 @@ exports.removeCoupon = async (req, res) => {
   }
 };
 /* ================= GET  COUPON ================= */
+/* ================= GET AVAILABLE COUPONS ================= */
+
 exports.getAvailableCoupons = async (req, res) => {
   try {
-    const cart = await Cart.findOne({ userId: req.user._id });
+    const cart = await Cart.findOne({
+      userId: req.user._id,
+    });
 
-    const cartValue = cart?.priceDetails?.price || 0;
+    const cartValue = Number(
+      cart?.priceDetails?.sellingPrice || 0
+    );
 
-    const coupons = await Coupon.find({ isActive: true });
+    const now = new Date();
+
+    // Get only active coupons
+    const coupons = await Coupon.find({
+      isActive: true,
+
+      // Start date reached
+      $or: [
+        { startDate: { $exists: false } },
+        { startDate: null },
+        { startDate: { $lte: now } },
+      ],
+
+      // Expiry date not reached
+      $or: [
+        { expiryDate: { $exists: false } },
+        { expiryDate: null },
+        { expiryDate: { $gt: now } },
+      ],
+    });
 
     const result = coupons.map((c) => {
-      const isAlreadyApplied = cart?.coupon?.couponCode === c.code;
+      const isAlreadyApplied =
+        cart?.coupon?.couponCode === c.code;
+
+      const minOrderValue = Number(
+        c.minOrderValue || 0
+      );
 
       const isApplicable =
-        cartValue >= c.minOrderValue &&
-        !isAlreadyApplied &&
-        (!c.expiryDate || c.expiryDate > new Date());
+        cartValue >= minOrderValue &&
+        !isAlreadyApplied;
 
       return {
         code: c.code,
         type: c.type,
         discount: c.discount,
-        minOrderValue: c.minOrderValue,
+        minOrderValue: minOrderValue,
+        maxDiscount: c.maxDiscount || null,
         description: c.description,
 
         isApplicable,
@@ -636,7 +666,10 @@ exports.getAvailableCoupons = async (req, res) => {
           ? "Already Applied"
           : isApplicable
           ? "Applicable"
-          : `Add ₹${c.minOrderValue - cartValue} more to use this coupon`,
+          : `Add ₹${Math.max(
+              0,
+              minOrderValue - cartValue
+            )} more to use this coupon`,
       };
     });
 
@@ -644,6 +677,7 @@ exports.getAvailableCoupons = async (req, res) => {
       success: true,
       coupons: result,
     });
+
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -651,7 +685,6 @@ exports.getAvailableCoupons = async (req, res) => {
     });
   }
 };
-
 
 /* ================= SET DELIVERY ADDRESS ================= */
  
