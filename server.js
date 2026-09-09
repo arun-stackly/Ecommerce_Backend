@@ -76,7 +76,17 @@ dns.setServers(["8.8.8.8", "8.8.4.4"]);
 const app = express();
  
 connectDB();
-app.use(cors());
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://15.207.48.105",
+];
+ 
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
