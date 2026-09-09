@@ -1,4 +1,4 @@
-AdminAuthController
+
 const jwt = require("jsonwebtoken");
  
 const adminLogin = async (req, res) => {
