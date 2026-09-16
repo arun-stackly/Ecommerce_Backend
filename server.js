@@ -70,7 +70,7 @@ const adminCouponRoutes = require(
 const adminProductRoutes = require("./routes/adminProductRoutes");
 const adminSettingsRoutes = require("./routes/adminSettingsRoutes");
 const dns = require("dns");
- 
+ const s3Routes = require("./routes/s3Routes");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
  
 const app = express();
@@ -94,6 +94,7 @@ app.use(
   "/images",
   express.static(path.join(__dirname, "utils/travelhomepageimages"))
 );
+app.use("/api/s3", s3Routes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin/dashboard", adminDashboardRoutes);
 app.use("/api/admin/sales-analytics", salesAnalyticsRoutes);
