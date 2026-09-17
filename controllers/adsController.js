@@ -1,8 +1,16 @@
 const mongoose = require("mongoose");
 
+const {
+  PutObjectCommand,
+} = require("@aws-sdk/client-s3");
+
 const Ad = require("../models/Ad");
 const SellerInventory = require("../models/SellerInventory");
 const AdminSettings = require("../models/AdminSettings");
+
+const s3 = require("../config/s3");
+
+const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
 
 
 /* =====================================================
@@ -10,6 +18,7 @@ const AdminSettings = require("../models/AdminSettings");
 
    GET /api/ads/products
 ===================================================== */
+
 exports.getProductsForAd = async (req, res) => {
   try {
     const {
@@ -103,19 +112,36 @@ exports.getProductsForAd = async (req, res) => {
 };
 
 
-
-
 /* =====================================================
    CREATE ADVERTISEMENT
 
    POST /api/ads
 
-   IMPORTANT:
-   New ads always start as pending.
+   Content-Type:
+   multipart/form-data
+
+   Form-data fields:
+
+   product
+   category
+   subcategory
+   subSubcategory
+   productType
+   description
+   adType
+   requestedBudget
+   image -> File
+
 ===================================================== */
 
 exports.createAd = async (req, res) => {
   try {
+console.log("REQ.BODY:", req.body);
+    console.log("REQ.FILE:", req.file);
+    /* =========================================
+       GET FORM DATA
+    ========================================= */
+
     const {
       product,
       category,
@@ -123,10 +149,22 @@ exports.createAd = async (req, res) => {
       subSubcategory,
       productType,
       description,
-      mediaUrl,
       adType,
       requestedBudget,
     } = req.body;
+
+
+    /* =========================================
+       CHECK IMAGE
+    ========================================= */
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Advertisement image is required",
+      });
+    }
+
 
     /* =========================================
        REQUIRED FIELDS
@@ -135,15 +173,15 @@ exports.createAd = async (req, res) => {
     if (
       !product ||
       !category ||
-      !mediaUrl ||
       !adType
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "product, category, mediaUrl and adType are required",
+          "product, category and adType are required",
       });
     }
+
 
     /* =========================================
        VALIDATE BUDGET
@@ -160,23 +198,31 @@ exports.createAd = async (req, res) => {
           "Valid requestedBudget is required",
       });
     }
-    // Get admin settings
-    const settings = await AdminSettings.findOne();
 
-    // Check auto approve setting
+
+    /* =========================================
+       GET ADMIN SETTINGS
+    ========================================= */
+
+    const settings =
+      await AdminSettings.findOne();
+
     const autoApproveSellerAds =
       settings?.autoApproveSellerAds === true;
 
-    // Set status automatically
-    const status = autoApproveSellerAds
-      ? "approved"
-      : "pending";
+
+    /* =========================================
+       SET STATUS
+    ========================================= */
+
+    const status =
+      autoApproveSellerAds
+        ? "approved"
+        : "pending";
 
 
     /* =========================================
        VALIDATE PRODUCT
-
-       Product must belong to logged-in seller
     ========================================= */
 
     const inventory =
@@ -194,6 +240,7 @@ exports.createAd = async (req, res) => {
       });
     }
 
+
     /* =========================================
        VALIDATE CATEGORY
     ========================================= */
@@ -209,10 +256,9 @@ exports.createAd = async (req, res) => {
       });
     }
 
+
     /* =========================================
        VALIDATE SUBCATEGORY
-
-       Only validate if product has one
     ========================================= */
 
     if (
@@ -226,6 +272,7 @@ exports.createAd = async (req, res) => {
           "Selected product does not match subcategory",
       });
     }
+
 
     /* =========================================
        VALIDATE SUB SUBCATEGORY
@@ -243,6 +290,7 @@ exports.createAd = async (req, res) => {
       });
     }
 
+
     /* =========================================
        VALIDATE PRODUCT TYPE
     ========================================= */
@@ -259,13 +307,116 @@ exports.createAd = async (req, res) => {
       });
     }
 
-    /* =========================================
-       CREATE AD
 
-       ADMIN-ONLY FIELDS ARE CONTROLLED HERE
+    /* =========================================
+       IMAGE DETAILS
+    ========================================= */
+
+    const {
+      originalname,
+      mimetype,
+      buffer,
+      size,
+    } = req.file;
+
+
+    /* =========================================
+       ALLOWED IMAGE TYPES
+    ========================================= */
+
+    const allowedMimeTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+    ];
+
+    if (!allowedMimeTypes.includes(mimetype)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid image type. Only JPG, JPEG, PNG, WEBP and GIF are allowed.",
+      });
+    }
+
+
+    /* =========================================
+       MAX FILE SIZE
+       5 MB
+    ========================================= */
+
+    const maxFileSize =
+      5 * 1024 * 1024;
+
+    if (size > maxFileSize) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Image size must be less than 5 MB",
+      });
+    }
+
+
+    /* =========================================
+       GET FILE EXTENSION
+    ========================================= */
+
+    const extension =
+      originalname.includes(".")
+        ? originalname
+            .split(".")
+            .pop()
+            .toLowerCase()
+        : "";
+
+
+    /* =========================================
+       GENERATE UNIQUE FILE NAME
+    ========================================= */
+
+    const uniqueFileName =
+      `${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 10)}` +
+      `${extension ? "." + extension : ""}`;
+
+
+    /* =========================================
+       S3 OBJECT KEY
+    ========================================= */
+
+    const key =
+      `advertisements/${uniqueFileName}`;
+
+
+    /* =========================================
+       UPLOAD IMAGE TO S3
+    ========================================= */
+
+    const command =
+      new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: buffer,
+        ContentType: mimetype,
+      });
+
+    await s3.send(command);
+
+
+    console.log(
+      "Advertisement uploaded to S3:",
+      key
+    );
+
+
+    /* =========================================
+       CREATE ADVERTISEMENT
     ========================================= */
 
     const ad = await Ad.create({
+
       seller: req.user._id,
 
       product: inventory._id,
@@ -281,7 +432,14 @@ exports.createAd = async (req, res) => {
       productType:
         inventory.productType || null,
 
-      mediaUrl,
+      /*
+        Store S3 KEY in MongoDB
+
+        Example:
+        advertisements/1758123456-abcd1234.jpg
+      */
+
+      mediaUrl: key,
 
       description:
         description || "",
@@ -291,13 +449,14 @@ exports.createAd = async (req, res) => {
       requestedBudget:
         Number(requestedBudget),
 
-      // =====================================
-      // ADMIN WORKFLOW
-      // =====================================
+      /* =====================================
+         ADMIN WORKFLOW
+      ===================================== */
 
-      status: status,
+      status,
 
-      requestedAt: new Date(),
+      requestedAt:
+        new Date(),
 
       approvedAt: null,
 
@@ -305,18 +464,32 @@ exports.createAd = async (req, res) => {
 
       rejectionReason: "",
 
-      isActive: status === "approved",
+      isActive:
+        status === "approved",
     });
 
+
+    /* =========================================
+       RESPONSE
+    ========================================= */
+
     return res.status(201).json({
+
       success: true,
+
       message:
-        "Advertisement submitted successfully and is waiting for admin approval",
+        "Advertisement submitted successfully",
 
       ad,
+
+      s3: {
+        key: key,
+        bucket: BUCKET_NAME,
+      },
     });
 
   } catch (error) {
+
     console.error(
       "Create Advertisement Error:",
       error
@@ -334,10 +507,15 @@ exports.createAd = async (req, res) => {
    BULK CREATE ADS
 
    POST /api/ads/bulk
+
+   NOTE:
+   This version still expects mediaUrl/S3 key.
+   It does NOT upload multiple images.
 ===================================================== */
 
 exports.createMultipleAds = async (req, res) => {
   try {
+
     const { ads } = req.body;
 
     if (
@@ -352,14 +530,13 @@ exports.createMultipleAds = async (req, res) => {
 
     const createdAds = [];
 
+
     /* =========================================
        PROCESS EACH AD
-
-       We validate product ownership instead
-       of blindly using insertMany().
     ========================================= */
 
     for (const adData of ads) {
+
       const {
         product,
         category,
@@ -371,6 +548,7 @@ exports.createMultipleAds = async (req, res) => {
         adType,
         requestedBudget,
       } = adData;
+
 
       if (
         !product ||
@@ -386,9 +564,10 @@ exports.createMultipleAds = async (req, res) => {
         });
       }
 
-      /* =====================================
+
+      /* =========================================
          VERIFY PRODUCT
-      ===================================== */
+      ========================================= */
 
       const inventory =
         await SellerInventory.findOne({
@@ -405,65 +584,81 @@ exports.createMultipleAds = async (req, res) => {
         });
       }
 
-      /* =====================================
+
+      /* =========================================
          CREATE AD
-      ===================================== */
+      ========================================= */
 
-      const newAd = await Ad.create({
-        seller: req.user._id,
+      const newAd =
+        await Ad.create({
 
-        product: inventory._id,
+          seller:
+            req.user._id,
 
-        category: inventory.category,
+          product:
+            inventory._id,
 
-        subcategory:
-          inventory.subcategory || null,
+          category:
+            inventory.category,
 
-        subSubcategory:
-          inventory.subSubcategory || null,
+          subcategory:
+            inventory.subcategory || null,
 
-        productType:
-          inventory.productType || null,
+          subSubcategory:
+            inventory.subSubcategory || null,
 
-        mediaUrl,
+          productType:
+            inventory.productType || null,
 
-        description:
-          description || "",
+          mediaUrl,
 
-        adType,
+          description:
+            description || "",
 
-        requestedBudget:
-          Number(requestedBudget),
+          adType,
 
-        // ADMIN WORKFLOW
-        status: "pending",
+          requestedBudget:
+            Number(requestedBudget),
 
-        requestedAt: new Date(),
+          status:
+            "pending",
 
-        approvedAt: null,
+          requestedAt:
+            new Date(),
 
-        rejectedAt: null,
+          approvedAt:
+            null,
 
-        rejectionReason: "",
+          rejectedAt:
+            null,
 
-        isActive: false,
-      });
+          rejectionReason:
+            "",
+
+          isActive:
+            false,
+        });
 
       createdAds.push(newAd);
     }
 
+
     return res.status(201).json({
+
       success: true,
 
       message:
         "Advertisements submitted successfully and are waiting for admin approval",
 
-      count: createdAds.length,
+      count:
+        createdAds.length,
 
-      ads: createdAds,
+      ads:
+        createdAds,
     });
 
   } catch (error) {
+
     console.error(
       "Bulk Create Ads Error:",
       error
@@ -482,8 +677,6 @@ exports.createMultipleAds = async (req, res) => {
 
    GET /api/ads
 
-   Optional:
-
    ?status=pending
    ?status=approved
    ?status=rejected
@@ -492,49 +685,78 @@ exports.createMultipleAds = async (req, res) => {
 
 exports.getSellerAds = async (req, res) => {
   try {
+
     const {
       status = "all",
     } = req.query;
 
+
     const filter = {
-      seller: req.user._id,
+      seller:
+        req.user._id,
     };
+
 
     /* =========================================
        STATUS FILTER
     ========================================= */
 
     if (
-      ["pending", "approved", "rejected"].includes(
-        status
-      )
+      [
+        "pending",
+        "approved",
+        "rejected",
+      ].includes(status)
     ) {
       filter.status = status;
     }
 
+
     const ads =
       await Ad.find(filter)
-        .populate("category", "name")
-        .populate("subcategory", "name")
-        .populate("subSubcategory", "name")
-        .populate("productType", "name")
+
+        .populate(
+          "category",
+          "name"
+        )
+
+        .populate(
+          "subcategory",
+          "name"
+        )
+
+        .populate(
+          "subSubcategory",
+          "name"
+        )
+
+        .populate(
+          "productType",
+          "name"
+        )
+
         .populate(
           "product",
-          "name price media"
+          "name price "
         )
+
         .sort({
           createdAt: -1,
         });
 
+
     return res.status(200).json({
+
       success: true,
 
-      count: ads.length,
+      count:
+        ads.length,
 
       ads,
     });
 
   } catch (error) {
+
     console.error(
       "Get Seller Ads Error:",
       error
@@ -556,19 +778,41 @@ exports.getSellerAds = async (req, res) => {
 
 exports.getAdById = async (req, res) => {
   try {
+
     const ad =
       await Ad.findOne({
-        _id: req.params.id,
-        seller: req.user._id,
+        _id:
+          req.params.id,
+
+        seller:
+          req.user._id,
       })
-        .populate("category", "name")
-        .populate("subcategory", "name")
-        .populate("subSubcategory", "name")
-        .populate("productType", "name")
+
+        .populate(
+          "category",
+          "name"
+        )
+
+        .populate(
+          "subcategory",
+          "name"
+        )
+
+        .populate(
+          "subSubcategory",
+          "name"
+        )
+
+        .populate(
+          "productType",
+          "name"
+        )
+
         .populate(
           "product",
-          "name price media"
+          "name price "
         );
+
 
     if (!ad) {
       return res.status(404).json({
@@ -578,12 +822,14 @@ exports.getAdById = async (req, res) => {
       });
     }
 
+
     return res.status(200).json({
       success: true,
       ad,
     });
 
   } catch (error) {
+
     console.error(
       "Get Ad By ID Error:",
       error
@@ -602,24 +848,34 @@ exports.getAdById = async (req, res) => {
 
    PATCH /api/ads/:id
 
-   Seller can update ad details.
+   Seller can update:
 
-   Seller CANNOT modify:
-   - status
-   - approvedAt
-   - rejectedAt
-   - rejectionReason
-   - isActive
-   - seller
+   product
+   category
+   subcategory
+   subSubcategory
+   productType
+   description
+   mediaUrl
+   adType
+   requestedBudget
+
+   NOTE:
+   Image replacement is NOT handled here yet.
 ===================================================== */
 
 exports.updateAd = async (req, res) => {
   try {
+
     const ad =
       await Ad.findOne({
-        _id: req.params.id,
-        seller: req.user._id,
+        _id:
+          req.params.id,
+
+        seller:
+          req.user._id,
       });
+
 
     if (!ad) {
       return res.status(404).json({
@@ -629,8 +885,9 @@ exports.updateAd = async (req, res) => {
       });
     }
 
+
     /* =========================================
-       PREVENT ADMIN FIELD MANIPULATION
+       ALLOWED FIELDS
     ========================================= */
 
     const allowedFields = [
@@ -645,7 +902,11 @@ exports.updateAd = async (req, res) => {
       "requestedBudget",
     ];
 
-    for (const field of allowedFields) {
+
+    for (
+      const field of allowedFields
+    ) {
+
       if (
         req.body[field] !== undefined
       ) {
@@ -654,49 +915,62 @@ exports.updateAd = async (req, res) => {
       }
     }
 
-    /* =========================================
-       IMPORTANT
 
-       If seller edits an already rejected ad,
-       send it back for admin approval.
+    /* =========================================
+       REJECTED → PENDING
     ========================================= */
 
     if (
       ad.status === "rejected"
     ) {
-      ad.status = "pending";
 
-      ad.requestedAt = new Date();
+      ad.status =
+        "pending";
 
-      ad.rejectedAt = null;
+      ad.requestedAt =
+        new Date();
 
-      ad.rejectionReason = "";
+      ad.rejectedAt =
+        null;
 
-      ad.approvedAt = null;
+      ad.rejectionReason =
+        "";
 
-      ad.isActive = false;
+      ad.approvedAt =
+        null;
+
+      ad.isActive =
+        false;
     }
 
+
     /* =========================================
-       If approved ad is edited,
-       require admin approval again.
+       APPROVED → PENDING
     ========================================= */
 
     else if (
       ad.status === "approved"
     ) {
-      ad.status = "pending";
 
-      ad.requestedAt = new Date();
+      ad.status =
+        "pending";
 
-      ad.approvedAt = null;
+      ad.requestedAt =
+        new Date();
 
-      ad.isActive = false;
+      ad.approvedAt =
+        null;
+
+      ad.isActive =
+        false;
     }
+
 
     await ad.save();
 
+
     return res.status(200).json({
+
       success: true,
 
       message:
@@ -706,6 +980,7 @@ exports.updateAd = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Update Ad Error:",
       error
@@ -727,11 +1002,16 @@ exports.updateAd = async (req, res) => {
 
 exports.pauseAd = async (req, res) => {
   try {
+
     const ad =
       await Ad.findOne({
-        _id: req.params.id,
-        seller: req.user._id,
+        _id:
+          req.params.id,
+
+        seller:
+          req.user._id,
       });
+
 
     if (!ad) {
       return res.status(404).json({
@@ -741,12 +1021,14 @@ exports.pauseAd = async (req, res) => {
       });
     }
 
+
     /* =========================================
        ONLY APPROVED ADS CAN BE PAUSED
     ========================================= */
 
     if (
-      ad.status !== "approved"
+      ad.status !==
+      "approved"
     ) {
       return res.status(400).json({
         success: false,
@@ -755,11 +1037,15 @@ exports.pauseAd = async (req, res) => {
       });
     }
 
-    ad.isActive = false;
+
+    ad.isActive =
+      false;
 
     await ad.save();
 
+
     return res.status(200).json({
+
       success: true,
 
       message:
@@ -769,6 +1055,7 @@ exports.pauseAd = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Pause Ad Error:",
       error
@@ -790,11 +1077,16 @@ exports.pauseAd = async (req, res) => {
 
 exports.resumeAd = async (req, res) => {
   try {
+
     const ad =
       await Ad.findOne({
-        _id: req.params.id,
-        seller: req.user._id,
+        _id:
+          req.params.id,
+
+        seller:
+          req.user._id,
       });
+
 
     if (!ad) {
       return res.status(404).json({
@@ -804,12 +1096,14 @@ exports.resumeAd = async (req, res) => {
       });
     }
 
+
     /* =========================================
        ONLY APPROVED ADS CAN BE RESUMED
     ========================================= */
 
     if (
-      ad.status !== "approved"
+      ad.status !==
+      "approved"
     ) {
       return res.status(400).json({
         success: false,
@@ -818,11 +1112,15 @@ exports.resumeAd = async (req, res) => {
       });
     }
 
-    ad.isActive = true;
+
+    ad.isActive =
+      true;
 
     await ad.save();
 
+
     return res.status(200).json({
+
       success: true,
 
       message:
@@ -832,6 +1130,7 @@ exports.resumeAd = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Resume Ad Error:",
       error
@@ -853,26 +1152,45 @@ exports.resumeAd = async (req, res) => {
 
 exports.deleteAd = async (req, res) => {
   try {
-    const ad = await Ad.findByIdAndDelete(req.params.id);
+
+    const ad =
+      await Ad.findByIdAndDelete(
+        req.params.id
+      );
+
 
     if (!ad) {
       return res.status(404).json({
         success: false,
-        message: "Advertisement not found",
+        message:
+          "Advertisement not found",
       });
     }
 
+
     return res.status(200).json({
+
       success: true,
-      message: "Advertisement deleted successfully",
+
+      message:
+        "Advertisement deleted successfully",
+
       deletedAd: {
-        _id: ad._id,
-        status: ad.status,
+
+        _id:
+          ad._id,
+
+        status:
+          ad.status,
       },
     });
 
   } catch (error) {
-    console.error("Delete Ad Error:", error);
+
+    console.error(
+      "Delete Ad Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -894,48 +1212,63 @@ exports.deleteAd = async (req, res) => {
 
 exports.getActiveAds = async (req, res) => {
   try {
+
     const ads =
       await Ad.find({
-        status: "approved",
-        isActive: true,
+        status:
+          "approved",
+
+        isActive:
+          true,
       })
+
         .populate(
           "category",
           "name"
         )
+
         .populate(
           "subcategory",
           "name"
         )
+
         .populate(
           "subSubcategory",
           "name"
         )
+
         .populate(
           "productType",
           "name"
         )
+
         .populate(
           "product",
           "name price media"
         )
+
         .populate(
           "seller",
           "name email"
         )
+
         .sort({
           createdAt: -1,
         });
 
+
     return res.status(200).json({
+
       success: true,
 
-      count: ads.length,
+      count:
+        ads.length,
 
       ads,
     });
 
   } catch (error) {
+
     console.error(
       "Get Active Ads Error:",
       error

@@ -11,13 +11,18 @@ const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
 
 
 // ==========================================
-// Upload Image to S3 using FormData
+// Upload Image to S3
 // POST /api/s3/upload
+// Content-Type: multipart/form-data
 // ==========================================
 
 const uploadImage = async (req, res) => {
   try {
-    // Check whether file exists
+
+    // ------------------------------------------
+    // Check file
+    // ------------------------------------------
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -25,12 +30,47 @@ const uploadImage = async (req, res) => {
       });
     }
 
+
+    // ------------------------------------------
+    // Get folder from request
+    // ------------------------------------------
+
+    const { folder = "products" } = req.body;
+
+
+    // ------------------------------------------
+    // Allowed S3 folders
+    // ------------------------------------------
+
+    const allowedFolders = [
+      "products",
+      "seller-inventories",
+      "advertisements",
+      "banners",
+      "fashion",
+      "electronics",
+    ];
+
+
+    if (!allowedFolders.includes(folder)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid S3 folder",
+      });
+    }
+
+
+    // ------------------------------------------
+    // File details
+    // ------------------------------------------
+
     const {
       originalname,
       mimetype,
       buffer,
       size,
     } = req.file;
+
 
     // ------------------------------------------
     // Allowed image types
@@ -44,6 +84,7 @@ const uploadImage = async (req, res) => {
       "image/gif",
     ];
 
+
     if (!allowedMimeTypes.includes(mimetype)) {
       return res.status(400).json({
         success: false,
@@ -52,9 +93,10 @@ const uploadImage = async (req, res) => {
       });
     }
 
+
     // ------------------------------------------
-    // File size validation
-    // Maximum: 5 MB
+    // File size
+    // Maximum 5 MB
     // ------------------------------------------
 
     const maxFileSize = 5 * 1024 * 1024;
@@ -66,16 +108,18 @@ const uploadImage = async (req, res) => {
       });
     }
 
+
     // ------------------------------------------
-    // Get file extension
+    // Get extension
     // ------------------------------------------
 
     const extension = originalname.includes(".")
       ? originalname.split(".").pop().toLowerCase()
       : "";
 
+
     // ------------------------------------------
-    // Generate unique file name
+    // Generate unique filename
     // ------------------------------------------
 
     const uniqueFileName =
@@ -84,11 +128,6 @@ const uploadImage = async (req, res) => {
         .substring(2, 10)}` +
       `${extension ? "." + extension : ""}`;
 
-    // ------------------------------------------
-    // S3 folder
-    // ------------------------------------------
-
-    const folder = "products";
 
     // ------------------------------------------
     // S3 Object Key
@@ -96,8 +135,9 @@ const uploadImage = async (req, res) => {
 
     const key = `${folder}/${uniqueFileName}`;
 
+
     // ------------------------------------------
-    // Create S3 Upload Command
+    // Upload to S3
     // ------------------------------------------
 
     const command = new PutObjectCommand({
@@ -107,11 +147,28 @@ const uploadImage = async (req, res) => {
       ContentType: mimetype,
     });
 
-    // ------------------------------------------
-    // Upload file to S3
-    // ------------------------------------------
 
     await s3.send(command);
+
+
+    // ==========================================
+    // Generate image URL immediately
+    // ==========================================
+
+    const getCommand = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    });
+
+
+    const imageUrl = await getSignedUrl(
+      s3,
+      getCommand,
+      {
+        expiresIn: 3600, // 1 hour
+      }
+    );
+
 
     // ------------------------------------------
     // Response
@@ -123,6 +180,10 @@ const uploadImage = async (req, res) => {
 
       data: {
         key: key,
+        imageUrl: imageUrl,
+
+        folder: folder,
+
         fileName: uniqueFileName,
         originalName: originalname,
         contentType: mimetype,
@@ -131,6 +192,7 @@ const uploadImage = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error("S3 Upload Error:", error);
 
     return res.status(500).json({
@@ -143,17 +205,15 @@ const uploadImage = async (req, res) => {
 
 
 // ==========================================
-// Generate Presigned URL for Viewing Image
+// Generate Presigned URL
 // GET /api/s3/get-url?key=products/xxx.jpg
 // ==========================================
 
 const generateGetUrl = async (req, res) => {
   try {
+
     const { key } = req.query;
 
-    // ------------------------------------------
-    // Validate key
-    // ------------------------------------------
 
     if (!key) {
       return res.status(400).json({
@@ -162,30 +222,21 @@ const generateGetUrl = async (req, res) => {
       });
     }
 
-    // ------------------------------------------
-    // Create GetObject command
-    // ------------------------------------------
 
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
     });
 
-    // ------------------------------------------
-    // Generate signed URL
-    // ------------------------------------------
 
     const imageUrl = await getSignedUrl(
       s3,
       command,
       {
-        expiresIn: 3600, // 1 hour
+        expiresIn: 3600,
       }
     );
 
-    // ------------------------------------------
-    // Response
-    // ------------------------------------------
 
     return res.status(200).json({
       success: true,
@@ -198,6 +249,7 @@ const generateGetUrl = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error("S3 Get URL Error:", error);
 
     return res.status(500).json({
@@ -208,10 +260,6 @@ const generateGetUrl = async (req, res) => {
   }
 };
 
-
-// ==========================================
-// Export Controllers
-// ==========================================
 
 module.exports = {
   uploadImage,

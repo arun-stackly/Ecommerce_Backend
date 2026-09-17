@@ -1,30 +1,128 @@
 const express = require("express");
+
 const router = express.Router();
 
 const adController = require("../controllers/adsController");
+
 const { protect } = require("../middleware/authMiddleware");
+
 const adminAuthMiddleware = require("../middleware/adminAuthMiddleware");
+
+const upload = require("../middleware/upload");
+
+
+// =====================================================
+// GET PRODUCTS FOR AD
+// =====================================================
+
 router.get(
   "/products",
- adController.getProductsForAd
+  adController.getProductsForAd
 );
 
-router.post("/", protect, adController.createAd);
 
-router.post("/bulk", protect, adController.createMultipleAds);
+// =====================================================
+// CREATE AD
+// POST /api/ads
+//
+// multipart/form-data
+// image = File
+// =====================================================
 
-router.get("/my-ads", protect, adController.getSellerAds);
+router.post(
+  "/",
+  protect,
+  upload.single("image"),
+  adController.createAd
+);
 
-router.get("/active", adController.getActiveAds);
 
-router.get("/:id", protect, adController.getAdById);
+// =====================================================
+// CREATE MULTIPLE ADS
+// =====================================================
 
-router.put("/:id/update", protect, adController.updateAd);
+router.post(
+  "/bulk",
+  protect,
+  adController.createMultipleAds
+);
 
-router.patch("/:id/pause", protect, adController.pauseAd);
 
-router.patch("/:id/resume", protect, adController.resumeAd);
+// =====================================================
+// GET SELLER ADS
+// =====================================================
 
-router.delete("/:id",adminAuthMiddleware,protect, adController.deleteAd);
+router.get(
+  "/my-ads",
+  protect,
+  adController.getSellerAds
+);
+
+
+// =====================================================
+// GET ACTIVE ADS
+// =====================================================
+
+router.get(
+  "/active",
+  adController.getActiveAds
+);
+
+
+// =====================================================
+// GET AD BY ID
+// =====================================================
+
+router.get(
+  "/:id",
+  protect,
+  adController.getAdById
+);
+
+
+// =====================================================
+// UPDATE AD
+// =====================================================
+
+router.put(
+  "/:id/update",
+  protect,
+  adController.updateAd
+);
+
+
+// =====================================================
+// PAUSE AD
+// =====================================================
+
+router.patch(
+  "/:id/pause",
+  protect,
+  adController.pauseAd
+);
+
+
+// =====================================================
+// RESUME AD
+// =====================================================
+
+router.patch(
+  "/:id/resume",
+  protect,
+  adController.resumeAd
+);
+
+
+// =====================================================
+// DELETE AD - ADMIN
+// =====================================================
+
+router.delete(
+  "/:id",
+  adminAuthMiddleware,
+  protect,
+  adController.deleteAd
+);
+
 
 module.exports = router;
