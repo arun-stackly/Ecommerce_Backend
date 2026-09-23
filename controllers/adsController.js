@@ -3,7 +3,13 @@ const mongoose = require("mongoose");
 const {
   PutObjectCommand,
 } = require("@aws-sdk/client-s3");
+const {
+  GetObjectCommand,
+} = require("@aws-sdk/client-s3");
 
+const {
+  getSignedUrl,
+} = require("@aws-sdk/s3-request-presigner");
 const Ad = require("../models/Ad");
 const SellerInventory = require("../models/SellerInventory");
 const AdminSettings = require("../models/AdminSettings");
@@ -672,87 +678,120 @@ exports.createMultipleAds = async (req, res) => {
 };
 
 
-/* =====================================================
-   GET SELLER ADS
-
-   GET /api/ads
-
-   ?status=pending
-   ?status=approved
-   ?status=rejected
-   ?status=all
-===================================================== */
+// ==========================================
+// GET SELLER ADS
+// GET /api/ads
+//
+// ?status=pending
+// ?status=approved
+// ?status=rejected
+// ?status=all
+// ==========================================
 
 exports.getSellerAds = async (req, res) => {
   try {
-
     const {
       status = "all",
     } = req.query;
 
-
     const filter = {
-      seller:
-        req.user._id,
+      seller: req.user._id,
     };
 
-
-    /* =========================================
-       STATUS FILTER
-    ========================================= */
+    // ==========================================
+    // STATUS FILTER
+    // ==========================================
 
     if (
-      [
-        "pending",
-        "approved",
-        "rejected",
-      ].includes(status)
+      ["pending", "approved", "rejected"].includes(status)
     ) {
       filter.status = status;
     }
 
+    // ==========================================
+    // GET ADS
+    // ==========================================
 
-    const ads =
-      await Ad.find(filter)
+    const ads = await Ad.find(filter)
+      .populate(
+        "category",
+        "name"
+      )
+      .populate(
+        "subcategory",
+        "name"
+      )
+      .populate(
+        "subSubcategory",
+        "name"
+      )
+      .populate(
+        "productType",
+        "name"
+      )
+      .populate(
+        "product",
+        "name price"
+      )
+      .sort({
+        createdAt: -1,
+      });
 
-        .populate(
-          "category",
-          "name"
-        )
+    // ==========================================
+    // GENERATE S3 SIGNED URL FOR EACH AD IMAGE
+    // ==========================================
 
-        .populate(
-          "subcategory",
-          "name"
-        )
+    const adsWithImageUrl = await Promise.all(
+      ads.map(async (ad) => {
 
-        .populate(
-          "subSubcategory",
-          "name"
-        )
+        const adObject = ad.toObject();
 
-        .populate(
-          "productType",
-          "name"
-        )
+        // mediaUrl currently contains:
+        // advertisements/filename.png
 
-        .populate(
-          "product",
-          "name price "
-        )
+        if (adObject.mediaUrl) {
+          try {
+            const command = new GetObjectCommand({
+              Bucket: BUCKET_NAME,
+              Key: adObject.mediaUrl,
+            });
 
-        .sort({
-          createdAt: -1,
-        });
+            const signedUrl = await getSignedUrl(
+              s3,
+              command,
+              {
+                expiresIn: 3600, // 1 hour
+              }
+            );
 
+            // Replace S3 key with signed URL
+            adObject.mediaUrl = signedUrl;
+
+          } catch (error) {
+            console.error(
+              `Failed to generate image URL for ad ${adObject._id}:`,
+              error.message
+            );
+
+            // Keep original key if URL generation fails
+            adObject.mediaUrl = null;
+          }
+        }
+
+        return adObject;
+      })
+    );
+
+    // ==========================================
+    // RESPONSE
+    // ==========================================
 
     return res.status(200).json({
-
       success: true,
 
-      count:
-        ads.length,
+      count: adsWithImageUrl.length,
 
-      ads,
+      ads: adsWithImageUrl,
     });
 
   } catch (error) {
