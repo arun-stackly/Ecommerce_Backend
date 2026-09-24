@@ -1,6 +1,7 @@
 const ReturnRequest = require("../models/Return");
 const UserOrder = require("../models/UserOrder");
 const Refund = require("../models/Refund");
+const { getS3SignedUrl } = require("../utils/s3Helper");
 
 /* =========================================
    CREATE RETURN / EXCHANGE REQUEST
@@ -168,35 +169,79 @@ exports.getMyReturns = async (req, res) => {
     });
   }
 };
+/* =========================
+   GET SELLER RETURNS
+========================= */
+
 exports.getSellerReturns = async (req, res) => {
   try {
     const returns = await ReturnRequest.find({
-      sellerId: req.user._id
-    });
+      sellerId: req.user._id,
+    }).lean();
 
-    res.json({
+    const formattedReturns = await Promise.all(
+      returns.map(async (returnReq) => {
+        /*
+         * If ReturnRequest itself contains an image field,
+         * sign it here.
+         *
+         * Otherwise, the product image will be handled
+         * in getSingleReturn().
+         */
+
+        if (returnReq.image) {
+          try {
+            returnReq.image = await getS3SignedUrl(
+              returnReq.image
+            );
+          } catch (error) {
+            console.error(
+              "Return image S3 error:",
+              error.message
+            );
+
+            returnReq.image = null;
+          }
+        }
+
+        return returnReq;
+      })
+    );
+
+    return res.json({
       success: true,
-      data: returns
+      data: formattedReturns,
     });
   } catch (err) {
-    res.status(500).json({
+    console.error("Get Seller Returns Error:", err);
+
+    return res.status(500).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
 
+
 /* =========================================
    GET SINGLE RETURN DETAILS
 ========================================= */
+
 exports.getSingleReturn = async (req, res) => {
   try {
-    const returnReq = await ReturnRequest.findById(req.params.id)
-      .populate("userId", "firstName lastName email")
+    const returnReq = await ReturnRequest.findById(
+      req.params.id
+    )
+      .populate(
+        "userId",
+        "firstName lastName email"
+      )
       .populate({
         path: "orderId",
-        select: "orderId orderStatus createdAt items",
-      });
+        select:
+          "orderId orderStatus createdAt items",
+      })
+      .lean();
 
     if (!returnReq) {
       return res.status(404).json({
@@ -205,63 +250,144 @@ exports.getSingleReturn = async (req, res) => {
       });
     }
 
-    // 🔥 KEEP ONLY RETURNED ITEM
-    const returnedItem = returnReq.orderId.items.find(
-      (item) =>
-        item._id.toString() === returnReq.itemId.toString()
-    );
-const totalAmount = returnedItem
-  ? returnedItem.itemTotal ||
-    returnedItem.price * returnedItem.quantity
-  : 0;
+    if (!returnReq.orderId) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    /* =========================
+       FIND RETURNED ITEM
+    ========================= */
+
+    const returnedItem =
+      returnReq.orderId.items.find(
+        (item) =>
+          item._id.toString() ===
+          returnReq.itemId.toString()
+      );
+
+    /* =========================
+       TOTAL ITEM AMOUNT
+    ========================= */
+
+    const totalAmount = returnedItem
+      ? Number(
+          returnedItem.itemTotal ||
+            returnedItem.price *
+              returnedItem.quantity
+        )
+      : 0;
+
+    /* =========================
+       S3 PRODUCT IMAGE
+    ========================= */
+
+    let formattedItem = returnedItem || null;
+
+    if (formattedItem && formattedItem.image) {
+      try {
+        formattedItem.image =
+          await getS3SignedUrl(
+            formattedItem.image
+          );
+      } catch (error) {
+        console.error(
+          "Return product image S3 error:",
+          error.message
+        );
+
+        formattedItem.image = null;
+      }
+    }
+
+    /* =========================
+       RESPONSE
+    ========================= */
+
     return res.json({
       success: true,
+
       data: {
-        returnRequestId: returnReq._id, // ✅ Add this
+        returnRequestId: returnReq._id,
+
         returnId: returnReq.returnId,
+
         status: returnReq.status,
+
         reasonCode: returnReq.reasonCode,
+
         reasonText: returnReq.reasonText,
-         totalAmount, // amount paid for this item
+
+        totalAmount,
 
         refundAmount: returnReq.refundAmount,
+
         isRefunded: returnReq.isRefunded,
+
         createdAt: returnReq.createdAt,
 
         user: returnReq.userId,
 
         order: {
-          orderId: returnReq.orderId.orderId,
-          orderStatus: returnReq.orderId.orderStatus,
+          orderId:
+            returnReq.orderId.orderId,
+
+          orderStatus:
+            returnReq.orderId.orderStatus,
         },
 
-        // ✅ ONLY RETURNED ITEM (NOT ALL ITEMS)
-        item: returnedItem || null,
+        /* ONLY RETURNED ITEM */
+        item: formattedItem,
       },
     });
-
   } catch (error) {
+    console.error(
+      "Get Single Return Error:",
+      error
+    );
+
     return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
+
+
 /* =========================================
-   UPDATE RETURN STATUS (ADMIN / SELLER)
+   UPDATE RETURN STATUS
+   ADMIN / SELLER
 ========================================= */
-exports.updateReturnStatus = async (req, res) => {
+
+exports.updateReturnStatus = async (
+  req,
+  res
+) => {
   try {
     const { status } = req.body;
 
-    if (!["approved", "rejected", "pickup_scheduled", "picked", "refunded", "completed"].includes(status)) {
+    const validStatuses = [
+      "approved",
+      "rejected",
+      "pickup_scheduled",
+      "picked",
+      "refunded",
+      "completed",
+    ];
+
+    if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
         message: "Invalid status",
       });
     }
 
-    const returnReq = await ReturnRequest.findById(req.params.id);
+    const returnReq =
+      await ReturnRequest.findById(
+        req.params.id
+      );
 
     if (!returnReq) {
       return res.status(404).json({
@@ -272,12 +398,21 @@ exports.updateReturnStatus = async (req, res) => {
 
     returnReq.status = status;
 
+    /* =========================
+       REFUNDED
+    ========================= */
+
     if (status === "refunded") {
       returnReq.isRefunded = true;
     }
 
+    /* =========================
+       PICKUP SCHEDULED
+    ========================= */
+
     if (status === "pickup_scheduled") {
-      returnReq.pickupDate = req.body.pickupDate;
+      returnReq.pickupDate =
+        req.body.pickupDate;
     }
 
     await returnReq.save();
@@ -288,6 +423,11 @@ exports.updateReturnStatus = async (req, res) => {
       data: returnReq,
     });
   } catch (error) {
+    console.error(
+      "Update Return Status Error:",
+      error
+    );
+
     return res.status(500).json({
       success: false,
       message: error.message,

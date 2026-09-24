@@ -87,6 +87,7 @@ router.get(
 router.put(
   "/:id/update",
   protect,
+  upload.single("image"),
   adController.updateAd
 );
 
@@ -120,7 +121,6 @@ router.patch(
 router.delete(
   "/:id",
   adminAuthMiddleware,
-  protect,
   adController.deleteAd
 );
 

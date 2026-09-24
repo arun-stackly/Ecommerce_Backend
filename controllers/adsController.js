@@ -1,29 +1,19 @@
 const mongoose = require("mongoose");
 
-const {
-  PutObjectCommand,
-} = require("@aws-sdk/client-s3");
-const {
-  GetObjectCommand,
-} = require("@aws-sdk/client-s3");
-
-const {
-  getSignedUrl,
-} = require("@aws-sdk/s3-request-presigner");
 const Ad = require("../models/Ad");
 const SellerInventory = require("../models/SellerInventory");
 const AdminSettings = require("../models/AdminSettings");
 
-const s3 = require("../config/s3");
+const {
+  uploadToS3,
+  getS3SignedUrl,
+  deleteFromS3,
+} = require("../utils/s3Helper");
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
-
-
-/* =====================================================
+/* =========================================================
    GET PRODUCTS FOR AD
-
    GET /api/ads/products
-===================================================== */
+========================================================= */
 
 exports.getProductsForAd = async (req, res) => {
   try {
@@ -40,9 +30,7 @@ exports.getProductsForAd = async (req, res) => {
       isActive: true,
     };
 
-    /* =========================================
-       CATEGORY
-    ========================================= */
+    /* ================= CATEGORY ================= */
 
     if (
       category &&
@@ -51,9 +39,7 @@ exports.getProductsForAd = async (req, res) => {
       filter.category = category;
     }
 
-    /* =========================================
-       SUBCATEGORY
-    ========================================= */
+    /* ================= SUBCATEGORY ================= */
 
     if (
       subcategory &&
@@ -62,9 +48,7 @@ exports.getProductsForAd = async (req, res) => {
       filter.subcategory = subcategory;
     }
 
-    /* =========================================
-       SUB SUBCATEGORY
-    ========================================= */
+    /* ================= SUB SUBCATEGORY ================= */
 
     if (
       subSubcategory &&
@@ -73,9 +57,7 @@ exports.getProductsForAd = async (req, res) => {
       filter.subSubcategory = subSubcategory;
     }
 
-    /* =========================================
-       PRODUCT TYPE
-    ========================================= */
+    /* ================= PRODUCT TYPE ================= */
 
     if (
       productType &&
@@ -83,10 +65,6 @@ exports.getProductsForAd = async (req, res) => {
     ) {
       filter.productType = productType;
     }
-
-    /* =========================================
-       GET PRODUCTS
-    ========================================= */
 
     const products = await SellerInventory.find(filter)
       .populate("productType", "name")
@@ -98,12 +76,56 @@ exports.getProductsForAd = async (req, res) => {
       )
       .lean();
 
+    /* ================= SIGN S3 URLS ================= */
+
+    const productsWithSignedUrls = await Promise.all(
+      products.map(async (product) => {
+        const productObject = {
+          ...product,
+        };
+
+        if (
+          Array.isArray(productObject.media) &&
+          productObject.media.length > 0
+        ) {
+          productObject.media = await Promise.all(
+            productObject.media.map(async (media) => {
+              if (!media || !media.url) {
+                return media;
+              }
+
+              try {
+                const signedUrl =
+                  await getS3SignedUrl(media.url);
+
+                return {
+                  ...media,
+                  url: signedUrl,
+                };
+              } catch (error) {
+                console.error(
+                  `Failed to generate S3 URL for product ${productObject._id}:`,
+                  error.message
+                );
+
+                return {
+                  ...media,
+                  url: null,
+                };
+              }
+            })
+          );
+        }
+
+        return productObject;
+      })
+    );
+
     return res.status(200).json({
       success: true,
-      count: products.length,
-      data: products,
+      count: productsWithSignedUrls.length,
+      data: productsWithSignedUrls,
     });
-
   } catch (error) {
     console.error(
       "Get Products For Ad Error:",
@@ -118,36 +140,13 @@ exports.getProductsForAd = async (req, res) => {
 };
 
 
-/* =====================================================
-   CREATE ADVERTISEMENT
-
+/* =========================================================
+   CREATE AD
    POST /api/ads
-
-   Content-Type:
-   multipart/form-data
-
-   Form-data fields:
-
-   product
-   category
-   subcategory
-   subSubcategory
-   productType
-   description
-   adType
-   requestedBudget
-   image -> File
-
-===================================================== */
+========================================================= */
 
 exports.createAd = async (req, res) => {
   try {
-console.log("REQ.BODY:", req.body);
-    console.log("REQ.FILE:", req.file);
-    /* =========================================
-       GET FORM DATA
-    ========================================= */
-
     const {
       product,
       category,
@@ -159,10 +158,7 @@ console.log("REQ.BODY:", req.body);
       requestedBudget,
     } = req.body;
 
-
-    /* =========================================
-       CHECK IMAGE
-    ========================================= */
+    /* ================= IMAGE VALIDATION ================= */
 
     if (!req.file) {
       return res.status(400).json({
@@ -171,333 +167,262 @@ console.log("REQ.BODY:", req.body);
       });
     }
 
+    /* ================= REQUIRED FIELDS ================= */
 
-    /* =========================================
-       REQUIRED FIELDS
-    ========================================= */
-
-    if (
-      !product ||
-      !category ||
-      !adType
-    ) {
+    if (!product) {
       return res.status(400).json({
         success: false,
-        message:
-          "product, category and adType are required",
+        message: "Product is required",
       });
     }
 
-
-    /* =========================================
-       VALIDATE BUDGET
-    ========================================= */
-
-    if (
-      requestedBudget === undefined ||
-      requestedBudget === null ||
-      Number(requestedBudget) < 0
-    ) {
+    if (!category) {
       return res.status(400).json({
         success: false,
-        message:
-          "Valid requestedBudget is required",
+        message: "Category is required",
       });
     }
 
-
-    /* =========================================
-       GET ADMIN SETTINGS
-    ========================================= */
-
-    const settings =
-      await AdminSettings.findOne();
-
-    const autoApproveSellerAds =
-      settings?.autoApproveSellerAds === true;
-
-
-    /* =========================================
-       SET STATUS
-    ========================================= */
-
-    const status =
-      autoApproveSellerAds
-        ? "approved"
-        : "pending";
-
-
-    /* =========================================
-       VALIDATE PRODUCT
-    ========================================= */
-
-    const inventory =
-      await SellerInventory.findOne({
-        _id: product,
-        seller: req.user._id,
-        isActive: true,
+    if (!adType) {
+      return res.status(400).json({
+        success: false,
+        message: "Ad type is required",
       });
+    }
 
-    if (!inventory) {
+    /* ================= OBJECT ID VALIDATION ================= */
+
+    if (!mongoose.Types.ObjectId.isValid(product)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID",
+      });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(category)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid category ID",
+      });
+    }
+
+    if (
+      subcategory &&
+      !mongoose.Types.ObjectId.isValid(subcategory)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid subcategory ID",
+      });
+    }
+
+    if (
+      subSubcategory &&
+      !mongoose.Types.ObjectId.isValid(subSubcategory)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid subSubcategory ID",
+      });
+    }
+
+    if (
+      productType &&
+      !mongoose.Types.ObjectId.isValid(productType)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid productType ID",
+      });
+    }
+
+    /* ================= BUDGET VALIDATION ================= */
+
+    let budget = 0;
+
+    if (
+      requestedBudget !== undefined &&
+      requestedBudget !== null &&
+      requestedBudget !== ""
+    ) {
+      budget = Number(requestedBudget);
+
+      if (Number.isNaN(budget) || budget < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Requested budget must be a valid positive number",
+        });
+      }
+    }
+
+    /* ================= CHECK PRODUCT ================= */
+
+    const productData = await SellerInventory.findOne({
+      _id: product,
+      seller: req.user._id,
+      isActive: true,
+    });
+
+    if (!productData) {
       return res.status(404).json({
         success: false,
         message:
-          "Product not found or does not belong to seller",
+          "Product not found, inactive, or does not belong to you",
       });
     }
 
-
-    /* =========================================
-       VALIDATE CATEGORY
-    ========================================= */
+    /* ================= TAXONOMY VALIDATION ================= */
 
     if (
-      inventory.category?.toString() !==
-      category.toString()
+      productData.category &&
+      productData.category.toString() !== category.toString()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Product does not belong to selected category",
+      });
+    }
+
+    if (
+      subcategory &&
+      productData.subcategory &&
+      productData.subcategory.toString() !==
+        subcategory.toString()
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "Selected product does not match category",
+          "Product does not belong to selected subcategory",
       });
     }
 
-
-    /* =========================================
-       VALIDATE SUBCATEGORY
-    ========================================= */
-
     if (
-      inventory.subcategory &&
-      inventory.subcategory.toString() !==
-        (subcategory || "").toString()
+      subSubcategory &&
+      productData.subSubcategory &&
+      productData.subSubcategory.toString() !==
+        subSubcategory.toString()
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "Selected product does not match subcategory",
+          "Product does not belong to selected subSubcategory",
       });
     }
 
-
-    /* =========================================
-       VALIDATE SUB SUBCATEGORY
-    ========================================= */
-
     if (
-      inventory.subSubcategory &&
-      inventory.subSubcategory.toString() !==
-        (subSubcategory || "").toString()
+      productType &&
+      productData.productType &&
+      productData.productType.toString() !==
+        productType.toString()
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "Selected product does not match subSubcategory",
+          "Product does not belong to selected product type",
       });
     }
 
+    /* ================= ADMIN SETTINGS ================= */
 
-    /* =========================================
-       VALIDATE PRODUCT TYPE
-    ========================================= */
+    const settings = await AdminSettings.findOne();
 
-    if (
-      inventory.productType &&
-      inventory.productType.toString() !==
-        (productType || "").toString()
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Selected product does not match productType",
-      });
-    }
+    const autoApprove =
+      settings?.autoApproveSellerAds === true;
 
+    const status = autoApprove
+      ? "approved"
+      : "pending";
 
-    /* =========================================
-       IMAGE DETAILS
-    ========================================= */
+    const isActive = autoApprove;
 
-    const {
-      originalname,
-      mimetype,
-      buffer,
-      size,
-    } = req.file;
+    /* ================= CREATE UNIQUE FILE NAME ================= */
 
-
-    /* =========================================
-       ALLOWED IMAGE TYPES
-    ========================================= */
-
-    const allowedMimeTypes = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/webp",
-      "image/gif",
-    ];
-
-    if (!allowedMimeTypes.includes(mimetype)) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid image type. Only JPG, JPEG, PNG, WEBP and GIF are allowed.",
-      });
-    }
-
-
-    /* =========================================
-       MAX FILE SIZE
-       5 MB
-    ========================================= */
-
-    const maxFileSize =
-      5 * 1024 * 1024;
-
-    if (size > maxFileSize) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Image size must be less than 5 MB",
-      });
-    }
-
-
-    /* =========================================
-       GET FILE EXTENSION
-    ========================================= */
-
-    const extension =
-      originalname.includes(".")
-        ? originalname
-            .split(".")
-            .pop()
-            .toLowerCase()
-        : "";
-
-
-    /* =========================================
-       GENERATE UNIQUE FILE NAME
-    ========================================= */
+    const extension = req.file.originalname.includes(".")
+      ? req.file.originalname
+          .split(".")
+          .pop()
+          .toLowerCase()
+      : "";
 
     const uniqueFileName =
-      `${Date.now()}-${Math.random()
+      `${Date.now()}-` +
+      `${Math.random()
         .toString(36)
         .substring(2, 10)}` +
       `${extension ? "." + extension : ""}`;
 
+    /* ================= S3 KEY ================= */
 
-    /* =========================================
-       S3 OBJECT KEY
-    ========================================= */
+    const imageKey =
+      `advertisements/${req.user._id}/${uniqueFileName}`;
 
-    const key =
-      `advertisements/${uniqueFileName}`;
+    /* ================= UPLOAD TO S3 ================= */
 
-
-    /* =========================================
-       UPLOAD IMAGE TO S3
-    ========================================= */
-
-    const command =
-      new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: key,
-        Body: buffer,
-        ContentType: mimetype,
-      });
-
-    await s3.send(command);
-
-
-    console.log(
-      "Advertisement uploaded to S3:",
-      key
+    await uploadToS3(
+      req.file,
+      imageKey
     );
 
+    /* ================= CREATE AD ================= */
 
-    /* =========================================
-       CREATE ADVERTISEMENT
-    ========================================= */
-
-    const ad = await Ad.create({
-
+    const ad = new Ad({
       seller: req.user._id,
+      product,
+      category,
+      subcategory: subcategory || null,
+      subSubcategory: subSubcategory || null,
+      productType: productType || null,
 
-      product: inventory._id,
+      mediaUrl: imageKey,
 
-      category: inventory.category,
-
-      subcategory:
-        inventory.subcategory || null,
-
-      subSubcategory:
-        inventory.subSubcategory || null,
-
-      productType:
-        inventory.productType || null,
-
-      /*
-        Store S3 KEY in MongoDB
-
-        Example:
-        advertisements/1758123456-abcd1234.jpg
-      */
-
-      mediaUrl: key,
-
-      description:
-        description || "",
-
+      description: description || "",
       adType,
-
-      requestedBudget:
-        Number(requestedBudget),
-
-      /* =====================================
-         ADMIN WORKFLOW
-      ===================================== */
+      requestedBudget: budget,
 
       status,
+      isActive,
 
-      requestedAt:
-        new Date(),
+      requestedAt: new Date(),
 
-      approvedAt: null,
+      approvedAt: autoApprove
+        ? new Date()
+        : null,
 
       rejectedAt: null,
-
-      rejectionReason: "",
-
-      isActive:
-        status === "approved",
+      rejectionReason: null,
     });
 
+    await ad.save();
 
-    /* =========================================
-       RESPONSE
-    ========================================= */
+    /* ================= SIGN URL FOR RESPONSE ================= */
+
+    let signedUrl = null;
+
+    try {
+      signedUrl = await getS3SignedUrl(
+        ad.mediaUrl
+      );
+    } catch (error) {
+      console.error(
+        "Failed to generate ad image URL:",
+        error.message
+      );
+    }
+
+    const adObject = ad.toObject();
+
+    adObject.mediaUrl = signedUrl;
 
     return res.status(201).json({
-
       success: true,
-
-      message:
-        "Advertisement submitted successfully",
-
-      ad,
-
-      s3: {
-        key: key,
-        bucket: BUCKET_NAME,
-      },
+      message: autoApprove
+        ? "Advertisement created and approved successfully"
+        : "Advertisement created and sent for approval",
+      ad: adObject,
     });
-
   } catch (error) {
-
     console.error(
-      "Create Advertisement Error:",
+      "Create Ad Error:",
       error
     );
 
@@ -509,164 +434,216 @@ console.log("REQ.BODY:", req.body);
 };
 
 
-/* =====================================================
-   BULK CREATE ADS
-
+/* =========================================================
+   CREATE MULTIPLE ADS
    POST /api/ads/bulk
 
    NOTE:
-   This version still expects mediaUrl/S3 key.
-   It does NOT upload multiple images.
-===================================================== */
+   This API expects mediaUrl as an existing S3 key.
+   It does NOT upload files.
+========================================================= */
 
 exports.createMultipleAds = async (req, res) => {
   try {
-
     const { ads } = req.body;
 
-    if (
-      !Array.isArray(ads) ||
-      !ads.length
-    ) {
+    if (!Array.isArray(ads) || ads.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Ads data is required",
+        message: "Ads array is required",
       });
     }
 
-    const createdAds = [];
+    const settings = await AdminSettings.findOne();
 
+    const autoApprove =
+      settings?.autoApproveSellerAds === true;
 
-    /* =========================================
-       PROCESS EACH AD
-    ========================================= */
+    const status = autoApprove
+      ? "approved"
+      : "pending";
 
-    for (const adData of ads) {
+    const isActive = autoApprove;
 
-      const {
-        product,
-        category,
-        subcategory,
-        subSubcategory,
-        productType,
-        description,
-        mediaUrl,
-        adType,
-        requestedBudget,
-      } = adData;
+    const adsToCreate = [];
 
-
-      if (
-        !product ||
-        !category ||
-        !mediaUrl ||
-        !adType ||
-        requestedBudget === undefined
-      ) {
+    for (const item of ads) {
+      if (!item.product) {
         return res.status(400).json({
           success: false,
-          message:
-            "Each ad requires product, category, mediaUrl, adType and requestedBudget",
+          message: "Product is required for every ad",
         });
       }
 
+      if (!item.category) {
+        return res.status(400).json({
+          success: false,
+          message: "Category is required for every ad",
+        });
+      }
 
-      /* =========================================
-         VERIFY PRODUCT
-      ========================================= */
+      if (!item.adType) {
+        return res.status(400).json({
+          success: false,
+          message: "Ad type is required for every ad",
+        });
+      }
 
-      const inventory =
+      if (
+        !mongoose.Types.ObjectId.isValid(
+          item.product
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid product ID: ${item.product}`,
+        });
+      }
+
+      if (
+        !mongoose.Types.ObjectId.isValid(
+          item.category
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid category ID: ${item.category}`,
+        });
+      }
+
+      /* ================= CHECK PRODUCT ================= */
+
+      const productData =
         await SellerInventory.findOne({
-          _id: product,
+          _id: item.product,
           seller: req.user._id,
           isActive: true,
         });
 
-      if (!inventory) {
+      if (!productData) {
         return res.status(404).json({
           success: false,
           message:
-            `Product ${product} not found or does not belong to seller`,
+            `Product not found or does not belong to you: ${item.product}`,
         });
       }
 
+      /* ================= BUDGET ================= */
 
-      /* =========================================
-         CREATE AD
-      ========================================= */
+      let budget = 0;
 
-      const newAd =
-        await Ad.create({
+      if (
+        item.requestedBudget !== undefined &&
+        item.requestedBudget !== null &&
+        item.requestedBudget !== ""
+      ) {
+        budget = Number(
+          item.requestedBudget
+        );
 
-          seller:
-            req.user._id,
+        if (
+          Number.isNaN(budget) ||
+          budget < 0
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Requested budget must be a valid positive number",
+          });
+        }
+      }
 
-          product:
-            inventory._id,
+      adsToCreate.push({
+        seller: req.user._id,
 
-          category:
-            inventory.category,
+        product: item.product,
+        category: item.category,
 
-          subcategory:
-            inventory.subcategory || null,
+        subcategory:
+          item.subcategory || null,
 
-          subSubcategory:
-            inventory.subSubcategory || null,
+        subSubcategory:
+          item.subSubcategory || null,
 
-          productType:
-            inventory.productType || null,
+        productType:
+          item.productType || null,
 
-          mediaUrl,
+        mediaUrl:
+          item.mediaUrl || null,
 
-          description:
-            description || "",
+        description:
+          item.description || "",
 
-          adType,
+        adType:
+          item.adType,
 
-          requestedBudget:
-            Number(requestedBudget),
+        requestedBudget:
+          budget,
 
-          status:
-            "pending",
+        status,
+        isActive,
 
-          requestedAt:
-            new Date(),
+        requestedAt: new Date(),
 
-          approvedAt:
-            null,
+        approvedAt:
+          autoApprove
+            ? new Date()
+            : null,
 
-          rejectedAt:
-            null,
-
-          rejectionReason:
-            "",
-
-          isActive:
-            false,
-        });
-
-      createdAds.push(newAd);
+        rejectedAt: null,
+        rejectionReason: null,
+      });
     }
 
+    const createdAds =
+      await Ad.insertMany(
+        adsToCreate
+      );
+
+    /* ================= SIGN IMAGE URLS ================= */
+
+    const adsWithSignedUrls =
+      await Promise.all(
+        createdAds.map(
+          async (ad) => {
+            const adObject =
+              ad.toObject();
+
+            if (
+              adObject.mediaUrl
+            ) {
+              try {
+                adObject.mediaUrl =
+                  await getS3SignedUrl(
+                    adObject.mediaUrl
+                  );
+              } catch (error) {
+                console.error(
+                  "Bulk ad image URL error:",
+                  error.message
+                );
+
+                adObject.mediaUrl =
+                  null;
+              }
+            }
+
+            return adObject;
+          }
+        )
+      );
 
     return res.status(201).json({
-
       success: true,
-
-      message:
-        "Advertisements submitted successfully and are waiting for admin approval",
-
-      count:
-        createdAds.length,
-
-      ads:
-        createdAds,
+      message: autoApprove
+        ? "Advertisements created and approved successfully"
+        : "Advertisements created and sent for approval",
+      count: adsWithSignedUrls.length,
+      ads: adsWithSignedUrls,
     });
-
   } catch (error) {
-
     console.error(
-      "Bulk Create Ads Error:",
+      "Create Multiple Ads Error:",
       error
     );
 
@@ -678,124 +655,131 @@ exports.createMultipleAds = async (req, res) => {
 };
 
 
-// ==========================================
-// GET SELLER ADS
-// GET /api/ads
-//
-// ?status=pending
-// ?status=approved
-// ?status=rejected
-// ?status=all
-// ==========================================
+/* =========================================================
+   GET SELLER ADS
+   GET /api/ads/my-ads
+========================================================= */
 
 exports.getSellerAds = async (req, res) => {
   try {
     const {
-      status = "all",
+      status,
     } = req.query;
 
     const filter = {
       seller: req.user._id,
     };
 
-    // ==========================================
-    // STATUS FILTER
-    // ==========================================
+    /* ================= STATUS FILTER ================= */
 
     if (
-      ["pending", "approved", "rejected"].includes(status)
+      status &&
+      ["pending", "approved", "rejected"].includes(
+        status
+      )
     ) {
       filter.status = status;
     }
 
-    // ==========================================
-    // GET ADS
-    // ==========================================
-
     const ads = await Ad.find(filter)
-      .populate(
-        "category",
-        "name"
-      )
-      .populate(
-        "subcategory",
-        "name"
-      )
-      .populate(
-        "subSubcategory",
-        "name"
-      )
-      .populate(
-        "productType",
-        "name"
-      )
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .populate("productType", "name")
       .populate(
         "product",
-        "name price"
+        "name price discountPrice media"
       )
       .sort({
         createdAt: -1,
-      });
-
-    // ==========================================
-    // GENERATE S3 SIGNED URL FOR EACH AD IMAGE
-    // ==========================================
-
-    const adsWithImageUrl = await Promise.all(
-      ads.map(async (ad) => {
-
-        const adObject = ad.toObject();
-
-        // mediaUrl currently contains:
-        // advertisements/filename.png
-
-        if (adObject.mediaUrl) {
-          try {
-            const command = new GetObjectCommand({
-              Bucket: BUCKET_NAME,
-              Key: adObject.mediaUrl,
-            });
-
-            const signedUrl = await getSignedUrl(
-              s3,
-              command,
-              {
-                expiresIn: 3600, // 1 hour
-              }
-            );
-
-            // Replace S3 key with signed URL
-            adObject.mediaUrl = signedUrl;
-
-          } catch (error) {
-            console.error(
-              `Failed to generate image URL for ad ${adObject._id}:`,
-              error.message
-            );
-
-            // Keep original key if URL generation fails
-            adObject.mediaUrl = null;
-          }
-        }
-
-        return adObject;
       })
-    );
+      .lean();
 
-    // ==========================================
-    // RESPONSE
-    // ==========================================
+    /* ================= SIGN ALL IMAGE URLS ================= */
+
+    const adsWithSignedUrls =
+      await Promise.all(
+        ads.map(async (ad) => {
+          const adObject = {
+            ...ad,
+          };
+
+          /* ================= AD IMAGE ================= */
+
+          if (
+            adObject.mediaUrl
+          ) {
+            try {
+              adObject.mediaUrl =
+                await getS3SignedUrl(
+                  adObject.mediaUrl
+                );
+            } catch (error) {
+              console.error(
+                `Failed to generate URL for ad ${adObject._id}:`,
+                error.message
+              );
+
+              adObject.mediaUrl =
+                null;
+            }
+          }
+
+          /* ================= PRODUCT IMAGES ================= */
+
+          if (
+            adObject.product &&
+            Array.isArray(
+              adObject.product.media
+            )
+          ) {
+            adObject.product.media =
+              await Promise.all(
+                adObject.product.media.map(
+                  async (media) => {
+                    if (
+                      !media ||
+                      !media.url
+                    ) {
+                      return media;
+                    }
+
+                    try {
+                      return {
+                        ...media,
+                        url:
+                          await getS3SignedUrl(
+                            media.url
+                          ),
+                      };
+                    } catch (error) {
+                      console.error(
+                        "Product image URL error:",
+                        error.message
+                      );
+
+                      return {
+                        ...media,
+                        url: null,
+                      };
+                    }
+                  }
+                )
+              );
+          }
+
+          return adObject;
+        })
+      );
 
     return res.status(200).json({
       success: true,
-
-      count: adsWithImageUrl.length,
-
-      ads: adsWithImageUrl,
+      count:
+        adsWithSignedUrls.length,
+      ads:
+        adsWithSignedUrls,
     });
-
   } catch (error) {
-
     console.error(
       "Get Seller Ads Error:",
       error
@@ -809,49 +793,40 @@ exports.getSellerAds = async (req, res) => {
 };
 
 
-/* =====================================================
+/* =========================================================
    GET AD BY ID
-
    GET /api/ads/:id
-===================================================== */
+========================================================= */
 
 exports.getAdById = async (req, res) => {
   try {
+    const {
+      id,
+    } = req.params;
 
-    const ad =
-      await Ad.findOne({
-        _id:
-          req.params.id,
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid advertisement ID",
+      });
+    }
 
-        seller:
-          req.user._id,
-      })
-
-        .populate(
-          "category",
-          "name"
-        )
-
-        .populate(
-          "subcategory",
-          "name"
-        )
-
-        .populate(
-          "subSubcategory",
-          "name"
-        )
-
-        .populate(
-          "productType",
-          "name"
-        )
-
-        .populate(
-          "product",
-          "name price "
-        );
-
+    const ad = await Ad.findOne({
+      _id: id,
+      seller: req.user._id,
+    })
+      .populate("category", "name")
+      .populate("subcategory", "name")
+      .populate("subSubcategory", "name")
+      .populate("productType", "name")
+      .populate(
+        "product",
+        "name price discountPrice media"
+      );
 
     if (!ad) {
       return res.status(404).json({
@@ -861,14 +836,78 @@ exports.getAdById = async (req, res) => {
       });
     }
 
+    const adObject =
+      ad.toObject();
+
+    /* ================= AD IMAGE ================= */
+
+    if (
+      adObject.mediaUrl
+    ) {
+      try {
+        adObject.mediaUrl =
+          await getS3SignedUrl(
+            adObject.mediaUrl
+          );
+      } catch (error) {
+        console.error(
+          "Ad image URL error:",
+          error.message
+        );
+
+        adObject.mediaUrl =
+          null;
+      }
+    }
+
+    /* ================= PRODUCT IMAGES ================= */
+
+    if (
+      adObject.product &&
+      Array.isArray(
+        adObject.product.media
+      )
+    ) {
+      adObject.product.media =
+        await Promise.all(
+          adObject.product.media.map(
+            async (media) => {
+              if (
+                !media ||
+                !media.url
+              ) {
+                return media;
+              }
+
+              try {
+                return {
+                  ...media,
+                  url:
+                    await getS3SignedUrl(
+                      media.url
+                    ),
+                };
+              } catch (error) {
+                console.error(
+                  "Product image URL error:",
+                  error.message
+                );
+
+                return {
+                  ...media,
+                  url: null,
+                };
+              }
+            }
+          )
+        );
+    }
 
     return res.status(200).json({
       success: true,
-      ad,
+      ad: adObject,
     });
-
   } catch (error) {
-
     console.error(
       "Get Ad By ID Error:",
       error
@@ -882,39 +921,41 @@ exports.getAdById = async (req, res) => {
 };
 
 
-/* =====================================================
+/* =========================================================
    UPDATE AD
+   PUT /api/ads/:id/update
 
-   PATCH /api/ads/:id
+   image is optional.
 
-   Seller can update:
-
-   product
-   category
-   subcategory
-   subSubcategory
-   productType
-   description
-   mediaUrl
-   adType
-   requestedBudget
-
-   NOTE:
-   Image replacement is NOT handled here yet.
-===================================================== */
+   If image is uploaded:
+   1. Upload new image
+   2. Save new S3 key in MongoDB
+   3. Delete old image
+========================================================= */
 
 exports.updateAd = async (req, res) => {
+  let newImageKey = null;
+
   try {
+    const {
+      id,
+    } = req.params;
 
-    const ad =
-      await Ad.findOne({
-        _id:
-          req.params.id,
-
-        seller:
-          req.user._id,
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid advertisement ID",
       });
+    }
 
+    const ad = await Ad.findOne({
+      _id: id,
+      seller: req.user._id,
+    });
 
     if (!ad) {
       return res.status(404).json({
@@ -924,10 +965,7 @@ exports.updateAd = async (req, res) => {
       });
     }
 
-
-    /* =========================================
-       ALLOWED FIELDS
-    ========================================= */
+    /* ================= ALLOWED FIELDS ================= */
 
     const allowedFields = [
       "product",
@@ -936,16 +974,15 @@ exports.updateAd = async (req, res) => {
       "subSubcategory",
       "productType",
       "description",
-      "mediaUrl",
       "adType",
       "requestedBudget",
     ];
 
+    /* ================= UPDATE BODY FIELDS ================= */
 
     for (
       const field of allowedFields
     ) {
-
       if (
         req.body[field] !== undefined
       ) {
@@ -954,76 +991,301 @@ exports.updateAd = async (req, res) => {
       }
     }
 
+    /* ================= BUDGET VALIDATION ================= */
 
-    /* =========================================
-       REJECTED → PENDING
-    ========================================= */
+    if (
+      req.body.requestedBudget !==
+        undefined
+    ) {
+      const budget =
+        Number(
+          req.body.requestedBudget
+        );
+
+      if (
+        Number.isNaN(budget) ||
+        budget < 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Requested budget must be a valid positive number",
+        });
+      }
+
+      ad.requestedBudget =
+        budget;
+    }
+
+    /* ================= PRODUCT VALIDATION ================= */
+
+    if (
+      req.body.product
+    ) {
+      if (
+        !mongoose.Types.ObjectId.isValid(
+          req.body.product
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid product ID",
+        });
+      }
+
+      const productData =
+        await SellerInventory.findOne({
+          _id:
+            req.body.product,
+          seller:
+            req.user._id,
+          isActive: true,
+        });
+
+      if (!productData) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Product not found or does not belong to you",
+        });
+      }
+    }
+
+    /* ================= CATEGORY VALIDATION ================= */
+
+    if (
+      req.body.category &&
+      !mongoose.Types.ObjectId.isValid(
+        req.body.category
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid category ID",
+      });
+    }
+
+    /* ================= SUBCATEGORY ================= */
+
+    if (
+      req.body.subcategory &&
+      !mongoose.Types.ObjectId.isValid(
+        req.body.subcategory
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid subcategory ID",
+      });
+    }
+
+    /* ================= SUB SUBCATEGORY ================= */
+
+    if (
+      req.body.subSubcategory &&
+      !mongoose.Types.ObjectId.isValid(
+        req.body.subSubcategory
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid subSubcategory ID",
+      });
+    }
+
+    /* ================= PRODUCT TYPE ================= */
+
+    if (
+      req.body.productType &&
+      !mongoose.Types.ObjectId.isValid(
+        req.body.productType
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid productType ID",
+      });
+    }
+
+    /* ================= AD TYPE ================= */
+
+    if (
+      req.body.adType === ""
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Ad type cannot be empty",
+      });
+    }
+
+    /* ================= STORE OLD IMAGE ================= */
+
+    const oldImageKey =
+      ad.mediaUrl;
+
+    /* ================= NEW IMAGE ================= */
+
+    if (req.file) {
+      const extension =
+        req.file.originalname.includes(
+          "."
+        )
+          ? req.file.originalname
+              .split(".")
+              .pop()
+              .toLowerCase()
+          : "";
+
+      const uniqueFileName =
+        `${Date.now()}-` +
+        `${Math.random()
+          .toString(36)
+          .substring(2, 10)}` +
+        `${
+          extension
+            ? "." + extension
+            : ""
+        }`;
+
+      newImageKey =
+        `advertisements/${req.user._id}/${uniqueFileName}`;
+
+      /* ================= UPLOAD NEW IMAGE ================= */
+
+      await uploadToS3(
+        req.file,
+        newImageKey
+      );
+
+      ad.mediaUrl =
+        newImageKey;
+    }
+
+    /* =====================================================
+       STATUS RESET
+
+       If rejected advertisement is edited,
+       send it back to pending.
+
+       If approved advertisement is edited,
+       also send it back to pending.
+    ===================================================== */
 
     if (
       ad.status === "rejected"
     ) {
-
       ad.status =
         "pending";
 
-      ad.requestedAt =
-        new Date();
+      ad.isActive =
+        false;
+
+      ad.rejectionReason =
+        null;
 
       ad.rejectedAt =
         null;
 
-      ad.rejectionReason =
-        "";
-
       ad.approvedAt =
         null;
-
-      ad.isActive =
-        false;
-    }
-
-
-    /* =========================================
-       APPROVED → PENDING
-    ========================================= */
-
-    else if (
-      ad.status === "approved"
-    ) {
-
-      ad.status =
-        "pending";
 
       ad.requestedAt =
         new Date();
+    } else if (
+      ad.status === "approved"
+    ) {
+      ad.status =
+        "pending";
+
+      ad.isActive =
+        false;
 
       ad.approvedAt =
         null;
 
-      ad.isActive =
-        false;
+      ad.requestedAt =
+        new Date();
     }
 
+    /* ================= SAVE ================= */
 
     await ad.save();
 
+    /* ================= DELETE OLD IMAGE ================= */
+
+    if (
+      newImageKey &&
+      oldImageKey &&
+      oldImageKey !== newImageKey
+    ) {
+      try {
+        await deleteFromS3(
+          oldImageKey
+        );
+      } catch (error) {
+        console.error(
+          "Failed to delete old ad image:",
+          error.message
+        );
+      }
+    }
+
+    /* ================= RESPONSE ================= */
+
+    const adObject =
+      ad.toObject();
+
+    if (
+      adObject.mediaUrl
+    ) {
+      try {
+        adObject.mediaUrl =
+          await getS3SignedUrl(
+            adObject.mediaUrl
+          );
+      } catch (error) {
+        console.error(
+          "Updated ad image URL error:",
+          error.message
+        );
+
+        adObject.mediaUrl =
+          null;
+      }
+    }
 
     return res.status(200).json({
-
       success: true,
-
       message:
-        "Advertisement updated and submitted for admin approval",
-
-      ad,
+        "Advertisement updated successfully",
+      ad: adObject,
     });
-
   } catch (error) {
-
     console.error(
       "Update Ad Error:",
       error
     );
+
+    /* ================= CLEAN NEW IMAGE ================= */
+
+    if (newImageKey) {
+      try {
+        await deleteFromS3(
+          newImageKey
+        );
+      } catch (deleteError) {
+        console.error(
+          "Failed to clean up new S3 image:",
+          deleteError.message
+        );
+      }
+    }
 
     return res.status(500).json({
       success: false,
@@ -1033,24 +1295,33 @@ exports.updateAd = async (req, res) => {
 };
 
 
-/* =====================================================
+/* =========================================================
    PAUSE AD
-
    PATCH /api/ads/:id/pause
-===================================================== */
+========================================================= */
 
 exports.pauseAd = async (req, res) => {
   try {
+    const {
+      id,
+    } = req.params;
 
-    const ad =
-      await Ad.findOne({
-        _id:
-          req.params.id,
-
-        seller:
-          req.user._id,
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid advertisement ID",
       });
+    }
 
+    const ad = await Ad.findOne({
+      _id: id,
+      seller: req.user._id,
+    });
 
     if (!ad) {
       return res.status(404).json({
@@ -1059,11 +1330,6 @@ exports.pauseAd = async (req, res) => {
           "Advertisement not found",
       });
     }
-
-
-    /* =========================================
-       ONLY APPROVED ADS CAN BE PAUSED
-    ========================================= */
 
     if (
       ad.status !==
@@ -1076,25 +1342,18 @@ exports.pauseAd = async (req, res) => {
       });
     }
 
-
     ad.isActive =
       false;
 
     await ad.save();
 
-
     return res.status(200).json({
-
       success: true,
-
       message:
         "Advertisement paused successfully",
-
       ad,
     });
-
   } catch (error) {
-
     console.error(
       "Pause Ad Error:",
       error
@@ -1108,24 +1367,33 @@ exports.pauseAd = async (req, res) => {
 };
 
 
-/* =====================================================
+/* =========================================================
    RESUME AD
-
    PATCH /api/ads/:id/resume
-===================================================== */
+========================================================= */
 
 exports.resumeAd = async (req, res) => {
   try {
+    const {
+      id,
+    } = req.params;
 
-    const ad =
-      await Ad.findOne({
-        _id:
-          req.params.id,
-
-        seller:
-          req.user._id,
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid advertisement ID",
       });
+    }
 
+    const ad = await Ad.findOne({
+      _id: id,
+      seller: req.user._id,
+    });
 
     if (!ad) {
       return res.status(404).json({
@@ -1135,11 +1403,6 @@ exports.resumeAd = async (req, res) => {
       });
     }
 
-
-    /* =========================================
-       ONLY APPROVED ADS CAN BE RESUMED
-    ========================================= */
-
     if (
       ad.status !==
       "approved"
@@ -1147,29 +1410,22 @@ exports.resumeAd = async (req, res) => {
       return res.status(400).json({
         success: false,
         message:
-          "Advertisement must be approved by admin before it can be resumed",
+          "Only approved advertisements can be resumed",
       });
     }
-
 
     ad.isActive =
       true;
 
     await ad.save();
 
-
     return res.status(200).json({
-
       success: true,
-
       message:
         "Advertisement resumed successfully",
-
       ad,
     });
-
   } catch (error) {
-
     console.error(
       "Resume Ad Error:",
       error
@@ -1183,20 +1439,39 @@ exports.resumeAd = async (req, res) => {
 };
 
 
-/* =====================================================
-   ADMIN DELETE AD
-
+/* =========================================================
+   DELETE AD
    DELETE /api/ads/:id
-===================================================== */
+
+   ADMIN ONLY
+
+   Deletes:
+   1. S3 image
+   2. MongoDB ad
+========================================================= */
 
 exports.deleteAd = async (req, res) => {
   try {
+    const {
+      id,
+    } = req.params;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid advertisement ID",
+      });
+    }
 
     const ad =
-      await Ad.findByIdAndDelete(
-        req.params.id
+      await Ad.findById(
+        id
       );
-
 
     if (!ad) {
       return res.status(404).json({
@@ -1206,26 +1481,35 @@ exports.deleteAd = async (req, res) => {
       });
     }
 
+    /* ================= DELETE S3 IMAGE ================= */
+
+    if (
+      ad.mediaUrl
+    ) {
+      try {
+        await deleteFromS3(
+          ad.mediaUrl
+        );
+      } catch (error) {
+        console.error(
+          "S3 ad image deletion failed:",
+          error.message
+        );
+      }
+    }
+
+    /* ================= DELETE MONGODB ================= */
+
+    await Ad.findByIdAndDelete(
+      id
+    );
 
     return res.status(200).json({
-
       success: true,
-
       message:
         "Advertisement deleted successfully",
-
-      deletedAd: {
-
-        _id:
-          ad._id,
-
-        status:
-          ad.status,
-      },
     });
-
   } catch (error) {
-
     console.error(
       "Delete Ad Error:",
       error
@@ -1239,19 +1523,18 @@ exports.deleteAd = async (req, res) => {
 };
 
 
-/* =====================================================
+/* =========================================================
    GET ACTIVE ADS
-
    GET /api/ads/active
 
-   Only:
-   status = approved
-   isActive = true
-===================================================== */
+   PUBLIC API
+========================================================= */
 
-exports.getActiveAds = async (req, res) => {
+exports.getActiveAds = async (
+  req,
+  res
+) => {
   try {
-
     const ads =
       await Ad.find({
         status:
@@ -1260,54 +1543,124 @@ exports.getActiveAds = async (req, res) => {
         isActive:
           true,
       })
-
         .populate(
           "category",
           "name"
         )
-
         .populate(
           "subcategory",
           "name"
         )
-
         .populate(
           "subSubcategory",
           "name"
         )
-
         .populate(
           "productType",
           "name"
         )
-
         .populate(
           "product",
-          "name price media"
+          "name price discountPrice media"
         )
-
         .populate(
           "seller",
           "name email"
         )
-
         .sort({
           createdAt: -1,
-        });
+        })
+        .lean();
 
+    /* ================= SIGN ALL IMAGES ================= */
+
+    const adsWithImageUrl =
+      await Promise.all(
+        ads.map(
+          async (ad) => {
+            const adObject = {
+              ...ad,
+            };
+
+            /* ================= AD IMAGE ================= */
+
+            if (
+              adObject.mediaUrl
+            ) {
+              try {
+                adObject.mediaUrl =
+                  await getS3SignedUrl(
+                    adObject.mediaUrl
+                  );
+              } catch (error) {
+                console.error(
+                  `Failed to generate ad image URL for ${adObject._id}:`,
+                  error.message
+                );
+
+                adObject.mediaUrl =
+                  null;
+              }
+            }
+
+            /* ================= PRODUCT IMAGES ================= */
+
+            if (
+              adObject.product &&
+              Array.isArray(
+                adObject.product.media
+              )
+            ) {
+              adObject.product.media =
+                await Promise.all(
+                  adObject.product.media.map(
+                    async (
+                      media
+                    ) => {
+                      if (
+                        !media ||
+                        !media.url
+                      ) {
+                        return media;
+                      }
+
+                      try {
+                        return {
+                          ...media,
+                          url:
+                            await getS3SignedUrl(
+                              media.url
+                            ),
+                        };
+                      } catch (error) {
+                        console.error(
+                          "Product image URL error:",
+                          error.message
+                        );
+
+                        return {
+                          ...media,
+                          url: null,
+                        };
+                      }
+                    }
+                  )
+                );
+            }
+
+            return adObject;
+          }
+        )
+      );
 
     return res.status(200).json({
-
       success: true,
-
       count:
-        ads.length,
-
-      ads,
+        adsWithImageUrl.length,
+      ads:
+        adsWithImageUrl,
     });
-
   } catch (error) {
-
     console.error(
       "Get Active Ads Error:",
       error

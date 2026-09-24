@@ -1,4 +1,5 @@
 const express = require("express");
+
 const router = express.Router();
 
 const {
@@ -8,7 +9,19 @@ const {
 
 const { protect } = require("../middleware/authMiddleware");
 
+const multer = require("multer");
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+});
+
 router.get("/", protect, getSellerProfile);
-router.put("/", protect, updateSellerProfile);
+
+router.put(
+  "/",
+  protect,
+  upload.single("profileImage"),
+  updateSellerProfile
+);
 
 module.exports = router;

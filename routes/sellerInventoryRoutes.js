@@ -1,33 +1,69 @@
 const express = require("express");
+const multer = require("multer");
+
 const router = express.Router();
- 
-const { protect } = require("../middleware/authMiddleware");
-const { sellerOnly } = require("../middleware/roleMiddleware");
- 
+
 const {
   createInventoryItem,
   getInventory,
+  getInventoryById,
   updateInventoryItem,
   deleteInventoryItem,
-  getInventoryById,
   updateInventoryStock,
 } = require("../controllers/sellerInventoryController");
- 
-router.use(protect);
-router.use(sellerOnly);
- 
-router.post("/", createInventoryItem);
- 
-router.get("/", getInventory);
- 
-router.get("/:id", getInventoryById);
- 
-router.put("/:id", updateInventoryItem);
- 
-router.patch("/:id/update-stock", updateInventoryStock);
- 
-router.delete("/:id", deleteInventoryItem);
- 
+
+const { protect } = require("../middleware/authMiddleware");
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+});
+
+
+router.post(
+  "/",
+  protect,
+  upload.array("images", 10),
+  createInventoryItem
+);
+
+
+router.get(
+  "/",
+  protect,
+  getInventory
+);
+
+
+router.get(
+  "/:id",
+  protect,
+  getInventoryById
+);
+
+
+router.put(
+  "/:id",
+  protect,
+  upload.array("images", 10),
+  updateInventoryItem
+);
+
+
+router.delete(
+  "/:id",
+  protect,
+  deleteInventoryItem
+);
+
+
+router.patch(
+  "/:id/update-stock",
+  protect,
+  updateInventoryStock
+);
+
+
 module.exports = router;
- 
- 

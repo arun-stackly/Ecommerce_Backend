@@ -2,6 +2,17 @@ const asyncHandler = require("express-async-handler");
 const User = require("../models/User");
 const SellerProfile = require("../models/SellerProfile");
 const generateToken = require("../utils/generateToken");
+const {
+  GetObjectCommand,
+} = require("@aws-sdk/client-s3");
+
+const {
+  getSignedUrl,
+} = require("@aws-sdk/s3-request-presigner");
+
+const s3 = require("../config/s3");
+
+const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
  
 /* ================= SELLER REGISTER ================= */
 const registerUser = asyncHandler(async (req, res) => {
@@ -136,37 +147,82 @@ const loginUser = asyncHandler(async (req, res) => {
 });
  
 /* ================= GET SELLER PROFILE ================= */
+
 const getProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select("-password");
- 
+
   if (!user || user.role !== "seller") {
     res.status(404);
     throw new Error("Seller not found");
   }
- 
+
   const profile = await SellerProfile.findOne({
     user: user._id,
   });
- 
+
+  /* ================= S3 SIGNED URL ================= */
+
+  let profileImageUrl = null;
+
+  if (profile?.profileImage) {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: profile.profileImage,
+      });
+
+      profileImageUrl = await getSignedUrl(
+        s3,
+        command,
+        {
+          expiresIn: 3600,
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Failed to generate seller profile image URL:",
+        error.message
+      );
+
+      profileImageUrl = null;
+    }
+  }
+
+  /* ================= RESPONSE ================= */
+
   res.status(200).json({
     success: true,
+
     data: {
       _id: user._id,
+
       fullName: `${user.firstName} ${user.lastName}`,
+
       username: user.username,
+
       email: user.email,
+
       role: user.role,
+
       verified: user.isVerified,
+
       termsAccepted: user.termsAccepted,
+
       joinedDate: user.createdAt,
- 
+
       phone: profile?.phone || null,
+
       address: profile?.address || null,
-      registeredContact: profile?.registeredContact || null,
-      profileImage: profile?.profileImage || null,
+
+      registeredContact:
+        profile?.registeredContact || null,
+
+      // S3 signed URL
+      profileImage: profileImageUrl,
     },
   });
 });
+
  /* =====================================================
    GET ALL SELLERS
    Admin Seller Management
@@ -194,45 +250,86 @@ const getAllSellers = asyncHandler(async (req, res) => {
     profileMap.set(profile.user.toString(), profile);
   });
 
-  // Combine User + SellerProfile
-  const sellerDetails = sellers.map((seller) => {
-    const profile = profileMap.get(seller._id.toString());
+  // Create seller response with S3 signed URLs
+  const sellerDetails = await Promise.all(
+    sellers.map(async (seller) => {
+      const profile = profileMap.get(
+        seller._id.toString()
+      );
 
-    return {
-      _id: seller._id,
+      /* ================= S3 SIGNED URL ================= */
 
-      fullName: `${seller.firstName || ""} ${
-        seller.lastName || ""
-      }`.trim(),
+      let profileImageUrl = null;
 
-      firstName: seller.firstName || "",
-      lastName: seller.lastName || "",
+      if (profile?.profileImage) {
+        try {
+          const command = new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: profile.profileImage,
+          });
 
-      username: seller.username || "",
+          profileImageUrl = await getSignedUrl(
+            s3,
+            command,
+            {
+              expiresIn: 3600,
+            }
+          );
+        } catch (error) {
+          console.error(
+            `Failed to generate profile image URL for seller ${seller._id}:`,
+            error.message
+          );
 
-      email: seller.email || "",
+          profileImageUrl = null;
+        }
+      }
 
-      phone: profile?.phone || seller.phone || null,
+      /* ================= SELLER DATA ================= */
 
-      registeredContact:
-        profile?.registeredContact || null,
+      return {
+        _id: seller._id,
 
-      address: profile?.address || null,
+        fullName: `${seller.firstName || ""} ${
+          seller.lastName || ""
+        }`.trim(),
 
-      profileImage:
-        profile?.profileImage || null,
+        firstName: seller.firstName || "",
 
-      role: seller.role,
+        lastName: seller.lastName || "",
 
-      verified: seller.isVerified,
+        username: seller.username || "",
 
-      termsAccepted: seller.termsAccepted,
+        email: seller.email || "",
 
-      joinedDate: seller.createdAt,
+        phone:
+          profile?.phone ||
+          seller.phone ||
+          null,
 
-      updatedDate: seller.updatedAt,
-    };
-  });
+        registeredContact:
+          profile?.registeredContact ||
+          null,
+
+        address:
+          profile?.address ||
+          null,
+
+        // S3 signed URL
+        profileImage: profileImageUrl,
+
+        role: seller.role,
+
+        verified: seller.isVerified,
+
+        termsAccepted: seller.termsAccepted,
+
+        joinedDate: seller.createdAt,
+
+        updatedDate: seller.updatedAt,
+      };
+    })
+  );
 
   res.status(200).json({
     success: true,
@@ -242,7 +339,6 @@ const getAllSellers = asyncHandler(async (req, res) => {
     sellers: sellerDetails,
   });
 });
-
 /* ================= SELLER TERMS & CONDITIONS ================= */
 const getTermsAndConditions = asyncHandler(async (req, res) => {
   res.status(200).json({
