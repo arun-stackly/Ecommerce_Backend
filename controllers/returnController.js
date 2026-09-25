@@ -1,11 +1,11 @@
 const ReturnRequest = require("../models/Return");
 const UserOrder = require("../models/UserOrder");
 const Refund = require("../models/Refund");
-const { getS3SignedUrl } = require("../utils/s3Helper");
+const {
+  uploadToS3,
+  getS3SignedUrl,
+} = require("../utils/s3Helper");;
 
-/* =========================================
-   CREATE RETURN / EXCHANGE REQUEST
-========================================= */
 exports.createReturnRequest = async (req, res) => {
   try {
     const {
@@ -15,12 +15,7 @@ exports.createReturnRequest = async (req, res) => {
       reasonCode,
       reasonText,
       comment,
-      images,
     } = req.body;
-
-    // =========================
-    // Validate Required Fields
-    // =========================
 
     if (
       !orderId ||
@@ -35,10 +30,6 @@ exports.createReturnRequest = async (req, res) => {
       });
     }
 
-    // =========================
-    // Find Order
-    // =========================
-
     const order = await UserOrder.findById(orderId);
 
     if (!order) {
@@ -48,15 +39,7 @@ exports.createReturnRequest = async (req, res) => {
       });
     }
 
-    // =========================
-    // Customer Id From Order
-    // =========================
-
     const userId = order.customerId;
-
-    // =========================
-    // Find Item Inside Order
-    // =========================
 
     const item = order.items.find(
       (item) => item._id.toString() === itemId
@@ -68,10 +51,6 @@ exports.createReturnRequest = async (req, res) => {
         message: "Order item not found",
       });
     }
-
-    // =========================
-    // Prevent Duplicate Return
-    // =========================
 
     const existingReturn = await ReturnRequest.findOne({
       orderId,
@@ -85,9 +64,37 @@ exports.createReturnRequest = async (req, res) => {
       });
     }
 
-    // =========================
-    // Create Return Request
-    // =========================
+    /* =========================
+       UPLOAD RETURN IMAGES TO S3
+    ========================= */
+
+    const uploadedImages = [];
+
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+
+        const extension = file.originalname.includes(".")
+          ? file.originalname.split(".").pop().toLowerCase()
+          : "";
+
+        const uniqueFileName =
+          `${Date.now()}-${Math.random()
+            .toString(36)
+            .substring(2, 10)}` +
+          `${extension ? "." + extension : ""}`;
+
+        const key =
+          `returns/${req.user._id}/${uniqueFileName}`;
+
+        await uploadToS3(file, key);
+
+        uploadedImages.push(key);
+      }
+    }
+
+    /* =========================
+       CREATE RETURN REQUEST
+    ========================= */
 
     const returnRequest = await ReturnRequest.create({
       orderId,
@@ -97,17 +104,22 @@ exports.createReturnRequest = async (req, res) => {
       type,
       reasonCode,
       reasonText,
+
       pickupAddress: {
-    fullName: order.shippingAddress.fullName,
-    phoneNumber: order.shippingAddress.phoneNumber,
-    houseNo: order.shippingAddress.houseNo,
-    addressLine: order.shippingAddress.addressLine,
-    city: order.shippingAddress.city,
-    state: order.shippingAddress.state,
-    pincode: order.shippingAddress.pincode,
-  },
+        fullName: order.shippingAddress.fullName,
+        phoneNumber: order.shippingAddress.phoneNumber,
+        houseNo: order.shippingAddress.houseNo,
+        addressLine: order.shippingAddress.addressLine,
+        city: order.shippingAddress.city,
+        state: order.shippingAddress.state,
+        pincode: order.shippingAddress.pincode,
+      },
+
       comment: comment || "",
-      images: images || [],
+
+      // Store S3 KEYS only
+      images: uploadedImages,
+
       status: "requested",
     });
 
@@ -126,7 +138,6 @@ exports.createReturnRequest = async (req, res) => {
     });
   }
 };
-
 /* =========================================
    GET USER RETURN REQUESTS
 ========================================= */
@@ -136,36 +147,44 @@ exports.getMyReturns = async (req, res) => {
       userId: req.user._id,
     }).sort({ createdAt: -1 });
 
-    const formattedReturns = returns.map((item) => ({
-      returnRequestId: item._id,   // ✅ MongoDB ObjectId
-      returnId: item.returnId,     // ✅ Custom Return ID
+    const formattedReturns = await Promise.all(
+      returns.map(async (item) => {
 
-      pickupAddress: item.pickupAddress,
-      orderId: item.orderId,
-      itemId: item.itemId,
-      userId: item.userId,
-      sellerId: item.sellerId,
-      type: item.type,
-      reasonCode: item.reasonCode,
-      reasonText: item.reasonText,
-      comment: item.comment,
-      images: item.images,
-      status: item.status,
-      refundAmount: item.refundAmount,
-      isRefunded: item.isRefunded,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
-    }));
+        const data = item.toObject();
 
-    res.status(200).json({
+        data.images = await Promise.all(
+          (data.images || []).map(async (imageKey) => {
+            if (!imageKey) return "";
+
+            try {
+              return await getS3SignedUrl(imageKey);
+            } catch (error) {
+              console.error(
+                "Return image S3 error:",
+                error.message
+              );
+
+              return "";
+            }
+          })
+        );
+
+        return data;
+      })
+    );
+
+    return res.status(200).json({
       success: true,
       returnCount: formattedReturns.length,
       data: formattedReturns,
     });
-  } catch (err) {
-    res.status(500).json({
+
+  } catch (error) {
+    console.error("Get My Returns Error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: err.message,
+      message: error.message,
     });
   }
 };
@@ -181,47 +200,43 @@ exports.getSellerReturns = async (req, res) => {
 
     const formattedReturns = await Promise.all(
       returns.map(async (returnReq) => {
-        /*
-         * If ReturnRequest itself contains an image field,
-         * sign it here.
-         *
-         * Otherwise, the product image will be handled
-         * in getSingleReturn().
-         */
 
-        if (returnReq.image) {
-          try {
-            returnReq.image = await getS3SignedUrl(
-              returnReq.image
-            );
-          } catch (error) {
-            console.error(
-              "Return image S3 error:",
-              error.message
-            );
+        returnReq.images = await Promise.all(
+          (returnReq.images || []).map(async (imageKey) => {
 
-            returnReq.image = null;
-          }
-        }
+            if (!imageKey) return "";
+
+            try {
+              return await getS3SignedUrl(imageKey);
+            } catch (error) {
+              console.error(
+                "Seller Return Image S3 Error:",
+                error.message
+              );
+
+              return "";
+            }
+          })
+        );
 
         return returnReq;
       })
     );
 
-    return res.json({
+    return res.status(200).json({
       success: true,
       data: formattedReturns,
     });
-  } catch (err) {
-    console.error("Get Seller Returns Error:", err);
+
+  } catch (error) {
+    console.error("Get Seller Returns Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: err.message,
+      message: error.message,
     });
   }
 };
-
 
 /* =========================================
    GET SINGLE RETURN DETAILS
@@ -301,47 +316,57 @@ exports.getSingleReturn = async (req, res) => {
         formattedItem.image = null;
       }
     }
+const returnImages = await Promise.all(
+  (returnReq.images || []).map(async (imageKey) => {
 
+    if (!imageKey) return "";
+
+    try {
+      return await getS3SignedUrl(imageKey);
+    } catch (error) {
+      console.error(
+        "Return evidence image S3 error:",
+        error.message
+      );
+
+      return "";
+    }
+  })
+);
     /* =========================
        RESPONSE
     ========================= */
 
     return res.json({
-      success: true,
+  success: true,
 
-      data: {
-        returnRequestId: returnReq._id,
+  data: {
+    returnRequestId: returnReq._id,
+    returnId: returnReq.returnId,
 
-        returnId: returnReq.returnId,
+    status: returnReq.status,
 
-        status: returnReq.status,
+    reasonCode: returnReq.reasonCode,
+    reasonText: returnReq.reasonText,
 
-        reasonCode: returnReq.reasonCode,
+    images: returnImages,
 
-        reasonText: returnReq.reasonText,
+    totalAmount,
+    refundAmount: returnReq.refundAmount,
+    isRefunded: returnReq.isRefunded,
 
-        totalAmount,
+    createdAt: returnReq.createdAt,
 
-        refundAmount: returnReq.refundAmount,
+    user: returnReq.userId,
 
-        isRefunded: returnReq.isRefunded,
+    order: {
+      orderId: returnReq.orderId.orderId,
+      orderStatus: returnReq.orderId.orderStatus,
+    },
 
-        createdAt: returnReq.createdAt,
-
-        user: returnReq.userId,
-
-        order: {
-          orderId:
-            returnReq.orderId.orderId,
-
-          orderStatus:
-            returnReq.orderId.orderStatus,
-        },
-
-        /* ONLY RETURNED ITEM */
-        item: formattedItem,
-      },
-    });
+    item: formattedItem,
+  },
+});
   } catch (error) {
     console.error(
       "Get Single Return Error:",
@@ -538,7 +563,6 @@ exports.updateReturnReason = async (req, res) => {
       reasonText,
       type,
       comment,
-      images
     } = req.body;
 
     const returnRequest =
@@ -547,64 +571,110 @@ exports.updateReturnReason = async (req, res) => {
     if (!returnRequest) {
       return res.status(404).json({
         success: false,
-        message: "Return request not found"
+        message: "Return request not found",
       });
     }
 
-    // Only owner can edit
+    /* =========================
+       OWNER CHECK
+    ========================= */
+
     if (
       returnRequest.userId.toString() !==
       req.user._id.toString()
     ) {
       return res.status(403).json({
         success: false,
-        message: "Access denied"
+        message: "Access denied",
       });
     }
 
-    // Allow edit only before seller action
+    /* =========================
+       STATUS CHECK
+    ========================= */
+
     if (returnRequest.status !== "requested") {
       return res.status(400).json({
         success: false,
         message:
-          "Return reason cannot be edited after processing"
+          "Return reason cannot be edited after processing",
       });
     }
 
-    if (reasonCode)
+    /* =========================
+       UPDATE TEXT FIELDS
+    ========================= */
+
+    if (reasonCode) {
       returnRequest.reasonCode = reasonCode;
+    }
 
-    if (reasonText)
+    if (reasonText) {
       returnRequest.reasonText = reasonText;
+    }
 
-    if (type)
+    if (type) {
       returnRequest.type = type;
+    }
 
-    if (comment)
+    if (comment) {
       returnRequest.comment = comment;
+    }
 
-    if (images)
-      returnRequest.images = images;
+    /* =========================
+       UPLOAD NEW IMAGES
+    ========================= */
+
+    if (req.files && req.files.length > 0) {
+
+      const uploadedImages = [];
+
+      for (const file of req.files) {
+
+        const extension = file.originalname.includes(".")
+          ? file.originalname.split(".").pop().toLowerCase()
+          : "";
+
+        const uniqueFileName =
+          `${Date.now()}-${Math.random()
+            .toString(36)
+            .substring(2, 10)}` +
+          `${extension ? "." + extension : ""}`;
+
+        const key =
+          `returns/${req.user._id}/${uniqueFileName}`;
+
+        await uploadToS3(file, key);
+
+        uploadedImages.push(key);
+      }
+
+      /*
+       * Replace old image list
+       */
+      returnRequest.images = uploadedImages;
+    }
 
     await returnRequest.save();
 
     return res.json({
       success: true,
       message: "Return reason updated successfully",
-      data: returnRequest
+      data: returnRequest,
     });
 
   } catch (error) {
+    console.error("Update Return Reason Error:", error);
+
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
 exports.getReturnTracking = async (req, res) => {
   try {
-    const returnRequest =
-      await ReturnRequest.findById(req.params.id);
+    const returnRequest = await ReturnRequest.findById(req.params.id);
 
     if (!returnRequest) {
       return res.status(404).json({
@@ -621,14 +691,44 @@ exports.getReturnTracking = async (req, res) => {
       returnRequest.orderId
     );
 
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+
     const product = order.items.find(
       item =>
         item._id.toString() ===
         returnRequest.itemId.toString()
     );
 
-    const requestDate =
-      returnRequest.createdAt;
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found in order"
+      });
+    }
+
+    /* =========================
+       S3 PRODUCT IMAGE
+    ========================= */
+
+    if (product.image) {
+      try {
+        product.image = await getS3SignedUrl(product.image);
+      } catch (s3Error) {
+        console.error(
+          "Return Tracking S3 Image Error:",
+          s3Error.message
+        );
+
+        product.image = "";
+      }
+    }
+
+    const requestDate = returnRequest.createdAt;
 
     const pickupDate = new Date(
       requestDate.getTime() +
@@ -643,8 +743,7 @@ exports.getReturnTracking = async (req, res) => {
     return res.json({
       success: true,
 
-      returnId:
-        returnRequest.returnId,
+      returnId: returnRequest.returnId,
 
       product,
 
@@ -668,16 +767,14 @@ exports.getReturnTracking = async (req, res) => {
           title: "Item Pickup",
           date: pickupDate,
           completed:
-            returnRequest.status !==
-            "requested"
+            returnRequest.status !== "requested"
         },
 
         {
           title: "Refund Success",
           date: refundDate,
           completed:
-            refund?.refundStatus ===
-            "completed"
+            refund?.refundStatus === "completed"
         }
       ],
 
@@ -688,7 +785,12 @@ exports.getReturnTracking = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({
+    console.error(
+      "Get Return Tracking Error:",
+      error
+    );
+
+    return res.status(500).json({
       success: false,
       message: error.message
     });

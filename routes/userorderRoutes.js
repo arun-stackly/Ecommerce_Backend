@@ -4,7 +4,7 @@ const { protect } = require("../middleware/authMiddleware"); // seller middlewar
 const { protectUser } = require("../middleware/userAuthMiddleware"); // customer middleware
 
 const userOrderController = require("../controllers/userorderController");
-
+const upload = require("../middleware/upload");
 
 // 🔥 STATIC ROUTES FIRST
 router.post("/create-order", protectUser, userOrderController.createOrder);
@@ -22,7 +22,7 @@ router.get(
   protectUser,
   userOrderController.getSingleOrderItem
 );
-router.post("/:id/review", protectUser, userOrderController.addReview);
+router.post("/:id/review",  upload.array("images", 5), protectUser, userOrderController.addReview);
 router.get("/:id/reviews", userOrderController.getProductReviews);
 /* =========================
    NEW ROUTES

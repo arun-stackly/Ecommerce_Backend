@@ -43,15 +43,35 @@ exports.createInventoryItem = async (req, res) => {
         });
       }
     }
+// ================= PARSE FORM-DATA ARRAYS =================
 
+let sizes = req.body.sizes;
+let colours = req.body.colours;
+
+if (typeof sizes === "string") {
+  try {
+    sizes = JSON.parse(sizes);
+  } catch (error) {
+    sizes = [sizes];
+  }
+}
+
+if (typeof colours === "string") {
+  try {
+    colours = JSON.parse(colours);
+  } catch (error) {
+    colours = [colours];
+  }
+}
     /* ================= CREATE INVENTORY ================= */
 
-    const inventoryData = {
-      ...req.body,
-      seller: req.user._id,
-      media,
-    };
-
+   const inventoryData = {
+  ...req.body,
+  seller: req.user._id,
+  sizes,
+  colours,
+  media,
+};
     const inventoryItem =
       await SellerInventory.create(inventoryData);
 

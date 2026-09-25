@@ -2,6 +2,21 @@ const Cart = require("../models/cartModel");
 const Address = require("../models/addressModel");
 const SellerInventory = require("../models/SellerInventory");
 const Coupon = require("../models/couponModel");
+const { getS3SignedUrl } = require("../utils/s3Helper");
+
+
+/* ================= S3 IMAGE URL ================= */
+
+const getImageUrl = async (media = []) => {
+  const image = media.find((m) => m.type === "image");
+
+  if (!image?.url) {
+    return "";
+  }
+
+  // image.url contains the S3 key
+  return await getS3SignedUrl(image.url);
+};
 
 
 function getOfferDetails(inventory) {
@@ -183,60 +198,62 @@ exports.getCart = async (req, res) => {
 
       deliveryInfo: getDeliveryInfo(cart),
 
-      sellerGroups: cart.sellerGroups.map((seller) => {
-        return {
-          sellerId: seller.sellerId,
-          sellerName: seller.sellerName,
-          sellerTotal: seller.sellerTotal,
+      sellerGroups: await Promise.all(
+  cart.sellerGroups.map(async (seller) => {
+    return {
+      sellerId: seller.sellerId,
+      sellerName: seller.sellerName,
+      sellerTotal: seller.sellerTotal,
 
-          items: seller.items.map((item) => {
-            const inventory = item.sellerInventoryId;
+      items: await Promise.all(
+        seller.items.map(async (item) => {
+          const inventory = item.sellerInventoryId;
 
-            if (!inventory) return null;
+          if (!inventory) return null;
 
-            const {
-              offerPercentage,
-              offerPrice,
-            } = getOfferDetails(inventory);
+          const {
+            offerPercentage,
+            offerPrice,
+          } = getOfferDetails(inventory);
 
-            itemsCount += Number(item.quantity || 0);
+          itemsCount += Number(item.quantity || 0);
 
-            return {
-              cartItemId: item._id,
-              sellerInventoryId: inventory._id,
+          return {
+            cartItemId: item._id,
 
-              name: inventory.name,
+            sellerInventoryId: inventory._id,
 
-              image:
-                inventory.media?.find(
-                  (m) => m.type === "image"
-                )?.url || "",
+            name: inventory.name,
 
-              price: inventory.price,
+            // S3 signed URL
+            image: await getImageUrl(inventory.media),
 
-              discountPrice:
-                inventory.discountPrice ||
-                inventory.price,
+            price: inventory.price,
 
-              offerPercentage: `${offerPercentage}%`,
+            discountPrice:
+              inventory.discountPrice ||
+              inventory.price,
 
-              offerPrice,
+            offerPercentage: `${offerPercentage}%`,
 
-              quantity: item.quantity,
+            offerPrice,
 
-              size: item.size || "",
+            quantity: item.quantity,
 
-              totalPrice:
-                offerPrice *
-                Number(item.quantity || 0),
+            size: item.size || "",
 
-              estimatedDelivery:
-                getEstimatedDeliveryDate(),
-            };
-          }).filter(Boolean),
-        };
-      }),
+            totalPrice:
+              offerPrice *
+              Number(item.quantity || 0),
 
+            estimatedDelivery:
+              getEstimatedDeliveryDate(),
+          };
+        })
+      ),
+    };
+  })
+),
       itemsCount,
 
       priceDetails: {
@@ -840,11 +857,13 @@ await cart.populate({
   }
 };
 /* ================= RELATED PRODUCTS ================= */
+
 exports.getRelatedProducts = async (req, res) => {
   try {
     const { sellerInventoryId } = req.params;
 
-    const currentProduct = await SellerInventory.findById(sellerInventoryId);
+    const currentProduct =
+      await SellerInventory.findById(sellerInventoryId);
 
     if (!currentProduct) {
       return res.status(404).json({
@@ -853,41 +872,58 @@ exports.getRelatedProducts = async (req, res) => {
       });
     }
 
-    const relatedProducts = await SellerInventory.find({
-      subcategory: currentProduct.subcategory,
-      _id: { $ne: sellerInventoryId },
-      isActive: true,
-    }).limit(4);
+    /* ================= GET RELATED PRODUCTS ================= */
 
-    const response = relatedProducts.map((product) => {
-    
-      return {
-        _id: product._id,
-        name: product.name,
+    const relatedProducts =
+      await SellerInventory.find({
+        subcategory: currentProduct.subcategory,
 
-        // ✔ image (first image only)
-        image:
-          product.media?.find((m) => m.type === "image")?.url || "",
+        _id: {
+          $ne: sellerInventoryId,
+        },
 
-        price: product.price,
+        isActive: true,
+      }).limit(4);
 
-       discountPrice: product.discountPrice,
+    /* ================= CONVERT IMAGE TO S3 SIGNED URL ================= */
 
+    const response = await Promise.all(
+      relatedProducts.map(async (product) => {
+        return {
+          _id: product._id,
 
-    rating: product.rating || 0,
+          name: product.name,
 
-    reviewCount: product.reviewCount || 0,
+          // S3 signed URL
+          image: await getImageUrl(product.media),
 
-        sizes: product.sizes || [],
-      };
-    });
+          price: product.price,
+
+          discountPrice: product.discountPrice,
+
+          rating: product.rating || 0,
+
+          reviewCount: product.reviewCount || 0,
+
+          sizes: product.sizes || [],
+        };
+      })
+    );
 
     return res.status(200).json({
       success: true,
-      message: "Related products fetched successfully",
+
+      message:
+        "Related products fetched successfully",
+
       data: response,
     });
   } catch (error) {
+    console.error(
+      "Get related products error:",
+      error
+    );
+
     return res.status(500).json({
       success: false,
       message: error.message,

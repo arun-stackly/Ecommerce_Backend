@@ -4,6 +4,7 @@ const router = express.Router();
 const returnController = require("../controllers/returnController");
 const {protect} = require("../middleware/authMiddleware")
 const {protectUser} = require("../middleware/userAuthMiddleware")
+const upload = require("../middleware/upload");
 /* =========================
    CREATE RETURN REQUEST
 ========================= */
@@ -13,7 +14,7 @@ router.get(
 );
 
 router.post(
-  "/request",protectUser,
+  "/request",protectUser,upload.array("images", 5),
   returnController.createReturnRequest
 );
 

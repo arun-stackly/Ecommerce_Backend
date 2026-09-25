@@ -1,4 +1,5 @@
 const SellerInventory = require("../models/SellerInventory");
+const { getS3SignedUrl } = require("../utils/s3Helper");
 
 // =========================================
 // Recently Added Products
@@ -11,19 +12,55 @@ exports.getRecentlyAddedProducts = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(3);
 
+    const formattedProducts = await Promise.all(
+      products.map(async (product) => {
+        const productData = product.toObject();
+
+        if (Array.isArray(productData.media)) {
+          productData.media = await Promise.all(
+            productData.media.map(async (mediaItem) => {
+              if (!mediaItem.url) {
+                return mediaItem;
+              }
+
+              try {
+                return {
+                  ...mediaItem,
+                  url: await getS3SignedUrl(mediaItem.url),
+                };
+              } catch (error) {
+                console.error(
+                  "Recently Added Product S3 Error:",
+                  error.message
+                );
+
+                return {
+                  ...mediaItem,
+                  url: "",
+                };
+              }
+            })
+          );
+        }
+
+        return productData;
+      })
+    );
+
     res.status(200).json({
       success: true,
-      count: products.length,
-      products,
+      count: formattedProducts.length,
+      products: formattedProducts,
     });
   } catch (error) {
+    console.error("Recently Added Products Error:", error);
+
     res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
-
 
 // =========================================
 // Fashion Home Page
@@ -144,24 +181,51 @@ exports.getProductImageGallery = async (req, res) => {
       .select("name media")
       .sort({ createdAt: -1 });
 
-    const productImages = [];
+    const productImages = await Promise.all(
+      products.map(async (product) => {
+        if (!product.media || product.media.length === 0) {
+          return null;
+        }
 
-    products.forEach((product) => {
-      if (product.media && product.media.length > 0) {
-        productImages.push({
+        const firstImage = product.media.find(
+          (media) => media.type === "image"
+        );
+
+        if (!firstImage || !firstImage.url) {
+          return null;
+        }
+
+        let signedImageUrl = "";
+
+        try {
+          signedImageUrl = await getS3SignedUrl(firstImage.url);
+        } catch (error) {
+          console.error(
+            "Product Gallery S3 Error:",
+            error.message
+          );
+        }
+
+        return {
           productId: product._id,
           productName: product.name,
-          image: product.media[0],
-        });
-      }
-    });
+          image: signedImageUrl,
+        };
+      })
+    );
+
+    const filteredProductImages = productImages.filter(
+      (item) => item !== null
+    );
 
     res.status(200).json({
       success: true,
-      count: productImages.length,
-      data: productImages,
+      count: filteredProductImages.length,
+      data: filteredProductImages,
     });
   } catch (error) {
+    console.error("Product Image Gallery Error:", error);
+
     res.status(500).json({
       success: false,
       message: error.message,

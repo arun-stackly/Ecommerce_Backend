@@ -9,7 +9,9 @@ const BankAccount = require("../models/UserBank");
 const Card = require("../models/UserCard");
 const Payment = require("../models/Payment");
 const ReturnRequest = require("../models/Return");
-
+const { uploadToS3,
+  getS3SignedUrl,
+  deleteFromS3, } = require("../utils/s3Helper");
  
 /* =========================
    CREATE ORDER
@@ -94,20 +96,52 @@ exports.createOrder = async (req, res) => {
  
         const itemTotal = offerPrice * item.quantity;
  
-        orderItems.push({
-          sellerId: inventory.seller,
-          sellerInventoryId: inventory._id,
-          name: inventory.name,
-          image: inventory.media?.find((m) => m.type === "image")?.url || "",
-          price: inventory.price,
-          discountPrice: inventory.discountPrice || 0,
-          quantity: item.quantity,
-          size: item.size || "",
-          colour: item.colour || "",
-          itemTotal,
-          itemStatus: "ordered",
-        });
-      console.log("Cart Item:", item);
+        const productImage = inventory.media?.find(
+  (m) => m.type === "image"
+);
+
+console.log("PRODUCT MEDIA:", inventory.media);
+console.log("PRODUCT IMAGE:", productImage);
+
+const imageKey = productImage?.url || item.image;
+
+if (!imageKey) {
+  return res.status(400).json({
+    success: false,
+    message: `S3 image key not found for product: ${inventory.name}`,
+  });
+}
+
+// Don't allow base64 or full HTTP URL
+if (
+  imageKey.startsWith("data:image") ||
+  imageKey.startsWith("http://") ||
+  imageKey.startsWith("https://")
+) {
+  return res.status(400).json({
+    success: false,
+    message: `Invalid S3 image key for product: ${inventory.name}`,
+  });
+}
+
+orderItems.push({
+  sellerId: inventory.seller,
+  sellerInventoryId: inventory._id,
+  name: inventory.name,
+  image: imageKey,
+  price: inventory.price,
+  discountPrice: inventory.discountPrice || 0,
+  quantity: item.quantity,
+  size: item.size || "",
+  colour: item.colour || "",
+  itemTotal,
+  itemStatus: "ordered",
+});
+      console.log("========== CART ITEM ==========");
+console.log(JSON.stringify(item, null, 2));
+console.log("IMAGE:", item.image);
+console.log("SELLER INVENTORY ID:", item.sellerInventoryId);
+console.log("================================");
         // Reduce stock
         await SellerInventory.findByIdAndUpdate(inventory._id, {
           $inc: {
@@ -414,47 +448,49 @@ exports.getOrders = async (req, res) => {
             }
 
             return {
-              itemId: item._id,
-              productId: item.sellerInventoryId || null,
+  itemId: item._id,
+  productId: item.sellerInventoryId || null,
 
-              name: item.name,
-              image: item.image,
-              quantity: item.quantity,
-              size: item.size,
-              colour: item.colour,
-              price: item.price,
-              itemStatus: item.itemStatus,
+  name: item.name,
 
-              rating: product?.rating || 0,
-              reviewCount: product?.reviewCount || 0,
-              reviews: product?.reviews || [],
+  image: item.image
+  ? await getS3SignedUrl(item.image)
+  : "",
 
-              // Return Details
-              return: returnRequest
-                ? {
-                    returnRequestId: returnRequest._id,
-                    returnId: returnRequest.returnId,
-                    status: returnRequest.status,
-                    reasonCode: returnRequest.reasonCode,
-                    reasonText: returnRequest.reasonText,
-                    refundAmount: returnRequest.refundAmount,
-                    isRefunded: returnRequest.isRefunded,
-                    createdAt: returnRequest.createdAt,
-                  }
-                : null,
+  quantity: item.quantity,
+  size: item.size,
+  colour: item.colour,
+  price: item.price,
+  itemStatus: item.itemStatus,
 
-              // Refund Details
-              refund: refund
-                ? {
-                    refundId: refund._id,
-                    refundMode: refund.refundMode,
-                    refundStatus: refund.refundStatus,
-                    refundAmount: refund.refundAmount,
-                    refundedAt: refund.refundedAt,
-                    transactionId: refund.transactionId,
-                  }
-                : null,
-            };
+  rating: product?.rating || 0,
+  reviewCount: product?.reviewCount || 0,
+  reviews: product?.reviews || [],
+
+  return: returnRequest
+    ? {
+        returnRequestId: returnRequest._id,
+        returnId: returnRequest.returnId,
+        status: returnRequest.status,
+        reasonCode: returnRequest.reasonCode,
+        reasonText: returnRequest.reasonText,
+        refundAmount: returnRequest.refundAmount,
+        isRefunded: returnRequest.isRefunded,
+        createdAt: returnRequest.createdAt,
+      }
+    : null,
+
+  refund: refund
+    ? {
+        refundId: refund._id,
+        refundMode: refund.refundMode,
+        refundStatus: refund.refundStatus,
+        refundAmount: refund.refundAmount,
+        refundedAt: refund.refundedAt,
+        transactionId: refund.transactionId,
+      }
+    : null,
+};
           })
         );
 
@@ -489,62 +525,129 @@ exports.getOrders = async (req, res) => {
 /* =========================
    GET SINGLE ORDER
 ========================= */
+/* =========================
+   GET SINGLE ORDER
+========================= */
 exports.getSingleOrder = async (req, res) => {
   try {
-    const order = await UserOrder.findById(req.params.id);
-    if (!order) return res.status(404).json({ message: "Order not found" });
- 
-    res.json({ success: true, data: order });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
- 
-exports.getSingleOrderItem = async (req, res) => {
-  try {
-    const { orderId, itemId } = req.params;
- 
-    const order = await UserOrder.findById(orderId);
- 
+    const { id } = req.params;
+
+    // Find order belonging to logged-in user
+    const order = await UserOrder.findOne({
+      _id: id,
+      customerId: req.user._id,
+    }).select(
+      "_id orderId orderStatus createdAt orderPlacedDate estimatedDeliveryDate paymentMode paymentDetails shippingAddress billingAddress items"
+    );
+
     if (!order) {
       return res.status(404).json({
         success: false,
         message: "Order not found",
       });
     }
- 
+
+    const orderData = order.toObject();
+
+    // Convert S3 keys into temporary signed URLs
+    orderData.items = await Promise.all(
+      orderData.items.map(async (item) => ({
+        ...item,
+        image: item.image
+          ? await getS3SignedUrl(item.image)
+          : "",
+      }))
+    );
+
+    return res.json({
+      success: true,
+      data: orderData,
+    });
+  } catch (error) {
+    console.error("Get Single Order Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+/* =========================
+   GET SINGLE ORDER ITEM
+========================= */
+
+exports.getSingleOrderItem = async (req, res) => {
+  try {
+    const { orderId, itemId } = req.params;
+
+    // Find order belonging to logged-in user
+    const order = await UserOrder.findOne({
+      _id: orderId,
+      customerId: req.user._id,
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Find item inside order
     const item = order.items.id(itemId);
- 
+
     if (!item) {
       return res.status(404).json({
         success: false,
         message: "Item not found",
       });
     }
- 
+
+    // Get latest product rating
     let rating = 0;
- 
+    let reviewCount = 0;
+
     if (item.sellerInventoryId) {
       const product = await SellerInventory.findById(
-        item.sellerInventoryId,
-      ).select("rating");
- 
+        item.sellerInventoryId
+      ).select("rating reviewCount");
+
       rating = product?.rating || 0;
+      reviewCount = product?.reviewCount || 0;
     }
- 
-    return res.json({
+
+    // Convert mongoose sub-document to normal object
+    const itemData = item.toObject();
+
+    // Generate S3 signed URL
+    if (itemData.image) {
+      try {
+        itemData.image = await getS3SignedUrl(itemData.image);
+      } catch (s3Error) {
+        console.error("S3 Image URL Error:", s3Error);
+        itemData.image = "";
+      }
+    } else {
+      itemData.image = "";
+    }
+
+    return res.status(200).json({
       success: true,
       data: {
         orderId: order.orderId,
         orderStatus: order.orderStatus,
         estimatedDeliveryDate: order.estimatedDeliveryDate,
-        paymentStatus: order.paymentDetails?.paymentStatus,
-        item,
- 
-        rating, // rating from SellerInventory
+        paymentStatus: order.paymentDetails?.paymentStatus || null,
+
+        item: itemData,
+
+        rating,
+        reviewCount,
       },
     });
   } catch (error) {
+    console.error("Get Single Order Item Error:", error);
+
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -622,71 +725,120 @@ exports.updateOrderStatus = async (req, res) => {
    ADD REVIEW
    POST /api/products/:id/review
 ========================================= */
+/* =========================================
+   ADD REVIEW
+   POST /api/products/:id/review
+========================================= */
+
 exports.addReview = async (req, res) => {
   try {
-    const { rating, comment, images } = req.body;
- 
+    const { rating, comment } = req.body;
+
     if (!rating) {
       return res.status(400).json({
         success: false,
         message: "Rating is required",
       });
     }
- 
+
     const inventory = await SellerInventory.findById(req.params.id);
- 
+
     if (!inventory) {
       return res.status(404).json({
         success: false,
         message: "Product not found",
       });
     }
- 
+
+    // =========================
+    // UPLOAD REVIEW IMAGES TO S3
+    // =========================
+
+    const uploadedImages = [];
+
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const extension = file.originalname.includes(".")
+          ? file.originalname.split(".").pop().toLowerCase()
+          : "";
+
+        const uniqueFileName =
+          `${Date.now()}-${Math.random()
+            .toString(36)
+            .substring(2, 10)}` +
+          `${extension ? "." + extension : ""}`;
+
+        const key =
+          `reviews/${req.user._id}/${uniqueFileName}`;
+
+        await uploadToS3(file, key);
+
+        // Store ONLY S3 key in MongoDB
+        uploadedImages.push(key);
+      }
+    }
+
+    // =========================
+    // CREATE REVIEW
+    // =========================
+
     const review = {
       user: req.user._id,
- 
+
       name: `${req.user.firstName} ${req.user.lastName}`,
- 
-      rating,
- 
+
+      rating: Number(rating),
+
       comment: comment || "",
- 
-      images: Array.isArray(images) ? images : [],
+
+      images: uploadedImages,
     };
- 
-    const newReviewCount = (inventory.reviewCount || 0) + 1;
- 
+
+    // =========================
+    // UPDATE RATING
+    // =========================
+
+    const newReviewCount =
+      (inventory.reviewCount || 0) + 1;
+
     const totalRating =
-      (inventory.reviews || []).reduce((acc, item) => acc + item.rating, 0) +
-      Number(rating);
- 
-    const newRating = totalRating / newReviewCount;
- 
+      (inventory.reviews || []).reduce(
+        (acc, item) =>
+          acc + Number(item.rating || 0),
+        0
+      ) + Number(rating);
+
+    const newRating =
+      totalRating / newReviewCount;
+
     await SellerInventory.findByIdAndUpdate(
       req.params.id,
       {
         $push: {
           reviews: review,
         },
- 
+
         $set: {
           reviewCount: newReviewCount,
- 
           rating: newRating,
         },
       },
       {
         new: true,
         runValidators: false,
-      },
+      }
     );
- 
-    res.status(201).json({
+
+    return res.status(201).json({
       success: true,
-      message: "Review added",
+      message: "Review added successfully",
+      images: uploadedImages,
+      rating:newRating,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Add Review Error:", error);
+
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
@@ -697,52 +849,89 @@ exports.addReview = async (req, res) => {
    GET PRODUCT REVIEWS
    GET /api/products/:id/reviews
 ========================================= */
+
 exports.getProductReviews = async (req, res) => {
   try {
     const inventory = await SellerInventory.findById(req.params.id).select(
-      "reviews rating reviewCount",
+      "reviews rating reviewCount"
     );
- 
+
     if (!inventory) {
       return res.status(404).json({
         success: false,
         message: "Product not found",
       });
     }
- 
+
     const page = Number(req.query.page) || 1;
- 
     const limit = Number(req.query.limit) || 5;
- 
+
     const start = (page - 1) * limit;
- 
     const end = start + limit;
- 
+
     const reviews = inventory.reviews || [];
- 
+
     const paginatedReviews = reviews.slice(start, end);
- 
-    res.status(200).json({
+
+    /*
+      Generate temporary S3 URLs
+      for review images
+    */
+    const formattedReviews = await Promise.all(
+      paginatedReviews.map(async (review) => {
+        const reviewData = review.toObject();
+
+        if (Array.isArray(reviewData.images)) {
+          reviewData.images = await Promise.all(
+            reviewData.images.map(async (imageKey) => {
+              if (!imageKey) {
+                return "";
+              }
+
+              try {
+                return await getS3SignedUrl(imageKey);
+              } catch (s3Error) {
+                console.error(
+                  "Review Image S3 Error:",
+                  s3Error
+                );
+
+                return "";
+              }
+            })
+          );
+        } else {
+          reviewData.images = [];
+        }
+
+        return reviewData;
+      })
+    );
+
+    return res.status(200).json({
       success: true,
- 
-      reviews: paginatedReviews,
- 
-      rating: inventory.rating,
- 
-      reviewCount: inventory.reviewCount,
- 
+
+      reviews: formattedReviews,
+
+      rating: inventory.rating || 0,
+
+      reviewCount: inventory.reviewCount || 0,
+
       currentPage: page,
- 
-      totalPages: Math.ceil(inventory.reviewCount / limit),
+
+      totalPages: Math.ceil(
+        (inventory.reviewCount || 0) / limit
+      ),
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Get Product Reviews Error:", error);
+
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
- 
 exports.getOrderInvoice = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1018,7 +1207,9 @@ exports.getCancelledCODOrder = async (req, res) => {
  
       product: {
         name: order.items[0]?.name,
-        image: order.items[0]?.image,
+        image: order.items[0]?.image
+  ? getSignedUrl(order.items[0].image)
+  : "",
         size: order.items[0]?.size,
         quantity: order.items[0]?.quantity,
       },
@@ -1098,7 +1289,9 @@ exports.getCancelledPrepaidOrder = async (req, res) => {
       product: {
         productId: order.items[0]?.productId,
         name: order.items[0]?.name,
-        image: order.items[0]?.image,
+       image: order.items[0]?.image
+  ? getSignedUrl(order.items[0].image)
+  : "",
         size: order.items[0]?.size,
         quantity: order.items[0]?.quantity,
       },
@@ -1134,86 +1327,120 @@ exports.getCancelledPrepaidOrder = async (req, res) => {
 };
 
  
+/* =========================
+   GET ORDERS BY STATUS WITH ITEMS
+========================= */
 exports.getOrdersByStatusWithItems = async (req, res) => {
   try {
     const { status } = req.params;
- 
-    // Step 1: Check all orders in DB
-    const totalOrders = await UserOrder.countDocuments();
-    console.log("Total Orders In DB:", totalOrders);
- 
-    // Step 2: Check orders for current user
-    const userOrders = await UserOrder.find({
-      customerId: req.user._id,
-    }).select("orderId customerId orderStatus");
- 
-    console.log("=================================");
-    console.log("Orders For Current User:", userOrders.length);
- 
-    userOrders.forEach((order) => {
-      console.log({
-        orderId: order.orderId,
-        customerId: order.customerId.toString(),
-        orderStatus: order.orderStatus,
+
+    // =========================
+    // USER CHECK
+    // =========================
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
       });
-    });
- 
-    // Step 3: Apply filter
+    }
+
+    // =========================
+    // BUILD FILTER
+    // =========================
     const filter = {
       customerId: req.user._id,
     };
- 
+
     if (status) {
       const statusMap = {
         ordered: "placed",
       };
- 
+
       filter.orderStatus = statusMap[status] || status;
     }
- 
+
+    // =========================
+    // GET ORDERS
+    // =========================
     const orders = await UserOrder.find(filter)
       .sort({ createdAt: -1 })
       .select(
-        "_id orderId orderStatus createdAt items estimatedDeliveryDate deliveredAt shippingAddress paymentMode",
+        "_id orderId orderStatus createdAt items estimatedDeliveryDate deliveredAt shippingAddress paymentMode"
       );
- 
-    console.log("Filtered Orders Found:", orders.length);
- 
-    const formatted = orders.map((order) => ({
-      _id: order._id,
-      orderId: order.orderId,
-      orderStatus: order.orderStatus,
-      createdAt: order.createdAt,
-      estimatedDeliveryDate: order.estimatedDeliveryDate,
-      deliveredAt: order.deliveredAt,
-      paymentMode: order.paymentMode,
-      shippingAddress: order.shippingAddress,
- 
-      products: order.items.map((item) => ({
-        itemId: item._id,
-        productId: item.sellerInventoryId,
-        name: item.name,
-        image: item.image,
-        quantity: item.quantity,
-        size: item.size,
-        price: item.price,
-        itemStatus: item.itemStatus,
-      })),
-    }));
- 
+
+    // =========================
+    // FORMAT ORDERS
+    // =========================
+    const formatted = await Promise.all(
+      orders.map(async (order) => {
+        const products = await Promise.all(
+          order.items.map(async (item) => {
+            let imageUrl = "";
+
+            // =========================
+            // GENERATE S3 SIGNED URL
+            // =========================
+            if (item.image) {
+              try {
+                imageUrl = await getSignedUrl(item.image);
+              } catch (s3Error) {
+                console.error(
+                  `S3 Image Error for item ${item._id}:`,
+                  s3Error
+                );
+
+                imageUrl = "";
+              }
+            }
+
+            return {
+              itemId: item._id,
+              productId: item.sellerInventoryId,
+
+              name: item.name,
+
+              image: imageUrl,
+
+              quantity: item.quantity,
+              size: item.size,
+              colour: item.colour,
+
+              price: item.price,
+
+              itemStatus: item.itemStatus,
+            };
+          })
+        );
+
+        return {
+          _id: order._id,
+          orderId: order.orderId,
+          orderStatus: order.orderStatus,
+          createdAt: order.createdAt,
+          estimatedDeliveryDate: order.estimatedDeliveryDate,
+          deliveredAt: order.deliveredAt,
+          paymentMode: order.paymentMode,
+          shippingAddress: order.shippingAddress,
+
+          products,
+        };
+      })
+    );
+
+    // =========================
+    // RESPONSE
+    // =========================
     return res.status(200).json({
       success: true,
       count: formatted.length,
       data: formatted,
     });
   } catch (error) {
-    console.error("Get Orders Error:", error);
- 
+    console.error("Get Orders By Status Error:", error);
+
     return res.status(500).json({
       success: false,
       message: error.message,
     });
   }
 };
- 
- 

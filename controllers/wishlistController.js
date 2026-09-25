@@ -2,10 +2,12 @@ const mongoose = require("mongoose");
 const Wishlist = require("../models/Wishlist");
 const SellerInventory = require("../models/SellerInventory");
 const User = require("../models/User");
+const { getS3SignedUrl } = require("../utils/s3Helper");
 
 /* ================= GET WISHLIST ================= */
 
 /* ================= GET WISHLIST ================= */
+
 exports.getWishlist = async (req, res) => {
   try {
     const wishlist = await Wishlist.findOne({
@@ -16,7 +18,7 @@ exports.getWishlist = async (req, res) => {
         "name price discountPrice sizes colours media quantity isActive rating reviewCount",
     });
 
-    /* ===== EMPTY WISHLIST ===== */
+    // Empty wishlist
     if (!wishlist) {
       return res.status(200).json({
         success: true,
@@ -27,64 +29,15 @@ exports.getWishlist = async (req, res) => {
       });
     }
 
-    /* ===== FORMAT RESPONSE ===== */
-    const formattedWishlist = {
-      userId: wishlist.userId,
-
-      items: wishlist.items
-        .filter(
-          (item) =>
-            item.sellerInventoryId &&
-            item.sellerInventoryId.isActive
-        )
-        .map((item) => {
-          const inventory = item.sellerInventoryId;
-
-          const price = inventory.price;
-          const discountPrice =
-            inventory.discountPrice > 0
-              ? inventory.discountPrice
-              : inventory.price;
-
-          const discountPercentage =
-            price > discountPrice
-              ? `${Math.round(
-                  ((price - discountPrice) / price) * 100
-                )}%`
-              : "0%";
-
-          return {
-            sellerInventoryId: inventory._id,
-            name: inventory.name,
-
-            image:
-              inventory.media?.find(
-                (m) => m.type === "image"
-              )?.url || "",
-
-            price,
-            discountPrice,
-            discountPercentage,
-
-            // ⭐ Average Rating
-            avgRating: inventory.rating || 0,
-
-            // ⭐ Review Count
-            reviewCount: inventory.reviewCount || 0,
-
-            sizes: inventory.sizes || [],
-            colours: inventory.colours || [],
-
-            isActive: inventory.isActive,
-          };
-        }),
-    };
+    const formattedWishlist = await formatWishlist(wishlist);
 
     return res.status(200).json({
       success: true,
       data: formattedWishlist,
     });
   } catch (error) {
+    console.error("Get Wishlist Error:", error);
+
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -137,14 +90,14 @@ exports.addToWishlist = async (req, res) => {
     if (alreadyExists) {
       const existingWishlist = await Wishlist.findById(wishlist._id).populate({
         path: "items.sellerInventoryId",
-        select: "name price size colours discountPrice media isActive",
+        select: "name price size colours discountPrice media isActive rating reviewcount",
       });
 
       return res.status(200).json({
         success: true,
         message: "Item already in wishlist",
         wishlistId: wishlist._id,
-        wishlist: formatWishlist(existingWishlist),
+        wishlist: await formatWishlist(existingWishlist),
       });
     }
 
@@ -155,11 +108,11 @@ exports.addToWishlist = async (req, res) => {
     /* ===== POPULATE UPDATED WISHLIST ===== */
     const updatedWishlist = await Wishlist.findById(wishlist._id).populate({
       path: "items.sellerInventoryId",
-      select: "name price sizes colours discountPrice media isActive",
+      select: "name price sizes colours discountPrice media isActive rating reviewcount",
     });
 
     /* ===== FORMAT RESPONSE ===== */
-    const responseData = formatWishlist(updatedWishlist);
+    const responseData = await formatWishlist(updatedWishlist);
 
     return res.status(201).json({
       success: true,
@@ -178,38 +131,83 @@ exports.addToWishlist = async (req, res) => {
 };
 
 /* ==============================
-   HELPER FUNCTION (CLEAN FORMAT)
+   HELPER FUNCTION
+   CLEAN FORMAT + S3 IMAGE URL
 ================================ */
-function formatWishlist(wishlist) {
-  return {
-    wishlistId: wishlist._id,
-    userId: wishlist.userId,
-    items: wishlist.items
-      .filter((item) => item.sellerInventoryId && item.sellerInventoryId.isActive)
-      .map((item) => {
+
+async function formatWishlist(wishlist) {
+  const items = await Promise.all(
+    wishlist.items
+      .filter(
+        (item) =>
+          item.sellerInventoryId &&
+          item.sellerInventoryId.isActive
+      )
+      .map(async (item) => {
         const inventory = item.sellerInventoryId;
 
         const price = inventory.price;
-        const discountPrice = inventory.discountPrice;
+
+        const discountPrice =
+          inventory.discountPrice > 0
+            ? inventory.discountPrice
+            : inventory.price;
 
         const discountPercentage =
-  price && discountPrice
-    ? `${Math.round(((price - discountPrice) / price) * 100)}%`
-    : "0%";
+          price > discountPrice
+            ? `${Math.round(
+                ((price - discountPrice) / price) * 100
+              )}%`
+            : "0%";
+
+        // =========================
+        // S3 IMAGE
+        // =========================
+
+        let image = "";
+
+        const imageKey = inventory.media?.find(
+          (m) => m.type === "image"
+        )?.url;
+
+        if (imageKey) {
+          try {
+            image = await getS3SignedUrl(imageKey);
+          } catch (s3Error) {
+            console.error(
+              "Wishlist S3 Image Error:",
+              s3Error
+            );
+
+            image = "";
+          }
+        }
 
         return {
           sellerInventoryId: inventory._id,
           name: inventory.name,
-          image:
-            inventory.media?.find((m) => m.type === "image")?.url || "",
+
+          image,
+
           price,
-          sizes: inventory.sizes || [],
-  colours: inventory.colours || [],
           discountPrice,
           discountPercentage,
+
+          avgRating: inventory.rating || 0,
+          reviewCount: inventory.reviewCount || 0,
+
+          sizes: inventory.sizes || [],
+          colours: inventory.colours || [],
+
           isActive: inventory.isActive,
         };
-      }),
+      })
+  );
+
+  return {
+    wishlistId: wishlist._id,
+    userId: wishlist.userId,
+    items,
   };
 }
 /* ================= REMOVE FROM WISHLIST ================= */
@@ -252,7 +250,7 @@ exports.removeFromWishlist = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Item removed from wishlist",
-      data: formatWishlist(updated),
+      data: await formatWishlist(updated),
     });
 
   } catch (error) {

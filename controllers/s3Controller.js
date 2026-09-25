@@ -82,6 +82,7 @@ const uploadImage = async (req, res) => {
       "image/png",
       "image/webp",
       "image/gif",
+      "image/jfif",
     ];
 
 

@@ -540,7 +540,6 @@ exports.getRefundOptions = async (req, res) => {
       });
     }
 
-    // Find returned item
     const returnedItem = order.items.find(
       (item) =>
         item._id.toString() ===
@@ -558,73 +557,109 @@ exports.getRefundOptions = async (req, res) => {
       returnedItem.itemTotal ||
       returnedItem.price * returnedItem.quantity;
 
-    // Get user's saved bank accounts
-   const bankAccounts = await UserBank.find({
-  user: returnRequest.userId,
-}).select(
-  "_id accountHolderName bankName accountNumber ifscCode upiId"
-);
+    /* =========================
+       S3 PRODUCT IMAGE
+    ========================= */
 
-const upiAccounts = bankAccounts.filter(
-  (bank) => bank.upiId
-);
+    let productImage = "";
 
-const refundOptions = [
-  {
-    code: "STACKLY_BALANCE",
-    title: "Stackly Balance",
-    description: "Instant refund to Stackly Balance",
-  },
-];
+    if (returnedItem.image) {
+      try {
+        productImage = await getS3SignedUrl(
+          returnedItem.image
+        );
+      } catch (error) {
+        console.error(
+          "Refund Options S3 Image Error:",
+          error.message
+        );
+      }
+    }
+console.log("RETURNED ITEM IMAGE:", returnedItem.image);
+    /* =========================
+       GET USER BANK ACCOUNTS
+    ========================= */
 
-if (bankAccounts.length > 0) {
-  refundOptions.push({
-    code: "BANK_ACCOUNT",
-    title: "Bank Account",
-    description: "Refund to your saved bank account",
-    accounts: bankAccounts.map((bank) => ({
-      bankAccountId: bank._id,
-      accountHolderName: bank.accountHolderName,
-      bankName: bank.bankName,
-      accountNumber: bank.accountNumber,
-      ifscCode: bank.ifscCode,
-    })),
-  });
-}
+    const bankAccounts = await UserBank.find({
+      user: returnRequest.userId,
+    }).select(
+      "_id accountHolderName bankName accountNumber ifscCode upiId"
+    );
 
-if (upiAccounts.length > 0) {
-  refundOptions.push({
-    code: "UPI",
-    title: "UPI",
-    description: "Refund directly to your UPI ID",
-    accounts: upiAccounts.map((bank) => ({
-      bankAccountId: bank._id,
-      accountHolderName: bank.accountHolderName,
-      upiId: bank.upiId,
-    })),
-  });
-}
+    const upiAccounts = bankAccounts.filter(
+      (bank) => bank.upiId
+    );
 
-return res.status(200).json({
-  success: true,
-  data: {
-    refundAmount,
+    /* =========================
+       REFUND OPTIONS
+    ========================= */
 
-    item: {
-      itemId: returnedItem._id,
-      name: returnedItem.name,
-      image: returnedItem.image,
-      quantity: returnedItem.quantity,
-      price: returnedItem.price,
-    },
+    const refundOptions = [
+      {
+        code: "STACKLY_BALANCE",
+        title: "Stackly Balance",
+        description:
+          "Instant refund to Stackly Balance",
+      },
+    ];
 
-    refundOptions,
-  },
-});
+    if (bankAccounts.length > 0) {
+      refundOptions.push({
+        code: "BANK_ACCOUNT",
+        title: "Bank Account",
+        description:
+          "Refund to your saved bank account",
+        accounts: bankAccounts.map((bank) => ({
+          bankAccountId: bank._id,
+          accountHolderName:
+            bank.accountHolderName,
+          bankName: bank.bankName,
+          accountNumber:
+            bank.accountNumber,
+          ifscCode: bank.ifscCode,
+        })),
+      });
+    }
+
+    if (upiAccounts.length > 0) {
+      refundOptions.push({
+        code: "UPI",
+        title: "UPI",
+        description:
+          "Refund directly to your UPI ID",
+        accounts: upiAccounts.map((bank) => ({
+          bankAccountId: bank._id,
+          accountHolderName:
+            bank.accountHolderName,
+          upiId: bank.upiId,
+        })),
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        refundAmount,
+
+        item: {
+          itemId: returnedItem._id,
+          name: returnedItem.name,
+          image: productImage,
+          quantity: returnedItem.quantity,
+          price: returnedItem.price,
+        },
+
+        refundOptions,
+      },
+    });
+
   } catch (error) {
-    console.error("Get Refund Options Error:", error);
+    console.error(
+      "Get Refund Options Error:",
+      error
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });
