@@ -25,8 +25,17 @@ const upload = multer({
 router.post(
   "/",
   protect,
-  upload.array("images", 10),
-  createInventoryItem
+  upload.fields([
+    {
+      name: "images",
+      maxCount: 10
+    },
+    {
+      name: "brandLogo",
+      maxCount: 1
+    }
+  ]),
+ createInventoryItem
 );
 
 
@@ -47,10 +56,18 @@ router.get(
 router.put(
   "/:id",
   protect,
-  upload.array("images", 10),
+  upload.fields([
+    {
+      name: "images",
+      maxCount: 10
+    },
+    {
+      name: "brandLogo",
+      maxCount: 1
+    }
+  ]),
   updateInventoryItem
 );
-
 
 router.delete(
   "/:id",

@@ -18,72 +18,162 @@ exports.createInventoryItem = async (req, res) => {
 
     let media = [];
 
-    /* ================= UPLOAD IMAGES TO S3 ================= */
+    /* ================= PRODUCT IMAGES ================= */
 
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        const extension = file.originalname.includes(".")
-          ? file.originalname.split(".").pop().toLowerCase()
-          : "";
+    const productImages = req.files?.images || [];
 
-        const uniqueFileName =
-          `${Date.now()}-${Math.random()
-            .toString(36)
-            .substring(2, 10)}` +
-          `${extension ? "." + extension : ""}`;
+    for (const file of productImages) {
+      const extension = file.originalname.includes(".")
+        ? file.originalname.split(".").pop().toLowerCase()
+        : "";
 
-        const key =
-          `seller-inventories/${req.user._id}/${uniqueFileName}`;
+      const uniqueFileName =
+        `${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 10)}` +
+        `${extension ? "." + extension : ""}`;
 
-        await uploadToS3(file, key);
+      const key =
+        `seller-inventories/${req.user._id}/${uniqueFileName}`;
 
-        media.push({
-          url: key,
-          type: "image",
+      await uploadToS3(file, key);
+
+      media.push({
+        url: key,
+        type: "image",
+      });
+    }
+
+    /* ================= BRAND LOGO ================= */
+
+    let brand = {};
+
+    if (req.body.brand) {
+      try {
+        brand =
+          typeof req.body.brand === "string"
+            ? JSON.parse(req.body.brand)
+            : req.body.brand;
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid brand JSON",
         });
       }
     }
-// ================= PARSE FORM-DATA ARRAYS =================
 
-let sizes = req.body.sizes;
-let colours = req.body.colours;
+    const brandLogoFile = req.files?.brandLogo?.[0];
 
-if (typeof sizes === "string") {
+    if (brandLogoFile) {
+      const extension = brandLogoFile.originalname.includes(".")
+        ? brandLogoFile.originalname.split(".").pop().toLowerCase()
+        : "";
+
+      const uniqueFileName =
+        `${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 10)}` +
+        `${extension ? "." + extension : ""}`;
+
+      const brandLogoKey =
+        `brands/${req.user._id}/${uniqueFileName}`;
+
+      await uploadToS3(
+        brandLogoFile,
+        brandLogoKey
+      );
+
+      brand.logo = brandLogoKey;
+    }
+
+    /* ================= PARSE ARRAYS ================= */
+
+    let sizes = req.body.sizes;
+    let colours = req.body.colours;
+
+    if (typeof sizes === "string") {
+      try {
+        sizes = JSON.parse(sizes);
+      } catch (error) {
+        sizes = [sizes];
+      }
+    }
+
+    if (typeof colours === "string") {
+      try {
+        colours = JSON.parse(colours);
+      } catch (error) {
+        colours = [colours];
+      }
+    }
+    let compliance = req.body.compliance;
+
+if (typeof compliance === "string") {
   try {
-    sizes = JSON.parse(sizes);
+    compliance = JSON.parse(compliance);
   } catch (error) {
-    sizes = [sizes];
+    return res.status(400).json({
+      success: false,
+      message: "Invalid compliance JSON",
+    });
   }
 }
 
-if (typeof colours === "string") {
-  try {
-    colours = JSON.parse(colours);
-  } catch (error) {
-    colours = [colours];
-  }
-}
     /* ================= CREATE INVENTORY ================= */
 
-   const inventoryData = {
-  ...req.body,
-  seller: req.user._id,
-  sizes,
-  colours,
-  media,
-};
+    const inventoryData = {
+      ...req.body,
+      seller: req.user._id,
+      sizes,
+      colours,
+      brand,
+      media,
+      compliance,
+    };
+
     const inventoryItem =
       await SellerInventory.create(inventoryData);
 
-    console.log("Saved Item:", inventoryItem);
+    /* ================= RESPONSE ================= */
+
+    const responseItem =
+      inventoryItem.toObject();
+
+    /* Signed product images */
+    if (responseItem.media?.length) {
+      responseItem.media = await Promise.all(
+        responseItem.media.map(async (item) => {
+          if (item.url) {
+            return {
+              ...item,
+              url: await getS3SignedUrl(item.url),
+            };
+          }
+
+          return item;
+        })
+      );
+    }
+
+    /* Signed brand logo */
+    if (responseItem.brand?.logo) {
+      responseItem.brand.logo =
+        await getS3SignedUrl(
+          responseItem.brand.logo
+        );
+    }
 
     res.status(201).json({
       success: true,
       message: "Inventory item created successfully",
-      inventoryItem,
+      inventoryItem: responseItem,
     });
+
   } catch (error) {
-    console.error("Create Inventory Error:", error);
+    console.error(
+      "Create Inventory Error:",
+      error
+    );
 
     res.status(500).json({
       success: false,
@@ -91,7 +181,6 @@ if (typeof colours === "string") {
     });
   }
 };
-
 
 /* =======================================
    GET ALL INVENTORY
@@ -308,7 +397,10 @@ exports.getInventory = async (req, res) => {
               0,
             ],
           },
-
+          brand: {
+  name: "$brand.name",
+  logo: "$brand.logo"
+},
           itemStock: "$quantity",
 
           unitsSold: 1,
@@ -339,6 +431,13 @@ exports.getInventory = async (req, res) => {
             item.productImage
           );
       }
+      /* Brand logo */
+  if (item.brand?.logo) {
+    item.brand.logo =
+      await getS3SignedUrl(
+        item.brand.logo
+      );
+  }
     }
 
     res.status(200).json({
@@ -410,7 +509,17 @@ exports.getInventoryById = async (req, res) => {
           )
         );
     }
+ /* ================= SIGN BRAND LOGO ================= */
 
+if (
+  inventoryObject.brand &&
+  inventoryObject.brand.logo
+) {
+  inventoryObject.brand.logo =
+    await getS3SignedUrl(
+      inventoryObject.brand.logo
+    );
+}
     res.status(200).json({
       success: true,
       inventoryItem: inventoryObject,
@@ -433,16 +542,16 @@ exports.getInventoryById = async (req, res) => {
    UPDATE INVENTORY ITEM
 ======================================= */
 
-exports.updateInventoryItem = async (
-  req,
-  res
-) => {
+exports.updateInventoryItem = async (req, res) => {
   try {
-    const inventoryItem =
-      await SellerInventory.findOne({
-        _id: req.params.id,
-        seller: req.user._id,
-      });
+    /* =====================================================
+       FIND PRODUCT
+    ===================================================== */
+
+    const inventoryItem = await SellerInventory.findOne({
+      _id: req.params.id,
+      seller: req.user._id,
+    });
 
     if (!inventoryItem) {
       return res.status(404).json({
@@ -451,19 +560,201 @@ exports.updateInventoryItem = async (
       });
     }
 
+    /* =====================================================
+       UPDATE DATA
+       Only fields sent in request will be updated.
+    ===================================================== */
+
     const updateData = {
       ...req.body,
     };
 
-    /* ================= NEW IMAGES ================= */
+    /* =====================================================
+       PARSE SIZES
+    ===================================================== */
 
-    if (
-      req.files &&
-      req.files.length > 0
-    ) {
-      const newMedia = [];
+    if (typeof updateData.sizes === "string") {
+      try {
+        updateData.sizes = JSON.parse(updateData.sizes);
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid sizes JSON",
+        });
+      }
+    }
 
-      for (const file of req.files) {
+    /* =====================================================
+       PARSE COLOURS
+    ===================================================== */
+
+    if (typeof updateData.colours === "string") {
+      try {
+        updateData.colours = JSON.parse(updateData.colours);
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid colours JSON",
+        });
+      }
+    }
+
+    /* =====================================================
+       PARSE COMPLIANCE
+    ===================================================== */
+
+    if (typeof updateData.compliance === "string") {
+      try {
+        updateData.compliance = JSON.parse(
+          updateData.compliance
+        );
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid compliance JSON",
+        });
+      }
+    }
+
+    /* =====================================================
+       BRAND DATA
+       Existing logo is preserved if only brand name changes.
+    ===================================================== */
+
+    let brand = {};
+
+    if (inventoryItem.brand) {
+      brand = inventoryItem.brand.toObject
+        ? inventoryItem.brand.toObject()
+        : { ...inventoryItem.brand };
+    }
+
+    if (req.body.brand) {
+      try {
+        const incomingBrand =
+          typeof req.body.brand === "string"
+            ? JSON.parse(req.body.brand)
+            : req.body.brand;
+
+        brand = {
+          ...brand,
+          ...incomingBrand,
+        };
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid brand JSON",
+        });
+      }
+    }
+
+    /* =====================================================
+       BRAND LOGO UPDATE
+    ===================================================== */
+
+    const brandLogoFile =
+      req.files?.brandLogo?.[0];
+
+    if (brandLogoFile) {
+      /* Delete old brand logo */
+
+      if (
+        inventoryItem.brand &&
+        inventoryItem.brand.logo
+      ) {
+        try {
+          await deleteFromS3(
+            inventoryItem.brand.logo
+          );
+        } catch (error) {
+          console.error(
+            "Failed to delete old brand logo:",
+            error.message
+          );
+        }
+      }
+
+      /* Generate new brand logo key */
+
+      const extension =
+        brandLogoFile.originalname.includes(".")
+          ? brandLogoFile.originalname
+              .split(".")
+              .pop()
+              .toLowerCase()
+          : "";
+
+      const uniqueFileName =
+        `${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 10)}` +
+        `${extension ? "." + extension : ""}`;
+
+      const brandLogoKey =
+        `brands/${req.user._id}/${uniqueFileName}`;
+
+      await uploadToS3(
+        brandLogoFile,
+        brandLogoKey
+      );
+
+      brand.logo = brandLogoKey;
+    }
+
+    updateData.brand = brand;
+
+    /* =====================================================
+       PRODUCT IMAGE UPDATE
+       
+       Supports individual image replacement.
+
+       Send:
+       replaceImageId = existing media _id
+       images = new image file
+    ===================================================== */
+
+    const productImages =
+      req.files?.images || [];
+
+    const replaceImageId =
+      req.body.replaceImageId;
+
+    if (productImages.length > 0) {
+
+      /* =================================================
+         INDIVIDUAL IMAGE REPLACEMENT
+      ================================================= */
+
+      if (replaceImageId) {
+
+        if (productImages.length > 1) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Only one image can be uploaded when replacing a single image",
+          });
+        }
+
+        const existingMedia =
+          inventoryItem.media?.find(
+            (media) =>
+              media._id &&
+              media._id.toString() ===
+                replaceImageId
+          );
+
+        if (!existingMedia) {
+          return res.status(404).json({
+            success: false,
+            message:
+              "Image to replace not found",
+          });
+        }
+
+        const file = productImages[0];
+
+        /* Generate new S3 key */
+
         const extension =
           file.originalname.includes(".")
             ? file.originalname
@@ -476,52 +767,133 @@ exports.updateInventoryItem = async (
           `${Date.now()}-${Math.random()
             .toString(36)
             .substring(2, 10)}` +
-          `${
-            extension
-              ? "." + extension
-              : ""
-          }`;
+          `${extension ? "." + extension : ""}`;
 
-        const key =
+        const newKey =
           `seller-inventories/${req.user._id}/${uniqueFileName}`;
 
-        await uploadToS3(file, key);
+        /* Upload new image */
 
-        newMedia.push({
-          url: key,
-          type: "image",
-        });
+        await uploadToS3(
+          file,
+          newKey
+        );
+
+        /* Delete old S3 image */
+
+        if (existingMedia.url) {
+          try {
+            await deleteFromS3(
+              existingMedia.url
+            );
+          } catch (error) {
+            console.error(
+              "Failed to delete old product image:",
+              error.message
+            );
+          }
+        }
+
+        /* Replace only selected image */
+
+        const updatedMedia =
+          inventoryItem.media.map(
+            (media) => {
+              if (
+                media._id &&
+                media._id.toString() ===
+                  replaceImageId
+              ) {
+                return {
+                  ...media.toObject?.()
+                    ? media.toObject()
+                    : media,
+                  url: newKey,
+                  type: "image",
+                };
+              }
+
+              return media;
+            }
+          );
+
+        updateData.media = updatedMedia;
       }
 
-      /* ================= DELETE OLD IMAGES ================= */
+      /* =================================================
+         NO replaceImageId
+         
+         This means user wants to replace ALL images.
+         Existing behavior is preserved.
+      ================================================= */
 
-      if (
-        inventoryItem.media &&
-        inventoryItem.media.length > 0
-      ) {
-        for (const media of inventoryItem.media) {
-          if (
-            media.type === "image" &&
-            media.url
-          ) {
-            try {
-              await deleteFromS3(
-                media.url
-              );
-            } catch (error) {
-              console.error(
-                "Failed to delete old S3 image:",
-                error.message
-              );
+      else {
+
+        const newMedia = [];
+
+        for (const file of productImages) {
+
+          const extension =
+            file.originalname.includes(".")
+              ? file.originalname
+                  .split(".")
+                  .pop()
+                  .toLowerCase()
+              : "";
+
+          const uniqueFileName =
+            `${Date.now()}-${Math.random()
+              .toString(36)
+              .substring(2, 10)}` +
+            `${extension ? "." + extension : ""}`;
+
+          const key =
+            `seller-inventories/${req.user._id}/${uniqueFileName}`;
+
+          await uploadToS3(
+            file,
+            key
+          );
+
+          newMedia.push({
+            url: key,
+            type: "image",
+          });
+        }
+
+        /* Delete all old product images */
+
+        if (
+          inventoryItem.media &&
+          inventoryItem.media.length > 0
+        ) {
+          for (const media of inventoryItem.media) {
+
+            if (
+              media.type === "image" &&
+              media.url
+            ) {
+              try {
+                await deleteFromS3(
+                  media.url
+                );
+              } catch (error) {
+                console.error(
+                  "Failed to delete old S3 image:",
+                  error.message
+                );
+              }
             }
           }
         }
-      }
 
-      updateData.media = newMedia;
+        updateData.media = newMedia;
+      }
     }
 
-    /* ================= UPDATE MONGODB ================= */
+    /* =====================================================
+       UPDATE DATABASE
+    ===================================================== */
 
     const updatedItem =
       await SellerInventory.findOneAndUpdate(
@@ -529,42 +901,86 @@ exports.updateInventoryItem = async (
           _id: req.params.id,
           seller: req.user._id,
         },
-
         updateData,
-
         {
           new: true,
           runValidators: true,
         }
       );
 
+    if (!updatedItem) {
+      return res.status(404).json({
+        success: false,
+        message: "Inventory item not found",
+      });
+    }
+
+    /* =====================================================
+       RESPONSE OBJECT
+    ===================================================== */
+
+    const responseItem =
+      updatedItem.toObject();
+
+    /* =====================================================
+       SIGN PRODUCT IMAGES
+    ===================================================== */
+
+    if (
+      responseItem.media &&
+      responseItem.media.length > 0
+    ) {
+      responseItem.media =
+        await Promise.all(
+          responseItem.media.map(
+            async (media) => {
+
+              if (
+                media.url &&
+                media.type === "image"
+              ) {
+                return {
+                  ...media,
+                  url:
+                    await getS3SignedUrl(
+                      media.url
+                    ),
+                };
+              }
+
+              return media;
+            }
+          )
+        );
+    }
+
+    /* =====================================================
+       SIGN BRAND LOGO
+    ===================================================== */
+
+    if (
+      responseItem.brand &&
+      responseItem.brand.logo
+    ) {
+      responseItem.brand.logo =
+        await getS3SignedUrl(
+          responseItem.brand.logo
+        );
+    }
+
+    /* =====================================================
+       RESPONSE
+    ===================================================== */
+
     res.status(200).json({
       success: true,
       message:
         "Inventory item updated successfully",
-
-      inventoryItem: {
-        _id: updatedItem._id,
-
-        productName:
-          updatedItem.name,
-
-        price:
-          updatedItem.price,
-
-        itemStock:
-          updatedItem.quantity,
-
-        listingStatus:
-          updatedItem.isActive
-            ? "Active"
-            : "Inactive",
-
-        media:
-          updatedItem.media,
-      },
+      inventoryItem: responseItem,
     });
+
   } catch (error) {
+
     console.error(
       "Update Inventory Error:",
       error
@@ -577,16 +993,17 @@ exports.updateInventoryItem = async (
   }
 };
 
-
 /* =======================================
    DELETE INVENTORY ITEM
 ======================================= */
 
-exports.deleteInventoryItem = async (
-  req,
-  res
-) => {
+exports.deleteInventoryItem = async (req, res) => {
   try {
+
+    /* =====================================================
+       FIND PRODUCT
+    ===================================================== */
+
     const inventoryItem =
       await SellerInventory.findOne({
         _id: req.params.id,
@@ -600,24 +1017,33 @@ exports.deleteInventoryItem = async (
       });
     }
 
-    /* ================= DELETE S3 IMAGES ================= */
+    /* =====================================================
+       DELETE PRODUCT IMAGES FROM S3
+    ===================================================== */
 
     if (
       inventoryItem.media &&
       inventoryItem.media.length > 0
     ) {
+
       for (const media of inventoryItem.media) {
+
         if (
           media.type === "image" &&
           media.url
         ) {
+
           try {
+
             await deleteFromS3(
               media.url
             );
+
           } catch (error) {
+
             console.error(
-              "Failed to delete S3 image:",
+              "Failed to delete S3 product image:",
+              media.url,
               error.message
             );
           }
@@ -625,22 +1051,53 @@ exports.deleteInventoryItem = async (
       }
     }
 
-    /* ================= DELETE MONGODB ================= */
+    /* =====================================================
+       DELETE BRAND LOGO FROM S3
+    ===================================================== */
+
+    if (
+      inventoryItem.brand &&
+      inventoryItem.brand.logo
+    ) {
+
+      try {
+
+        await deleteFromS3(
+          inventoryItem.brand.logo
+        );
+
+      } catch (error) {
+
+        console.error(
+          "Failed to delete S3 brand logo:",
+          inventoryItem.brand.logo,
+          error.message
+        );
+      }
+    }
+
+    /* =====================================================
+       DELETE MONGODB DOCUMENT
+    ===================================================== */
 
     await SellerInventory.findOneAndDelete({
       _id: req.params.id,
       seller: req.user._id,
     });
 
+    /* =====================================================
+       RESPONSE
+    ===================================================== */
+
     res.status(200).json({
       success: true,
       message:
         "Inventory item deleted successfully",
-
-      deletedId:
-        inventoryItem._id,
+      deletedId: inventoryItem._id,
     });
+
   } catch (error) {
+
     console.error(
       "Delete Inventory Error:",
       error
