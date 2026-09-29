@@ -130,6 +130,7 @@ app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ limit: "100mb", extended: true }));
 app.use("/api/deals", require("./routes/dealRoutes"));
 app.use("/api/banners", require("./routes/bannerRoutes"));
+app.use("/api/home", fashionHomeRoutes);
 app.use("/api/home", require("./routes/ElectronicshomeRoutes"));
 app.use(
   "/api",
@@ -149,7 +150,7 @@ app.use("/api/user/wishlist", wishlistRoutes);
 app.use("/api/auth/seller", authRoutes);
 app.use("/api/auth/seller/password", passwordRoutes);
 app.use("/api/auth/user", userAuthRoutes);
-app.use("/api/home", fashionHomeRoutes);
+
 app.use("/api", fashionRoutes);
 app.use("/api/returns", returnRoutes);
 app.use("/api/user/orders", userorderRoutes);
