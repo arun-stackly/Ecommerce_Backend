@@ -34,7 +34,12 @@ const uploadToS3 = async (file, key) => {
 /* ================= GET SIGNED URL ================= */
 
 const getS3SignedUrl = async (key) => {
-  if (!key) return null;
+  if (!key) return "";
+
+  // If it is already a URL, return it directly
+  if (key.startsWith("http://") || key.startsWith("https://")) {
+    return key;
+  }
 
   const command = new GetObjectCommand({
     Bucket: BUCKET_NAME,

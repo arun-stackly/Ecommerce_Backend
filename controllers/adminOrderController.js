@@ -1,9 +1,17 @@
 const UserOrder = require("../models/UserOrder");
+const {
+  getS3SignedUrl,
+} = require("../utils/s3Helper");
 
 /**
  * GET /api/admin/orders/stats
  * Dashboard statistics
  */
+const getOrderItemImage = async (image) => {
+  if (!image) return "";
+
+  return await getS3SignedUrl(image);
+};
 const getOrderStats = async (req, res) => {
   try {
     const [
@@ -274,51 +282,54 @@ const searchOrderById = async (req, res) => {
     }
 
     const formatted = {
-      _id: order._id,
-      orderId: order.orderId,
+  _id: order._id,
+  orderId: order.orderId,
 
-      customer: {
-        _id: order.customerId,
-        name: order.customerName,
-      },
+  customer: {
+    _id: order.customerId,
+    name: order.customerName,
+  },
 
-      orderStatus: order.orderStatus,
-      createdAt: order.createdAt,
+  orderStatus: order.orderStatus,
+  createdAt: order.createdAt,
 
-      estimatedDeliveryDate: order.estimatedDeliveryDate,
-      deliveredAt: order.deliveredAt,
+  estimatedDeliveryDate: order.estimatedDeliveryDate,
+  deliveredAt: order.deliveredAt,
 
-      paymentMode: order.paymentMode,
+  paymentMode: order.paymentMode,
 
-      paymentStatus:
-        order.paymentDetails?.paymentStatus || "pending",
+  paymentStatus:
+    order.paymentDetails?.paymentStatus || "pending",
 
-      shippingAddress: order.shippingAddress,
-      billingAddress: order.billingAddress,
+  shippingAddress: order.shippingAddress,
+  billingAddress: order.billingAddress,
 
-      totalItemsPrice: order.totalItemsPrice,
-      platformFee: order.platformFee,
-      discount: order.discount,
-      totalAmount: order.totalAmount,
+  totalItemsPrice: order.totalItemsPrice,
+  platformFee: order.platformFee,
+  discount: order.discount,
+  totalAmount: order.totalAmount,
 
-      products: (order.items || []).map((item) => ({
-        itemId: item._id,
-        productId: item.sellerInventoryId,
-        sellerId: item.sellerId,
+  products: await Promise.all(
+    (order.items || []).map(async (item) => ({
+      itemId: item._id,
+      productId: item.sellerInventoryId,
+      sellerId: item.sellerId,
 
-        name: item.name,
-        image: item.image,
+      name: item.name,
 
-        quantity: item.quantity,
-        size: item.size,
-        colour: item.colour,
+      image: await getOrderItemImage(item.image),
 
-        price: item.price,
-        itemTotal: item.itemTotal,
+      quantity: item.quantity,
+      size: item.size,
+      colour: item.colour,
 
-        itemStatus: item.itemStatus,
-      })),
-    };
+      price: item.price,
+      itemTotal: item.itemTotal,
+
+      itemStatus: item.itemStatus,
+    }))
+  ),
+};
 
     return res.status(200).json({
       success: true,
@@ -396,43 +407,45 @@ const getOrdersByStatusWithItems = async (req, res) => {
     // FORMAT RESPONSE
     // -----------------------------------------
 
-    const formatted = orders.map((order) => ({
-      _id: order._id,
+    const formatted = await Promise.all(
+  orders.map(async (order) => ({
+    _id: order._id,
 
-      orderId: order.orderId,
+    orderId: order.orderId,
 
-      customer: {
-        _id: order.customerId,
-        name: order.customerName,
-      },
+    customer: {
+      _id: order.customerId,
+      name: order.customerName,
+    },
 
-      orderStatus: order.orderStatus,
+    orderStatus: order.orderStatus,
 
-      createdAt: order.createdAt,
+    createdAt: order.createdAt,
 
-      estimatedDeliveryDate:
-        order.estimatedDeliveryDate,
+    estimatedDeliveryDate:
+      order.estimatedDeliveryDate,
 
-      deliveredAt: order.deliveredAt,
+    deliveredAt: order.deliveredAt,
 
-      paymentMode: order.paymentMode,
+    paymentMode: order.paymentMode,
 
-      paymentStatus:
-        order.paymentDetails?.paymentStatus || "pending",
+    paymentStatus:
+      order.paymentDetails?.paymentStatus || "pending",
 
-      shippingAddress: order.shippingAddress,
+    shippingAddress: order.shippingAddress,
 
-      billingAddress: order.billingAddress,
+    billingAddress: order.billingAddress,
 
-      totalItemsPrice: order.totalItemsPrice,
+    totalItemsPrice: order.totalItemsPrice,
 
-      platformFee: order.platformFee,
+    platformFee: order.platformFee,
 
-      discount: order.discount,
+    discount: order.discount,
 
-      totalAmount: order.totalAmount,
+    totalAmount: order.totalAmount,
 
-      products: (order.items || []).map((item) => ({
+    products: await Promise.all(
+      (order.items || []).map(async (item) => ({
         itemId: item._id,
 
         productId: item.sellerInventoryId,
@@ -441,7 +454,7 @@ const getOrdersByStatusWithItems = async (req, res) => {
 
         name: item.name,
 
-        image: item.image,
+        image: await getOrderItemImage(item.image),
 
         quantity: item.quantity,
 
@@ -454,8 +467,10 @@ const getOrdersByStatusWithItems = async (req, res) => {
         itemTotal: item.itemTotal,
 
         itemStatus: item.itemStatus,
-      })),
-    }));
+      }))
+    ),
+  }))
+);
 
     return res.status(200).json({
       success: true,

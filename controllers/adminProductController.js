@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const SellerInventory = require("../models/SellerInventory");
-
+const { getS3SignedUrl } = require("../utils/s3Helper");
 // Low-stock threshold.
 // Change this to whatever your business considers "low stock".
 const LOW_STOCK_THRESHOLD = 5;
@@ -13,6 +13,15 @@ const LOW_STOCK_THRESHOLD = 5;
  * - Low Stock
  * - Out of Stock
  */
+
+const getSignedMedia = async (media = []) => {
+  return Promise.all(
+    media.map(async (item) => ({
+      ...item,
+      url: await getS3SignedUrl(item.url),
+    }))
+  );
+};
 exports.getProductSummary = async (req, res) => {
   try {
     const [result] = await SellerInventory.aggregate([
@@ -182,10 +191,7 @@ exports.getAdminProducts = async (req, res) => {
 
     const filter = {};
 
-    // -------------------------
-    // Search
-    // -------------------------
-
+    /* SEARCH */
     if (search.trim()) {
       filter.$or = [
         {
@@ -203,10 +209,7 @@ exports.getAdminProducts = async (req, res) => {
       ];
     }
 
-    // -------------------------
-    // Category
-    // -------------------------
-
+    /* CATEGORY */
     if (categoryId) {
       if (!mongoose.Types.ObjectId.isValid(categoryId)) {
         return res.status(400).json({
@@ -218,10 +221,7 @@ exports.getAdminProducts = async (req, res) => {
       filter.category = categoryId;
     }
 
-    // -------------------------
-    // Stock Status
-    // -------------------------
-
+    /* STOCK */
     if (stockStatus === "out_of_stock") {
       filter.quantity = {
         $lte: 0,
@@ -241,16 +241,10 @@ exports.getAdminProducts = async (req, res) => {
       };
     }
 
-    // -------------------------
-    // Only active products
-    // -------------------------
-
+    /* ACTIVE */
     filter.isActive = true;
 
-    // -------------------------
-    // Allowed sorting fields
-    // -------------------------
-
+    /* SORT */
     const allowedSortFields = [
       "name",
       "price",
@@ -274,16 +268,13 @@ exports.getAdminProducts = async (req, res) => {
       [sortBy]: sortDirection,
     };
 
-    // -------------------------
-    // Query
-    // -------------------------
-
+    /* QUERY */
     const [products, total] = await Promise.all([
       SellerInventory.find(filter)
         .populate("category", "name")
-        .select(
-          `
+        .select(`
           name
+          brand
           category
           price
           quantity
@@ -292,8 +283,7 @@ exports.getAdminProducts = async (req, res) => {
           isActive
           createdAt
           updatedAt
-          `
-        )
+        `)
         .sort(sort)
         .skip(skip)
         .limit(limit)
@@ -302,19 +292,45 @@ exports.getAdminProducts = async (req, res) => {
       SellerInventory.countDocuments(filter),
     ]);
 
+    /* SIGN S3 IMAGES */
+    const formattedProducts = await Promise.all(
+  products.map(async (product) => {
+    const media = await Promise.all(
+      (product.media || []).map(async (item) => ({
+        ...item,
+        url: item.url
+          ? await getS3SignedUrl(item.url)
+          : "",
+      }))
+    );
+
+    let brand = product.brand || {};
+
+    if (brand.logo) {
+      brand = {
+        ...brand,
+        logo: await getS3SignedUrl(brand.logo),
+      };
+    }
+
+    return {
+      ...product,
+      media,
+      brand,
+    };
+  })
+);
+
     const totalPages = Math.ceil(total / limit);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-
-      data: products,
-
+      data: formattedProducts,
       pagination: {
         total,
         page,
         limit,
         totalPages,
-
         hasNextPage: page < totalPages,
         hasPreviousPage: page > 1,
       },
@@ -322,7 +338,7 @@ exports.getAdminProducts = async (req, res) => {
   } catch (error) {
     console.error("getAdminProducts:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch products",
       error: error.message,
@@ -357,7 +373,17 @@ exports.getAdminProductById = async (req, res) => {
         message: "Product not found",
       });
     }
+  // ================================
+    // SIGN PRODUCT MEDIA S3 URLS
+    // ================================
+    product.media = await getSignedMedia(product.media || []);
 
+    // ================================
+    // SIGN BRAND LOGO S3 URL
+    // ================================
+    if (product.brand && product.brand.logo) {
+      product.brand.logo = await getS3SignedUrl(product.brand.logo);
+    }
     res.status(200).json({
       success: true,
       data: product,

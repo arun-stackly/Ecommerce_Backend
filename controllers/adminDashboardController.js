@@ -3,6 +3,9 @@ const SellerProfile = require("../models/SellerProfile");
 const Product = require("../models/SellerInventory");
 const Order = require("../models/UserOrder");
 const Category = require("../models/Category");
+const {
+  getS3SignedUrl,
+} = require("../utils/s3Helper");
  
 /* ================= REVENUE FILTER CONFIG ================= */
  
@@ -323,7 +326,8 @@ exports.getRecentOrders = async (req, res) => {
 };
  
 /* ================= TOP PRODUCTS ================= */
- 
+ /* ================= TOP PRODUCTS ================= */
+
 exports.getTopProducts = async (req, res) => {
   try {
     const products = await Product.aggregate([
@@ -332,62 +336,86 @@ exports.getTopProducts = async (req, res) => {
           isActive: true,
         },
       },
- 
+
       {
         $sort: {
           soldCount: -1,
         },
       },
     ]);
- 
+
     const result = await Promise.all(
       products.map(async (product) => {
+
+        /* ================= REVENUE ================= */
+
         const revenue = await Order.aggregate([
           {
             $unwind: "$items",
           },
- 
+
           {
             $match: {
               "items.sellerInventoryId": product._id,
             },
           },
- 
+
           {
             $group: {
               _id: null,
- 
+
               totalRevenue: {
-                $sum: "$items.itemTotal",
+                $sum: {
+                  $ifNull: ["$items.itemTotal", 0],
+                },
               },
             },
           },
         ]);
- 
+
+        /* ================= PRODUCT IMAGE ================= */
+
+        const imageKey =
+          product.media?.find(
+            (item) => item.type === "image" && item.imageKey
+          )?.imageKey ||
+          product.media?.find(
+            (item) => item.url
+          )?.url ||
+          "";
+
+        /* ================= SIGNED URL ================= */
+
+        const image = imageKey
+          ? await getS3SignedUrl(imageKey)
+          : "";
+
         return {
           name: product.name,
- 
-          sold: product.soldCount,
- 
+
+          sold: product.soldCount || 0,
+
           revenue: revenue[0]?.totalRevenue || 0,
- 
-          image: product.media?.[0]?.url || "",
+
+          image,
         };
       }),
     );
- 
-    res.json({
+
+    res.status(200).json({
       success: true,
       products: result,
     });
+
   } catch (err) {
+    console.error("TOP PRODUCTS ERROR:", err);
+
     res.status(500).json({
       success: false,
       message: err.message,
     });
   }
 };
- 
 /* ================= TOP CATEGORIES ================= */
  
 exports.getTopCategories = async (req, res) => {

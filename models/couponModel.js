@@ -38,7 +38,7 @@ const couponSchema = new mongoose.Schema(
     // =========================
     minOrderValue: {
       type: Number,
-      default: 0,
+      default: 100,
       min: 0,
     },
 

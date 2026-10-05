@@ -1,4 +1,7 @@
 const Ad = require("../models/Ad");
+const {
+  getS3SignedUrl,
+} = require("../utils/s3Helper");
 
 /* =====================================================
    GET ADVERTISEMENT STATS
@@ -105,21 +108,14 @@ exports.getAdminAds = async (req, res) => {
       search = "",
     } = req.query;
 
-    page = Math.max(
-      Number(page) || 1,
-      1
-    );
+    page = Math.max(Number(page) || 1, 1);
 
     limit = Math.min(
-      Math.max(
-        Number(limit) || 10,
-        1
-      ),
+      Math.max(Number(limit) || 10, 1),
       100
     );
 
-    const skip =
-      (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
     const filter = {};
 
@@ -128,20 +124,13 @@ exports.getAdminAds = async (req, res) => {
     ========================================= */
 
     if (
-      ["pending", "approved", "rejected"].includes(
-        status
-      )
+      ["pending", "approved", "rejected"].includes(status)
     ) {
       filter.status = status;
     }
 
     /* =========================================
        SEARCH
-
-       Search:
-       - seller name
-       - product name
-       - description
     ========================================= */
 
     if (search.trim()) {
@@ -150,40 +139,30 @@ exports.getAdminAds = async (req, res) => {
         $options: "i",
       };
 
-      const matchingSellers =
-        await require("../models/User").find({
-          $or: [
-            {
-              name: searchRegex,
-            },
-            {
-              firstName: searchRegex,
-            },
-            {
-              lastName: searchRegex,
-            },
-            {
-              email: searchRegex,
-            },
-          ],
-        }).select("_id");
+      const User = require("../models/User");
+      const SellerInventory = require("../models/SellerInventory");
 
-      const sellerIds =
-        matchingSellers.map(
-          (seller) => seller._id
-        );
+      const matchingSellers = await User.find({
+        $or: [
+          { name: searchRegex },
+          { firstName: searchRegex },
+          { lastName: searchRegex },
+          { email: searchRegex },
+        ],
+      }).select("_id");
+
+      const sellerIds = matchingSellers.map(
+        (seller) => seller._id
+      );
 
       const matchingProducts =
-        await require("../models/SellerInventory")
-          .find({
-            name: searchRegex,
-          })
-          .select("_id");
+        await SellerInventory.find({
+          name: searchRegex,
+        }).select("_id");
 
-      const productIds =
-        matchingProducts.map(
-          (product) => product._id
-        );
+      const productIds = matchingProducts.map(
+        (product) => product._id
+      );
 
       filter.$or = [
         {
@@ -206,20 +185,15 @@ exports.getAdminAds = async (req, res) => {
        GET ADS
     ========================================= */
 
-    const [
-      ads,
-      totalAds,
-    ] = await Promise.all([
+    const [ads, totalAds] = await Promise.all([
       Ad.find(filter)
         .populate({
           path: "seller",
-          select:
-            "name firstName lastName email",
+          select: "name firstName lastName email",
         })
         .populate({
           path: "product",
-          select:
-            "name price media",
+          select: "name price media",
         })
         .populate({
           path: "category",
@@ -236,72 +210,106 @@ exports.getAdminAds = async (req, res) => {
     ]);
 
     /* =========================================
-       FORMAT RESPONSE
+       FORMAT RESPONSE + S3 SIGNED URL
     ========================================= */
 
-    const formattedAds = ads.map(
-      (ad) => ({
-        _id: ad._id,
+    const formattedAds = await Promise.all(
+      ads.map(async (ad) => {
 
-        seller: {
-          _id: ad.seller?._id,
-          name:
-            ad.seller?.name ||
-            `${ad.seller?.firstName || ""} ${
-              ad.seller?.lastName || ""
-            }`.trim(),
-          email:
-            ad.seller?.email || "",
-        },
+        /* ================= AD IMAGE ================= */
 
-        product: {
-          _id: ad.product?._id,
-          name:
-            ad.product?.name || "",
-          image:
-            ad.mediaUrl ||
-            ad.product?.media?.find(
-              (m) => m.type === "image"
-            )?.url ||
-            "",
-        },
+        const adImageKey = ad.mediaUrl || "";
 
-        category:
-          ad.category?.name || "",
+        const adImage = adImageKey
+          ? await getS3SignedUrl(adImageKey)
+          : "";
 
-        adType:
-          ad.adType,
 
-        description:
-          ad.description || "",
+        /* ================= PRODUCT IMAGE ================= */
 
-        requestedBudget:
-          ad.requestedBudget || 0,
+        const productImageKey =
+          ad.product?.media?.find(
+            (media) =>
+              media.type === "image" &&
+              (media.imageKey || media.url)
+          )?.imageKey ||
+          ad.product?.media?.find(
+            (media) => media.type === "image"
+          )?.url ||
+          "";
 
-        status:
-          ad.status,
+        const productImage = productImageKey
+          ? await getS3SignedUrl(productImageKey)
+          : "";
 
-        requestedAt:
-          ad.requestedAt ||
-          ad.createdAt,
 
-        approvedAt:
-          ad.approvedAt,
+        /* ================= RESPONSE ================= */
 
-        rejectedAt:
-          ad.rejectedAt,
+        return {
+          _id: ad._id,
 
-        rejectionReason:
-          ad.rejectionReason || "",
+          seller: {
+            _id: ad.seller?._id,
 
-        isActive:
-          ad.isActive,
+            name:
+              ad.seller?.name ||
+              `${ad.seller?.firstName || ""} ${
+                ad.seller?.lastName || ""
+              }`.trim(),
 
-        createdAt:
-          ad.createdAt,
+            email:
+              ad.seller?.email || "",
+          },
 
-        updatedAt:
-          ad.updatedAt,
+          product: {
+            _id: ad.product?._id,
+
+            name:
+              ad.product?.name || "",
+
+            image: productImage,
+          },
+
+          // Advertisement image
+          adImage,
+
+          category:
+            ad.category?.name || "",
+
+          adType:
+            ad.adType,
+
+          description:
+            ad.description || "",
+
+          requestedBudget:
+            ad.requestedBudget || 0,
+
+          status:
+            ad.status,
+
+          requestedAt:
+            ad.requestedAt ||
+            ad.createdAt,
+
+          approvedAt:
+            ad.approvedAt,
+
+          rejectedAt:
+            ad.rejectedAt,
+
+          rejectionReason:
+            ad.rejectionReason || "",
+
+          isActive:
+            ad.isActive,
+
+          createdAt:
+            ad.createdAt,
+
+          updatedAt:
+            ad.updatedAt,
+        };
       })
     );
 
@@ -328,6 +336,7 @@ exports.getAdminAds = async (req, res) => {
           page > 1,
       },
     });
+
   } catch (error) {
     console.error(
       "Get Admin Ads Error:",
@@ -391,11 +400,45 @@ exports.getAdminAdById = async (
         message:
           "Advertisement not found",
       });
-    }
+    }const adData = ad.toObject();
+
+/* ================= AD IMAGE ================= */
+
+if (adData.mediaUrl) {
+  adData.mediaUrl = await getS3SignedUrl(
+    adData.mediaUrl
+  );
+}
+
+
+/* ================= PRODUCT IMAGE ================= */
+
+if (
+  adData.product &&
+  Array.isArray(adData.product.media)
+) {
+  adData.product.media = await Promise.all(
+    adData.product.media.map(async (media) => {
+
+      const imageKey =
+        media.imageKey || media.url || "";
+
+      if (!imageKey) {
+        return media;
+      }
+
+      return {
+        ...media,
+        url: await getS3SignedUrl(imageKey),
+      };
+    })
+  );
+}
+
 
     return res.status(200).json({
       success: true,
-      data: ad,
+      data: adData,
     });
   } catch (error) {
     console.error(

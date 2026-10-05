@@ -4,6 +4,16 @@ const User = require("../models/User");
 const SellerProfile = require("../models/SellerProfile");
 const SellerInventory = require("../models/SellerInventory");
 const UserOrder = require("../models/UserOrder");
+const {
+  getS3SignedUrl,
+} = require("../utils/s3Helper");
+
+
+const getSignedProfileImage = async (profileImage) => {
+  if (!profileImage) return null;
+
+  return await getS3SignedUrl(profileImage);
+};
 
 /* =====================================================
    GET SELLER MANAGEMENT
@@ -270,112 +280,55 @@ const getSellerManagement = asyncHandler(async (req, res) => {
      Therefore EVERY seller is returned.
   =================================================== */
 
-  const sellerDetails =
-    sellers.map((seller) => {
+  const sellerDetails = await Promise.all(
+  sellers.map(async (seller) => {
+    const sellerId = seller._id.toString();
 
-      const sellerId =
-        seller._id.toString();
+    const profile = profileMap.get(sellerId);
 
-      /* -----------------------------------------------
-         Profile
-
-         May not exist.
-      ------------------------------------------------ */
-
-      const profile =
-        profileMap.get(
-          sellerId
-        );
-
-      /* -----------------------------------------------
-         Product statistics
-
-         May not exist.
-      ------------------------------------------------ */
-
-      const stats =
-        productStatsMap.get(
-          sellerId
-        ) || {
-          productCount: 0,
-          ratings: 0,
-        };
-
-      /* -----------------------------------------------
-         Revenue
-
-         May not exist.
-      ------------------------------------------------ */
-
-      const revenue =
-        revenueMap.get(
-          sellerId
-        ) || 0;
-
-      /* -----------------------------------------------
-         RETURN SELLER
-      ------------------------------------------------ */
-
-      return {
-
-        /* User */
-
-        _id:
-          seller._id,
-
-        name:
-          `${seller.firstName || ""} ${
-            seller.lastName || ""
-          }`.trim(),
-
-        email:
-          seller.email || "",
-
-        /* Seller Profile */
-
-        phone:
-          profile?.phone || "",
-
-        location:
-          profile?.address || "",
-
-        profileImage:
-          profile?.profileImage ||
-          null,
-
-        /* Product */
-
-        productCount:
-          stats.productCount,
-
-        /* Revenue */
-
-        revenue:
-          Number(revenue),
-
-        /* Rating */
-
-        ratings:
-          Number(
-            stats.ratings || 0
-          ),
-
-        /* Status */
-
-        status:
-          seller.sellerApprovalStatus ||
-          "pending",
-
-        verified:
-          seller.isVerified ||
-          false,
-
-        /* Date */
-
-        joinedDate:
-          seller.createdAt,
+    const stats =
+      productStatsMap.get(sellerId) || {
+        productCount: 0,
+        ratings: 0,
       };
-    });
+
+    const revenue =
+      revenueMap.get(sellerId) || 0;
+
+    const profileImage = profile?.profileImage
+      ? await getS3SignedUrl(profile.profileImage)
+      : null;
+
+    return {
+      _id: seller._id,
+
+      name: `${seller.firstName || ""} ${
+        seller.lastName || ""
+      }`.trim(),
+
+      email: seller.email || "",
+
+      phone: profile?.phone || "",
+
+      location: profile?.address || "",
+
+      profileImage,
+
+      productCount: stats.productCount,
+
+      revenue: Number(revenue),
+
+      ratings: Number(stats.ratings || 0),
+
+      status:
+        seller.sellerApprovalStatus || "pending",
+
+      verified: seller.isVerified || false,
+
+      joinedDate: seller.createdAt,
+    };
+  })
+);
 
   /* ===================================================
      6. SUMMARY
@@ -540,12 +493,55 @@ const getSellerById = asyncHandler(async (req, res) => {
     seller: seller._id,
   }).lean();
 
-  // 4. Get seller orders
+  // Sign product media + brand logo
+  const productsWithSignedUrls = await Promise.all(
+    products.map(async (product) => {
+      product.media = await Promise.all(
+        (product.media || []).map(async (item) => ({
+          ...item,
+          url: item.url
+            ? await getS3SignedUrl(item.url)
+            : "",
+        }))
+      );
+
+      if (product.brand?.logo) {
+        product.brand.logo = await getS3SignedUrl(
+          product.brand.logo
+        );
+      }
+
+      return product;
+    })
+  );
+
+  // 4. Sign seller profile image
+  const profileImage = profile?.profileImage
+    ? await getS3SignedUrl(profile.profileImage)
+    : null;
+
+  // 5. Get seller orders
   const orders = await UserOrder.find({
     "items.sellerId": seller._id,
   }).lean();
 
-  // 5. Response
+  // Sign order item images
+  const ordersWithSignedImages = await Promise.all(
+    orders.map(async (order) => {
+      order.items = await Promise.all(
+        (order.items || []).map(async (item) => ({
+          ...item,
+          image: item.image
+            ? await getS3SignedUrl(item.image)
+            : "",
+        }))
+      );
+
+      return order;
+    })
+  );
+
+  // 6. Response
   res.status(200).json({
     success: true,
 
@@ -562,8 +558,7 @@ const getSellerById = asyncHandler(async (req, res) => {
 
       location: profile?.address || "",
 
-      profileImage:
-        profile?.profileImage || null,
+      profileImage,
 
       status:
         seller.sellerApprovalStatus || "pending",
@@ -573,9 +568,9 @@ const getSellerById = asyncHandler(async (req, res) => {
 
       joinedDate: seller.createdAt,
 
-      products,
+      products: productsWithSignedUrls,
 
-      orders,
+      orders: ordersWithSignedImages,
 
       productCount: products.length,
 
