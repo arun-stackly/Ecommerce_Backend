@@ -75,9 +75,6 @@ exports.getProductSummary = async (req, res) => {
     });
   }
 };
-/**
- * GET /api/admin/products/category-stats
- */
 exports.getProductCategoryStats = async (req, res) => {
   try {
     const stats = await SellerInventory.aggregate([
@@ -87,11 +84,33 @@ exports.getProductCategoryStats = async (req, res) => {
         },
       },
 
+      // Convert category to ObjectId
+      {
+        $addFields: {
+          categoryObjectId: {
+            $convert: {
+              input: "$category",
+              to: "objectId",
+              onError: null,
+              onNull: null,
+            },
+          },
+        },
+      },
+
       {
         $group: {
-          _id: "$category",
+          _id: "$categoryObjectId",
           productCount: {
             $sum: 1,
+          },
+        },
+      },
+
+      {
+        $match: {
+          _id: {
+            $ne: null,
           },
         },
       },
@@ -115,7 +134,6 @@ exports.getProductCategoryStats = async (req, res) => {
       {
         $project: {
           _id: 0,
-
           categoryId: "$_id",
 
           categoryName: {
@@ -140,6 +158,12 @@ exports.getProductCategoryStats = async (req, res) => {
 
     const data = stats.map((item) => ({
       ...item,
+
+      // Convert ObjectId to string for API response
+      categoryId: item.categoryId
+        ? item.categoryId.toString()
+        : null,
+
       percentage:
         total > 0
           ? Number(((item.productCount / total) * 100).toFixed(1))
