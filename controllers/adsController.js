@@ -14,7 +14,6 @@ const {
    GET PRODUCTS FOR AD
    GET /api/ads/products
 ========================================================= */
-
 exports.getProductsForAd = async (req, res) => {
   try {
     const {
@@ -26,85 +25,126 @@ exports.getProductsForAd = async (req, res) => {
 
     console.log("Ad Product Query:", req.query);
 
-    const filter = {
+    // ==========================================
+    // BUILD PRODUCT FILTER
+    // ==========================================
+
+    const productFilter = {
       isActive: true,
     };
-
-    /* ================= CATEGORY ================= */
 
     if (
       category &&
       mongoose.Types.ObjectId.isValid(category)
     ) {
-      filter.category = category;
+      productFilter.category = category;
     }
-
-    /* ================= SUBCATEGORY ================= */
 
     if (
       subcategory &&
       mongoose.Types.ObjectId.isValid(subcategory)
     ) {
-      filter.subcategory = subcategory;
+      productFilter.subcategory = subcategory;
     }
-
-    /* ================= SUB SUBCATEGORY ================= */
 
     if (
       subSubcategory &&
       mongoose.Types.ObjectId.isValid(subSubcategory)
     ) {
-      filter.subSubcategory = subSubcategory;
+      productFilter.subSubcategory = subSubcategory;
     }
-
-    /* ================= PRODUCT TYPE ================= */
 
     if (
       productType &&
       mongoose.Types.ObjectId.isValid(productType)
     ) {
-      filter.productType = productType;
+      productFilter.productType = productType;
     }
 
-    const products = await SellerInventory.find(filter)
-      .populate("productType", "name")
-      .populate("category", "name")
-      .populate("subcategory", "name")
-      .populate("subSubcategory", "name")
-      .select(
-        "_id name productType category subcategory subSubcategory media seller"
-      )
+    // ==========================================
+    // FETCH MATCHING PRODUCTS
+    // ==========================================
+
+    const products = await SellerInventory.find(
+      productFilter
+    )
+      .select("_id")
       .lean();
 
-    /* ================= SIGN S3 URLS ================= */
+    const productIds = products.map(
+      (product) => product._id
+    );
 
-    const productsWithSignedUrls = await Promise.all(
-      products.map(async (product) => {
-        const productObject = {
-          ...product,
-        };
+    if (productIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        ads: [],
+      });
+    }
+
+    // ==========================================
+    // FETCH ADS ASSOCIATED WITH PRODUCTS
+    // ==========================================
+
+    const ads = await Ad.find({
+      product: {
+        $in: productIds,
+      },
+    })
+      .populate({
+        path: "product",
+        select:
+          "name price discountPrice media category subcategory subSubcategory productType",
+        populate: [
+          {
+            path: "category",
+            select: "name",
+          },
+          {
+            path: "subcategory",
+            select: "name",
+          },
+          {
+            path: "subSubcategory",
+            select: "name",
+          },
+          {
+            path: "productType",
+            select: "name",
+          },
+        ],
+      })
+      .lean();
+
+    // ==========================================
+    // GENERATE SIGNED URLS
+    // ==========================================
+
+    const adsWithSignedUrls = await Promise.all(
+      ads.map(async (ad) => {
+        // --------------------------------------
+        // PRODUCT IMAGE URLS
+        // --------------------------------------
 
         if (
-          Array.isArray(productObject.media) &&
-          productObject.media.length > 0
+          ad.product &&
+          Array.isArray(ad.product.media)
         ) {
-          productObject.media = await Promise.all(
-            productObject.media.map(async (media) => {
+          ad.product.media = await Promise.all(
+            ad.product.media.map(async (media) => {
               if (!media || !media.url) {
                 return media;
               }
 
               try {
-                const signedUrl =
-                  await getS3SignedUrl(media.url);
-
                 return {
                   ...media,
-                  url: signedUrl,
+                  url: await getS3SignedUrl(media.url),
                 };
               } catch (error) {
                 console.error(
-                  `Failed to generate S3 URL for product ${productObject._id}:`,
+                  `Product image signing failed for ad ${ad._id}:`,
                   error.message
                 );
 
@@ -117,14 +157,37 @@ exports.getProductsForAd = async (req, res) => {
           );
         }
 
-        return productObject;
+        // --------------------------------------
+        // ADVERTISEMENT IMAGE URL
+        // --------------------------------------
+
+        if (ad.mediaUrl) {
+          try {
+            ad.mediaUrl = await getS3SignedUrl(
+              ad.mediaUrl
+            );
+          } catch (error) {
+            console.error(
+              `Ad image signing failed for ad ${ad._id}:`,
+              error.message
+            );
+
+            ad.mediaUrl = null;
+          }
+        }
+
+        return ad;
       })
     );
 
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
     return res.status(200).json({
       success: true,
-      count: productsWithSignedUrls.length,
-      data: productsWithSignedUrls,
+      count: adsWithSignedUrls.length,
+      ads: adsWithSignedUrls,
     });
   } catch (error) {
     console.error(
@@ -138,7 +201,6 @@ exports.getProductsForAd = async (req, res) => {
     });
   }
 };
-
 
 /* =========================================================
    CREATE AD
